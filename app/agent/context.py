@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 from app.agent.state import AgentState, Observation
 from app.core.limits import RuntimeLimits
+from app.memory.models import Memory
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
 
@@ -16,19 +17,32 @@ class ObservationSelector(Protocol):
         """Return observations in the order they should appear in context."""
 
 
-class AllObservations:
-    """Expose every observation until a memory strategy is introduced."""
+class RecentObservations:
+    """Keep recent detail only after older history is safely summarized."""
+
+    def __init__(self, recent_observations: int = 5) -> None:
+        self._recent_observations = recent_observations
 
     def select(self, observations: Sequence[Observation]) -> list[Observation]:
         return list(observations)
+
+    def select_for_state(self, state: AgentState) -> list[Observation]:
+        """Fall back to the full history whenever no valid summary covers it."""
+
+        old_count = max(len(state.observations) - self._recent_observations, 0)
+        if (
+            state.task_summary is None
+            or state.task_summary.summarized_observation_count < old_count
+        ):
+            return list(state.observations)
+        return list(state.observations[-self._recent_observations:])
 
 
 class ContextBuilder:
     """Build a stable LLM view of runtime state without serializing it wholesale.
 
-    ``observation_selector`` is the future extension point for recent observations,
-    retrieval, and task summaries. The runner does not need to change when that
-    policy evolves.
+    The context keeps task understanding, intentional working memory, and recent
+    evidence distinct rather than serializing runtime state wholesale.
     """
 
     def __init__(
@@ -37,17 +51,25 @@ class ContextBuilder:
         skill_registry: SkillRegistry,
         limits: RuntimeLimits,
         observation_selector: ObservationSelector | None = None,
+        recent_observations: int = 5,
     ) -> None:
         self._tool_registry = tool_registry
         self._skill_registry = skill_registry
         self._limits = limits
-        self._observation_selector = observation_selector or AllObservations()
+        self._observation_selector = observation_selector or RecentObservations(recent_observations)
 
-    def build(self, state: AgentState) -> dict[str, Any]:
+    def build(
+        self, state: AgentState, *, working_memories: Sequence[Memory] = ()
+    ) -> dict[str, Any]:
         """Return only information useful for selecting the next action."""
 
         return {
             "goal": state.goal,
+            "task_summary": state.task_summary.model_dump() if state.task_summary else None,
+            "working_memory": [
+                {"content": memory.content, "metadata": memory.metadata}
+                for memory in working_memories
+            ],
             "runtime_status": self._runtime_status(state),
             "available_tools": self._tool_registry.definitions(),
             "available_skills": [
@@ -60,16 +82,16 @@ class ContextBuilder:
                 {"name": name, "instructions": instructions}
                 for name, instructions in state.loaded_skills.items()
             ],
-            "observations": [
+            "recent_observations": [
                 self._observation_view(observation)
-                for observation in self._observation_selector.select(state.observations)
-            ],
-            "recent_errors": [
-                self._observation_view(observation)
-                for observation in state.observations
-                if not observation.content.success
+                for observation in self._select_observations(state)
             ],
         }
+
+    def _select_observations(self, state: AgentState) -> list[Observation]:
+        if isinstance(self._observation_selector, RecentObservations):
+            return self._observation_selector.select_for_state(state)
+        return self._observation_selector.select(state.observations)
 
     def _runtime_status(self, state: AgentState) -> dict[str, int]:
         return {
@@ -110,12 +132,14 @@ def build_context(
     skill_registry: SkillRegistry,
     limits: RuntimeLimits | None = None,
     observation_selector: ObservationSelector | None = None,
+    recent_observations: int = 5,
 ) -> dict[str, Any]:
-    """Build context using the default all-observations policy."""
+    """Build context using the default summary-aware recent-history policy."""
 
     return ContextBuilder(
         tool_registry,
         skill_registry,
         limits or RuntimeLimits(),
         observation_selector,
+        recent_observations,
     ).build(state)

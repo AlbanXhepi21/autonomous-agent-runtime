@@ -3,6 +3,7 @@
 from functools import lru_cache
 
 from app.agent.runner import AgentRunner
+from app.agent.summarization import SummaryPolicy
 from app.config import Settings
 from app.core.limits import RuntimeLimits
 from app.llm.openai_client import OpenAIClient
@@ -72,4 +73,8 @@ def get_agent_runner() -> AgentRunner:
         ),
         tool_executor=get_tool_executor(tool_registry),
         memory_manager=get_memory_manager(),
+        summary_policy=SummaryPolicy(
+            trigger_observations=settings.summary_trigger_observations,
+            recent_observations=settings.recent_observations,
+        ),
     )

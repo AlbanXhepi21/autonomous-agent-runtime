@@ -8,12 +8,18 @@ from app.agent.context import ContextBuilder
 from app.agent.models import AgentAction
 from app.agent.policy import tool_action_fingerprint
 from app.agent.prompt import SYSTEM_PROMPT
-from app.agent.state import AgentState, Observation, StopReason
+from app.agent.state import AgentState, Observation, StopReason, TaskSummary
+from app.agent.summarization import (
+    DeterministicTaskSummarizer,
+    SummaryPolicy,
+    TaskSummarizer,
+)
 from app.core.exceptions import UnknownSkillError
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.llm.base import LLMClient
 from app.memory.manager import MemoryManager
+from app.memory.models import Memory, MemoryType
 from app.skills.registry import SkillRegistry
 from app.tools.executor import ToolExecutor
 from app.tools.models import ToolResult
@@ -32,6 +38,8 @@ class AgentRunner:
         tool_executor: ToolExecutor | None = None,
         limits: RuntimeLimits | None = None,
         memory_manager: MemoryManager | None = None,
+        task_summarizer: TaskSummarizer | None = None,
+        summary_policy: SummaryPolicy | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._tool_registry = tool_registry
@@ -43,10 +51,13 @@ class AgentRunner:
         self._limits = limits or (
             RuntimeLimits() if max_iterations is None else RuntimeLimits(max_iterations=max_iterations)
         )
+        self._summary_policy = summary_policy or SummaryPolicy()
         self._context_builder = ContextBuilder(
-            tool_registry, skill_registry, self._limits
+            tool_registry, skill_registry, self._limits,
+            recent_observations=self._summary_policy.recent_observations,
         )
         self._memory_manager = memory_manager
+        self._task_summarizer = task_summarizer or DeterministicTaskSummarizer()
 
     async def run(self, goal: str) -> AgentState:
         """Execute bounded, model-selected actions for a single goal."""
@@ -70,7 +81,7 @@ class AgentRunner:
                 await self._memory_manager.add_working_memory(
                     goal,
                     run_id=state.run_id,
-                    metadata={"kind": "task_summary"},
+                    metadata={"kind": "task_goal"},
                 )
             while state.iteration_count < self._limits.max_iterations:
                 iteration = state.iteration_count + 1
@@ -83,7 +94,9 @@ class AgentRunner:
                     tool_calls=state.total_tool_calls,
                     errors=state.recoverable_error_count,
                 )
-                context = self._context_builder.build(state)
+                context = self._context_builder.build(
+                    state, working_memories=await self._working_memories(state.run_id)
+                )
                 log_event(
                     self._logger,
                     logging.DEBUG,
@@ -128,6 +141,7 @@ class AgentRunner:
                 )
                 state.iteration_count += 1
                 await self._apply_action(state, action)
+                await self._maybe_update_summary(state)
 
                 if state.completed or state.stop_reason is not None:
                     return self._finish_run(state, started_at)
@@ -154,6 +168,57 @@ class AgentRunner:
             raise
         finally:
             await self._clear_run_working_memory(state.run_id)
+
+    async def _working_memories(self, run_id: str) -> list[Memory]:
+        """Read explicit working memory without exposing store details to context."""
+
+        if self._memory_manager is None:
+            return []
+        return await self._memory_manager.get_memories(MemoryType.WORKING, run_id=run_id)
+
+    async def _maybe_update_summary(self, state: AgentState) -> None:
+        """Summarize only history moving out of the recent-observation window."""
+
+        observations = self._summary_policy.observations_to_summarize(
+            state.task_summary, state.observations
+        )
+        if not observations:
+            return
+        log_event(
+            self._logger, logging.INFO, "task_summary_started", run_id=state.run_id,
+            iteration=state.iteration_count, observations_summarized=len(observations),
+        )
+        started_at = perf_counter()
+        current_summary = state.task_summary or TaskSummary(goal=state.goal)
+        try:
+            summary = await self._task_summarizer.summarize(current_summary, observations)
+        except Exception as error:
+            log_event(
+                self._logger, logging.WARNING, "task_summary_failed", run_id=state.run_id,
+                iteration=state.iteration_count, observations_summarized=len(observations),
+                duration_ms=round((perf_counter() - started_at) * 1000),
+                error_type=type(error).__name__, error=safe_error_message(error),
+            )
+            return
+        state.task_summary = summary.model_copy(
+            update={
+                "goal": state.goal,
+                "last_updated_iteration": state.iteration_count,
+                "summarized_observation_count": len(state.observations)
+                - self._summary_policy.recent_observations,
+            }
+        )
+        log_event(
+            self._logger, logging.INFO, "task_summary_updated", run_id=state.run_id,
+            iteration=state.iteration_count, observations_summarized=len(observations),
+            duration_ms=round((perf_counter() - started_at) * 1000),
+            summary_size=len(state.task_summary.model_dump_json()),
+        )
+        log_event(
+            self._logger, logging.DEBUG, "task_summary_content", run_id=state.run_id,
+            iteration=state.iteration_count,
+            summary=safe_log_value(state.task_summary.model_dump()),
+        )
 
     async def _clear_run_working_memory(self, run_id: str) -> None:
         """Best-effort cleanup that must not change the agent run result."""

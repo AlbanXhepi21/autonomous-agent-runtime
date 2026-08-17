@@ -15,5 +15,7 @@ class Settings(BaseSettings):
     max_agent_tool_calls: int = Field(default=16, ge=1)
     max_agent_recoverable_errors: int = Field(default=3, ge=1)
     max_agent_consecutive_duplicate_actions: int = Field(default=2, ge=1)
+    summary_trigger_observations: int = Field(default=8, ge=1)
+    recent_observations: int = Field(default=5, ge=1)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

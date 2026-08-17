@@ -42,11 +42,11 @@ Agent State
                   └──────→ Decide Again
 ```
 
-## Memory (V3)
+## Memory and context management (V3.2)
 
-Memory is separate from run observations and does not alter the LLM context yet. The
-runtime may use a `MemoryManager` for run-local working memory, while the manager owns
-the domain operations and delegates storage to a `MemoryStore` implementation.
+Memory is separate from raw run observations. The runtime may use a `MemoryManager`
+for explicit run-local working memory, while the manager owns the domain operations and
+delegates storage to a `MemoryStore` implementation.
 
 ```text
 AgentRunner → MemoryManager → MemoryStore → InMemoryMemoryStore
@@ -55,6 +55,19 @@ AgentRunner → MemoryManager → MemoryStore → InMemoryMemoryStore
 The initial store is process-local and concurrency-safe. It supports typed `working`,
 `episodic`, and `long_term` memories; only explicitly created records are memories.
 This leaves a stable boundary for a future persistent implementation such as Postgres.
+
+Longer runs also use a typed task summary to avoid carrying every historical
+observation indefinitely. Once `SUMMARY_TRIGGER_OBSERVATIONS` is reached, history that
+would leave the `RECENT_OBSERVATIONS` window is compacted. The model receives:
+
+```text
+Current Goal + Task Summary + Recent Observations + Working Memory
++ Loaded Skills + Runtime Status
+```
+
+Raw observations remain intact in `AgentState`. If summarization fails, the run keeps
+going and the context falls back to the full observation history rather than dropping
+unsummarized evidence.
 
 There is no predefined sequence such as:
 
