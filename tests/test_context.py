@@ -3,7 +3,7 @@
 import json
 
 from app.agent.context import ContextBuilder
-from app.agent.state import AgentState, Observation
+from app.agent.state import AgentState, Observation, TaskSummary
 from app.core.limits import RuntimeLimits
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
@@ -26,14 +26,17 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
 
     assert list(context) == [
         "goal",
+        "task_summary",
+        "working_memory",
         "runtime_status",
         "available_tools",
         "available_skills",
         "loaded_skills",
-        "observations",
-        "recent_errors",
+        "recent_observations",
     ]
     assert context["goal"] == "Compare two libraries"
+    assert context["task_summary"] is None
+    assert context["working_memory"] == []
 
 
 def test_context_represents_compact_tool_and_unloaded_skill_metadata() -> None:
@@ -61,7 +64,7 @@ def test_context_includes_loaded_instructions_but_not_as_available_metadata() ->
     assert "research" not in {skill["name"] for skill in context["available_skills"]}
 
 
-def test_context_flattens_observations_and_surfaces_recent_errors() -> None:
+def test_context_flattens_recent_observations() -> None:
     state = AgentState(
         goal="Handle results",
         iteration_count=2,
@@ -85,12 +88,33 @@ def test_context_flattens_observations_and_surfaces_recent_errors() -> None:
 
     context = make_builder().build(state)
 
-    assert context["observations"] == [
+    assert context["recent_observations"] == [
         {"sequence": 1, "iteration": 1, "source": "calculator", "success": True, "output": "4", "error": None},
         {"sequence": 2, "iteration": 2, "source": "web_search", "success": False, "output": None, "error": "Tool execution failed."},
     ]
-    assert context["recent_errors"] == [context["observations"][1]]
-    assert "content" not in context["observations"][0]
+    assert "content" not in context["recent_observations"][0]
+
+
+def test_context_uses_summary_for_old_history_and_preserves_recent_detail() -> None:
+    state = AgentState(
+        goal="Investigate a failure",
+        observations=[
+            Observation(source="tool", content=ToolResult(success=True, output=str(index)), iteration=index, sequence=index)
+            for index in range(1, 7)
+        ],
+        task_summary=TaskSummary(
+            goal="Investigate a failure",
+            progress=["tool succeeded for observations 1 through 3"],
+            last_updated_iteration=3,
+            summarized_observation_count=3,
+        ),
+    )
+
+    context = ContextBuilder(ToolRegistry(), SkillRegistry(), RuntimeLimits(), recent_observations=3).build(state)
+
+    assert context["goal"] == "Investigate a failure"
+    assert context["task_summary"]["progress"] == ["tool succeeded for observations 1 through 3"]
+    assert [item["sequence"] for item in context["recent_observations"]] == [4, 5, 6]
 
 
 def test_context_exposes_current_and_remaining_runtime_limits() -> None:

@@ -76,11 +76,12 @@ available in the current context.
 ### Agent Runtime: `app/agent/`
 
 - `app/agent/__init__.py`: marks the agent runtime as a package.
-- `app/agent/runner.py`: implements `AgentRunner`, the bounded loop that requests an action, records its result, and stops on completion or the configured limit. It emits structured lifecycle events and delegates tool execution to `ToolExecutor`.
-- `app/agent/state.py`: defines `Observation` and `AgentState`, which hold the goal, unique run ID, structured tool results, loaded skill content, runtime counters, terminal reason, and final answer.
+- `app/agent/runner.py`: implements `AgentRunner`, the bounded loop that requests an action, records its result, summarizes older history when the deterministic policy triggers, and stops on completion or the configured limit.
+- `app/agent/state.py`: defines `Observation`, `TaskSummary`, and `AgentState`, which hold the goal, unique run ID, structured tool results, loaded skill content, summary checkpoint, runtime counters, terminal reason, and final answer.
 - `app/agent/models.py`: defines `AgentAction` and the valid action types: `use_tool`, `load_skill`, and `finish`.
 - `app/agent/prompt.py`: holds the concise provider-neutral instructions for choosing one next action without following a fixed workflow.
-- `app/agent/context.py`: builds the information given to the LLM: goal, iteration, observations, available tools, available skills, and loaded skill content.
+- `app/agent/context.py`: builds the information given to the LLM: goal, task summary, explicit working memory, recent observations, available tools, available skills, loaded skill content, and runtime status.
+- `app/agent/summarization.py`: defines the provider-neutral `TaskSummarizer` contract, deterministic trigger policy, and safe default summarizer.
 
 ### Memory: `app/memory/`
 
@@ -89,10 +90,24 @@ available in the current context.
 - `app/memory/in_memory.py`: provides the concurrency-safe process-local implementation used in development and tests.
 - `app/memory/manager.py`: provides the domain-facing `MemoryManager`, lifecycle logging, and working-memory cleanup.
 
-`AgentRunner` optionally receives a `MemoryManager`. In V3.1 it records only the
-submitted goal as working memory and clears that run-local record at completion; it
-does not treat observations as memories or add memory to LLM context. The API composes
-an in-memory manager, leaving persistent stores as a future substitution.
+`AgentRunner` optionally receives a `MemoryManager`. It records the submitted goal as
+working memory and clears that run-local record at completion. It never automatically
+turns raw observations into memories. The API composes an in-memory manager, leaving
+persistent stores as a future substitution.
+
+## V3.2 Context Flow
+
+```text
+Observations outside recent window ──> TaskSummarizer ──> TaskSummary
+Recent observations ───────────────────────────────────> LLM context
+Explicit working memories ──────────────────────────────> LLM context
+```
+
+`SummaryPolicy` begins summarizing only after `SUMMARY_TRIGGER_OBSERVATIONS` (default
+8). It retains `RECENT_OBSERVATIONS` (default 5) verbatim. Should a summarizer fail,
+the existing summary remains unchanged and `ContextBuilder` presents all observations
+until a valid summary again covers older history. Summary lifecycle events are logged
+without emitting full summary content at INFO.
 
 ### LLM Integration: `app/llm/`
 
