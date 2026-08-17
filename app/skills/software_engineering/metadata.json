@@ -1,0 +1,7 @@
+{
+  "name": "software_engineering",
+  "description": "Analyze, debug and modify software systems.",
+  "version": "1.0.0",
+  "tags": ["software", "debugging", "testing"],
+  "recommended_tools": []
+}
