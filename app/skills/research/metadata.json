@@ -1,0 +1,7 @@
+{
+  "name": "research",
+  "description": "Research and verify factual information.",
+  "version": "1.0.0",
+  "tags": ["research", "verification", "evidence"],
+  "recommended_tools": []
+}

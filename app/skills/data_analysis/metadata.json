@@ -1,0 +1,7 @@
+{
+  "name": "data_analysis",
+  "description": "Analyze structured data and derive evidence-based conclusions.",
+  "version": "1.0.0",
+  "tags": ["data", "analysis", "evidence"],
+  "recommended_tools": []
+}
