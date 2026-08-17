@@ -13,6 +13,7 @@ from app.core.exceptions import UnknownSkillError
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.llm.base import LLMClient
+from app.memory.manager import MemoryManager
 from app.skills.registry import SkillRegistry
 from app.tools.executor import ToolExecutor
 from app.tools.models import ToolResult
@@ -30,6 +31,7 @@ class AgentRunner:
         max_iterations: int | None = None,
         tool_executor: ToolExecutor | None = None,
         limits: RuntimeLimits | None = None,
+        memory_manager: MemoryManager | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._tool_registry = tool_registry
@@ -44,6 +46,7 @@ class AgentRunner:
         self._context_builder = ContextBuilder(
             tool_registry, skill_registry, self._limits
         )
+        self._memory_manager = memory_manager
 
     async def run(self, goal: str) -> AgentState:
         """Execute bounded, model-selected actions for a single goal."""
@@ -63,6 +66,12 @@ class AgentRunner:
         )
 
         try:
+            if self._memory_manager is not None:
+                await self._memory_manager.add_working_memory(
+                    goal,
+                    run_id=state.run_id,
+                    metadata={"kind": "task_summary"},
+                )
             while state.iteration_count < self._limits.max_iterations:
                 iteration = state.iteration_count + 1
                 log_event(
@@ -143,6 +152,25 @@ class AgentRunner:
                 duration_ms=round((perf_counter() - started_at) * 1000),
             )
             raise
+        finally:
+            await self._clear_run_working_memory(state.run_id)
+
+    async def _clear_run_working_memory(self, run_id: str) -> None:
+        """Best-effort cleanup that must not change the agent run result."""
+
+        if self._memory_manager is None:
+            return
+        try:
+            await self._memory_manager.clear_working_memory(run_id)
+        except Exception as error:
+            log_event(
+                self._logger,
+                logging.WARNING,
+                "working_memory_cleanup_failed",
+                run_id=run_id,
+                error_type=type(error).__name__,
+                error=safe_error_message(error),
+            )
 
     async def _apply_action(self, state: AgentState, action: AgentAction) -> None:
         """Apply one model-selected action to the current runtime state."""

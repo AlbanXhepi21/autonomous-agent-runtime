@@ -6,6 +6,8 @@ from app.agent.runner import AgentRunner
 from app.config import Settings
 from app.core.limits import RuntimeLimits
 from app.llm.openai_client import OpenAIClient
+from app.memory.in_memory import InMemoryMemoryStore
+from app.memory.manager import MemoryManager
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.executor import ToolExecutor
@@ -46,6 +48,13 @@ def get_llm_client(settings: Settings | None = None) -> OpenAIClient:
     return OpenAIClient(api_key=settings.openai_api_key, model=settings.openai_model)
 
 
+@lru_cache
+def get_memory_manager() -> MemoryManager:
+    """Return the process-local memory boundary used until persistence is added."""
+
+    return MemoryManager(InMemoryMemoryStore())
+
+
 def get_agent_runner() -> AgentRunner:
     """Build the runtime used by the agent API route."""
 
@@ -62,4 +71,5 @@ def get_agent_runner() -> AgentRunner:
             max_consecutive_duplicate_actions=settings.max_agent_consecutive_duplicate_actions,
         ),
         tool_executor=get_tool_executor(tool_registry),
+        memory_manager=get_memory_manager(),
     )

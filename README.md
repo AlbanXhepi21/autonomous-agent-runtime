@@ -37,10 +37,24 @@ The application defines the agent's **capabilities and boundaries**, while the L
               Observation
                   │
                   ▼
-              Agent State
+Agent State
                   │
                   └──────→ Decide Again
 ```
+
+## Memory (V3)
+
+Memory is separate from run observations and does not alter the LLM context yet. The
+runtime may use a `MemoryManager` for run-local working memory, while the manager owns
+the domain operations and delegates storage to a `MemoryStore` implementation.
+
+```text
+AgentRunner → MemoryManager → MemoryStore → InMemoryMemoryStore
+```
+
+The initial store is process-local and concurrency-safe. It supports typed `working`,
+`episodic`, and `long_term` memories; only explicitly created records are memories.
+This leaves a stable boundary for a future persistent implementation such as Postgres.
 
 There is no predefined sequence such as:
 
