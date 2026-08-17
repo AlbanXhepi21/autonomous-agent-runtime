@@ -1,0 +1,44 @@
+"""Runtime state models for an agent task."""
+
+from enum import StrEnum
+from uuid import uuid4
+
+from pydantic import BaseModel, Field
+
+from app.tools.models import ToolResult
+
+
+class Observation(BaseModel):
+    """A result the agent can consider in a later iteration."""
+
+    source: str
+    content: ToolResult
+    iteration: int = Field(ge=1)
+    sequence: int = Field(ge=1)
+
+
+class StopReason(StrEnum):
+    """Why an agent run reached its terminal state."""
+
+    COMPLETED = "completed"
+    MAX_ITERATIONS = "max_iterations"
+    MAX_TOOL_CALLS = "max_tool_calls"
+    TOO_MANY_ERRORS = "too_many_errors"
+    CANCELLED = "cancelled"
+    FATAL_ERROR = "fatal_error"
+
+
+class AgentState(BaseModel):
+    """All mutable state belonging to one bounded agent run."""
+
+    goal: str
+    run_id: str = Field(default_factory=lambda: str(uuid4()))
+    observations: list[Observation] = Field(default_factory=list)
+    loaded_skills: dict[str, str] = Field(default_factory=dict)
+    iteration_count: int = 0
+    total_tool_calls: int = 0
+    recoverable_error_count: int = 0
+    recent_action_fingerprints: list[str] = Field(default_factory=list)
+    completed: bool = False
+    final_answer: str | None = None
+    stop_reason: StopReason | None = None
