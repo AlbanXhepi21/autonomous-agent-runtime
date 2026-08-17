@@ -44,6 +44,7 @@ available in the current context.
 - `app/llm/` isolates model-provider code behind `LLMClient`.
 - `app/tools/` exposes executable capabilities through `ToolRegistry`.
 - `app/skills/` exposes instructions through progressive disclosure, not execution.
+- `app/memory/` separates typed memory domain operations from physical storage.
 - `app/core/` contains shared domain errors.
 
 ## File Reference
@@ -80,6 +81,18 @@ available in the current context.
 - `app/agent/models.py`: defines `AgentAction` and the valid action types: `use_tool`, `load_skill`, and `finish`.
 - `app/agent/prompt.py`: holds the concise provider-neutral instructions for choosing one next action without following a fixed workflow.
 - `app/agent/context.py`: builds the information given to the LLM: goal, iteration, observations, available tools, available skills, and loaded skill content.
+
+### Memory: `app/memory/`
+
+- `app/memory/models.py`: defines typed working, episodic, and long-term `Memory` records.
+- `app/memory/base.py`: defines the asynchronous storage-only `MemoryStore` contract.
+- `app/memory/in_memory.py`: provides the concurrency-safe process-local implementation used in development and tests.
+- `app/memory/manager.py`: provides the domain-facing `MemoryManager`, lifecycle logging, and working-memory cleanup.
+
+`AgentRunner` optionally receives a `MemoryManager`. In V3.1 it records only the
+submitted goal as working memory and clears that run-local record at completion; it
+does not treat observations as memories or add memory to LLM context. The API composes
+an in-memory manager, leaving persistent stores as a future substitution.
 
 ### LLM Integration: `app/llm/`
 
