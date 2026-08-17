@@ -138,7 +138,7 @@ async def test_runs_receive_unique_run_ids() -> None:
 
 
 @pytest.mark.asyncio
-async def test_runner_uses_memory_manager_without_exposing_memory_to_llm_context() -> None:
+async def test_runner_exposes_explicit_working_memory_without_retaining_it_after_run() -> None:
     store = InMemoryMemoryStore()
     manager = MemoryManager(store)
     llm = ScriptedLLM(
@@ -152,7 +152,9 @@ async def test_runner_uses_memory_manager_without_exposing_memory_to_llm_context
 
     assert state.completed
     assert await manager.get_memories(MemoryType.WORKING, run_id=state.run_id) == []
-    assert "memories" not in llm.contexts[0]
+    assert llm.contexts[0]["working_memory"] == [
+        {"content": "Keep this run-local", "metadata": {"kind": "task_goal"}}
+    ]
 
 
 @pytest.mark.asyncio
@@ -195,7 +197,7 @@ async def test_runner_continues_after_recoverable_tool_failure() -> None:
     assert state.recoverable_error_count == 1
     assert state.stop_reason is StopReason.COMPLETED
     assert not state.observations[0].content.success
-    assert llm.contexts[1]["observations"] == [
+    assert llm.contexts[1]["recent_observations"] == [
         {
             "sequence": 1,
             "iteration": 1,

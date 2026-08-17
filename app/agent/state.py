@@ -17,6 +17,18 @@ class Observation(BaseModel):
     sequence: int = Field(ge=1)
 
 
+class TaskSummary(BaseModel):
+    """Compact, current understanding of progress in one agent run."""
+
+    goal: str
+    progress: list[str] = Field(default_factory=list)
+    unresolved_questions: list[str] = Field(default_factory=list)
+    important_decisions: list[str] = Field(default_factory=list)
+    failures_or_blockers: list[str] = Field(default_factory=list)
+    last_updated_iteration: int = Field(default=0, ge=0)
+    summarized_observation_count: int = Field(default=0, ge=0)
+
+
 class StopReason(StrEnum):
     """Why an agent run reached its terminal state."""
 
@@ -34,6 +46,7 @@ class AgentState(BaseModel):
     goal: str
     run_id: str = Field(default_factory=lambda: str(uuid4()))
     observations: list[Observation] = Field(default_factory=list)
+    task_summary: TaskSummary | None = None
     loaded_skills: dict[str, str] = Field(default_factory=dict)
     iteration_count: int = 0
     total_tool_calls: int = 0
