@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from app.agent.runner import AgentRunner
 from app.api.dependencies import get_agent_runner
 from app.api.schemas.agent import AgentRunRequest, AgentRunResponse, ToolOutcomeSummary
+from app.tools.models import ToolResult
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -20,7 +21,8 @@ async def run_agent(
     tool_observations = [
         observation
         for observation in state.observations
-        if "tool_name" in observation.content.metadata
+        if isinstance(observation.content, ToolResult)
+        and "tool_name" in observation.content.metadata
     ]
     tool_outcomes = [
         ToolOutcomeSummary(
@@ -52,4 +54,5 @@ async def run_agent(
         skills_used=list(state.loaded_skills),
         completed=state.completed,
         stop_reason=state.stop_reason,
+        artifacts=state.artifacts,
     )

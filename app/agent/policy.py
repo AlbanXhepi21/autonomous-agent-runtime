@@ -19,3 +19,15 @@ def tool_action_fingerprint(tool_name: str, arguments: dict[str, Any]) -> str:
         ensure_ascii=False,
     )
     return hashlib.sha256(canonical_action.encode("utf-8")).hexdigest()
+
+
+def delegation_fingerprint(agent_name: str, objective: str, context: str | None) -> str:
+    """Return a stable fingerprint for a bounded delegation request."""
+
+    canonical_request = json.dumps(
+        {"agent_name": agent_name, "objective": objective, "context": context},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()

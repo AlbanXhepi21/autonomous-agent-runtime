@@ -53,6 +53,17 @@ class SkillRegistry:
             )
         return self._loaded_instructions[name]
 
+    def restricted_to(self, names: set[str]) -> "SkillRegistry":
+        """Return a fresh registry containing only explicitly granted skills."""
+
+        registry = SkillRegistry(self._skills_directory)
+        for name in names:
+            registry.get_metadata(name)
+        registry._skills = {
+            name: skill for name, skill in registry._skills.items() if name in names
+        }
+        return registry
+
     def _get_skill(self, name: str) -> _DiscoveredSkill:
         try:
             return self._skills[name]

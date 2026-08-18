@@ -155,6 +155,10 @@ def test_context_exposes_current_and_remaining_runtime_limits() -> None:
         "recoverable_errors": 1,
         "recoverable_error_limit": 2,
         "remaining_recoverable_errors": 1,
+        "max_parallel_subagents": 3,
+        "max_delegations_per_run": 8,
+        "max_subagent_iterations": 6,
+        "max_agent_depth": 1,
     }
 
 

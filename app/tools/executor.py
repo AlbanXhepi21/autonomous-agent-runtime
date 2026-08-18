@@ -12,7 +12,7 @@ from app.core.logging import (
     safe_log_value,
     safe_observation_value,
 )
-from app.tools.base import Tool
+from app.tools.base import Tool, ToolInputError
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
 
@@ -46,7 +46,9 @@ class ToolExecutor:
             logging.DEBUG,
             "tool_execution_arguments",
             **event_fields,
-            arguments=safe_log_value(arguments or {}),
+            arguments=safe_log_value(
+                _safe_logged_arguments(tool_name, arguments)
+            ),
         )
 
         if not isinstance(tool_name, str) or not tool_name.strip():
@@ -72,35 +74,90 @@ class ToolExecutor:
                 event_fields,
             )
 
+        filesystem = getattr(tool, "operation_kind", None) == "filesystem"
+        command = getattr(tool, "operation_kind", None) == "command"
+        python_execution = getattr(tool, "operation_kind", None) == "python"
+        repository = getattr(tool, "operation_kind", None) == "repository"
+        if filesystem:
+            log_event(
+                self._logger,
+                logging.INFO,
+                "filesystem_operation_started",
+                **event_fields,
+                relative_path=safe_log_value(arguments.get("path", "")),
+            )
+        if command:
+            log_event(
+                self._logger,
+                logging.INFO,
+                "command_execution_started",
+                **event_fields,
+                command=safe_log_value(arguments.get("command", "")),
+                args_summary=_command_args_summary(arguments.get("args")),
+            )
+        if python_execution:
+            log_event(
+                self._logger,
+                logging.INFO,
+                "python_execution_started",
+                **event_fields,
+                code_bytes=_code_bytes(arguments.get("code")),
+            )
+        if repository:
+            event = "repository_search_started" if tool.name == "search_files" else "repository_inspection"
+            log_event(self._logger, logging.INFO, event, **event_fields, repository_tool=tool.name)
+        execution_fields = {
+            **event_fields,
+            "filesystem": filesystem,
+            "relative_path": arguments.get("path", ""),
+            "command_operation": command,
+            "command": arguments.get("command", ""),
+            "args_summary": _command_args_summary(arguments.get("args")),
+            "python_execution": python_execution,
+            "code_bytes": _code_bytes(arguments.get("code")),
+            "repository": repository,
+        }
+
         argument_error = self._validate_arguments(tool, arguments)
         if argument_error:
             return self._finish(
-                self._failure(argument_error, tool_name=tool.name), started_at, event_fields
+                self._failure(argument_error, tool_name=tool.name), started_at, execution_fields
             )
 
         try:
-            output = await tool.execute(**dict(arguments))
+            if getattr(tool, "requires_run_id", False):
+                output = await tool.execute_for_run(run_id=run_id, **dict(arguments))
+            else:
+                output = await tool.execute(**dict(arguments))
+        except ToolInputError as error:
+            return self._finish(
+                self._failure(str(error), tool_name=tool.name),
+                started_at,
+                execution_fields,
+            )
         except (TypeError, ValueError, ZeroDivisionError):
             return self._finish(
                 self._failure("Tool rejected the supplied arguments.", tool_name=tool.name),
                 started_at,
-                event_fields,
+                execution_fields,
             )
         except Exception:
             return self._finish(
                 self._failure("Tool execution failed.", tool_name=tool.name),
                 started_at,
-                event_fields,
+                execution_fields,
             )
 
         return self._finish(
             ToolResult(
                 success=True,
-                output=safe_observation_value(output),
+                output=safe_observation_value(
+                    output, max_length=getattr(tool, "max_observation_length", 200)
+                ),
                 metadata={"tool_name": tool.name},
             ),
             started_at,
-            event_fields,
+            execution_fields,
         )
 
     def _finish(
@@ -126,6 +183,82 @@ class ToolExecutor:
                 **fields,
                 error=safe_error_message(result.error or "Tool execution failed."),
             )
+        if event_fields.get("filesystem"):
+            event = "filesystem_operation_finished" if result.success else "filesystem_operation_denied"
+            log_event(
+                self._logger,
+                logging.INFO if result.success else logging.WARNING,
+                event,
+                run_id=event_fields.get("run_id"),
+                iteration=event_fields.get("iteration"),
+                tool=event_fields.get("tool"),
+                relative_path=safe_log_value(event_fields.get("relative_path", "")),
+                success=result.success,
+                duration_ms=fields["duration_ms"],
+            )
+        if event_fields.get("command_operation"):
+            output = result.output if isinstance(result.output, Mapping) else {}
+            if not result.success:
+                event, level = "command_execution_denied", logging.WARNING
+            elif output.get("denied"):
+                event, level = "command_execution_denied", logging.WARNING
+            elif output.get("timed_out"):
+                event, level = "command_execution_timeout", logging.WARNING
+            elif output.get("success") is False:
+                event, level = "command_execution_failed", logging.WARNING
+            else:
+                event, level = "command_execution_finished", logging.INFO
+            log_event(
+                self._logger,
+                level,
+                event,
+                run_id=event_fields.get("run_id"),
+                iteration=event_fields.get("iteration"),
+                command=safe_log_value(event_fields.get("command", "")),
+                args_summary=event_fields.get("args_summary"),
+                duration_ms=output.get("duration_ms", fields["duration_ms"]),
+                return_code=output.get("return_code"),
+            )
+        if event_fields.get("python_execution"):
+            output = result.output if isinstance(result.output, Mapping) else {}
+            if output.get("timed_out"):
+                event, level = "python_execution_timeout", logging.WARNING
+            elif not result.success or output.get("success") is False:
+                event, level = "python_execution_failed", logging.WARNING
+            else:
+                event, level = "python_execution_finished", logging.INFO
+            log_event(
+                self._logger,
+                level,
+                event,
+                run_id=event_fields.get("run_id"),
+                iteration=event_fields.get("iteration"),
+                code_bytes=event_fields.get("code_bytes"),
+                duration_ms=output.get("duration_ms", fields["duration_ms"]),
+                return_code=output.get("return_code"),
+            )
+        if event_fields.get("repository"):
+            event = "repository_search_finished" if event_fields.get("tool") == "search_files" else "repository_inspection"
+            log_event(
+                self._logger, logging.INFO if result.success else logging.WARNING, event,
+                run_id=event_fields.get("run_id"), iteration=event_fields.get("iteration"),
+                repository_tool=event_fields.get("tool"), success=result.success,
+            )
+        if event_fields.get("tool") == "write_file" and result.success:
+            log_event(
+                self._logger, logging.INFO, "repository_file_modified",
+                run_id=event_fields.get("run_id"), iteration=event_fields.get("iteration"),
+                relative_path=safe_log_value(event_fields.get("relative_path", "")),
+            )
+        if event_fields.get("tool") == "register_artifact":
+            output = result.output if isinstance(result.output, Mapping) else {}
+            artifact = output.get("artifact") if isinstance(output, Mapping) else None
+            if result.success and isinstance(artifact, Mapping):
+                fields = {"run_id": event_fields.get("run_id"), "artifact_id": artifact.get("id"), "name": artifact.get("name"), "artifact_type": artifact.get("artifact_type"), "size": artifact.get("size")}
+                log_event(self._logger, logging.INFO, "artifact_created", **fields)
+                log_event(self._logger, logging.INFO, "artifact_registered", **fields)
+            else:
+                log_event(self._logger, logging.WARNING, "artifact_registration_failed", run_id=event_fields.get("run_id"), error=safe_error_message(result.error or "Artifact registration failed."))
         return result
 
     @staticmethod
@@ -180,3 +313,40 @@ class ToolExecutor:
             error=safe_error_message(error),
             metadata={"tool_name": tool_name},
         )
+
+
+def _safe_logged_arguments(
+    tool_name: str, arguments: Mapping[str, Any] | None
+) -> Mapping[str, Any] | None:
+    """Avoid retaining filesystem file content in DEBUG execution logs."""
+
+    if not isinstance(arguments, Mapping):
+        return arguments
+    if tool_name == "run_command":
+        return {
+            key: (f"[{len(value)} arguments]" if key == "args" and isinstance(value, list) else value)
+            for key, value in arguments.items()
+        }
+    if tool_name == "python_exec":
+        return {
+            key: (f"[{len(value.encode('utf-8'))} bytes of code]" if key == "code" and isinstance(value, str) else value)
+            for key, value in arguments.items()
+        }
+    if tool_name != "write_file":
+        return arguments
+    return {
+        key: "[OMITTED FILE CONTENT]" if key == "content" else value
+        for key, value in arguments.items()
+    }
+
+
+def _command_args_summary(args: Any) -> str:
+    """Record only argv cardinality; command arguments may contain sensitive values."""
+
+    return f"{len(args)} arguments" if isinstance(args, list) else "0 arguments"
+
+
+def _code_bytes(code: Any) -> int:
+    """Report source size without retaining source text in execution events."""
+
+    return len(code.encode("utf-8")) if isinstance(code, str) else 0

@@ -65,6 +65,21 @@ class OpenAIClient(LLMClient):
         ]
         if skill_names:
             functions.append(self._load_skill_function(skill_names))
+        agent_names = [
+            agent["name"]
+            for agent in context.get("available_specialist_agents", [])
+            if isinstance(agent, dict) and isinstance(agent.get("name"), str)
+        ]
+        if agent_names:
+            functions.append(self._delegate_function(agent_names))
+            runtime_status = context.get("runtime_status")
+            max_parallel = (
+                runtime_status.get("max_parallel_subagents", 1)
+                if isinstance(runtime_status, dict)
+                else 1
+            )
+            if isinstance(max_parallel, int) and max_parallel >= 2:
+                functions.append(self._delegate_parallel_function(agent_names, max_parallel))
         functions.append(self._finish_function())
         return functions
 
@@ -121,6 +136,60 @@ class OpenAIClient(LLMClient):
         }
 
     @staticmethod
+    def _delegate_function(agent_names: list[str]) -> dict[str, Any]:
+        return {
+            "type": "function",
+            "name": "delegate",
+            "description": "Request bounded help from one available specialist agent.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "agent_name": {"type": "string", "enum": agent_names},
+                    "objective": {"type": "string"},
+                    "context": {"type": ["string", "null"]},
+                    "constraints": {"type": ["string", "null"]},
+                    "expected_output": {"type": ["string", "null"]},
+                    "reasoning_summary": OpenAIClient._reasoning_schema(),
+                },
+                "required": ["agent_name", "objective", "reasoning_summary"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        }
+
+    @staticmethod
+    def _delegate_parallel_function(agent_names: list[str], max_parallel: int) -> dict[str, Any]:
+        item_properties = {
+            "agent_name": {"type": "string", "enum": agent_names},
+            "objective": {"type": "string"},
+            "context": {"type": ["string", "null"]},
+            "constraints": {"type": ["string", "null"]},
+            "expected_output": {"type": ["string", "null"]},
+        }
+        return {
+            "type": "function",
+            "name": "delegate_parallel",
+            "description": "Delegate independent bounded objectives concurrently.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "delegations": {
+                        "type": "array", "minItems": 2, "maxItems": max_parallel,
+                        "items": {
+                            "type": "object", "properties": item_properties,
+                            "required": ["agent_name", "objective"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "reasoning_summary": OpenAIClient._reasoning_schema(),
+                },
+                "required": ["delegations", "reasoning_summary"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        }
+
+    @staticmethod
     def _schema_with_reasoning(schema: dict[str, Any]) -> dict[str, Any]:
         properties = dict(schema.get("properties", {}))
         properties["reasoning_summary"] = OpenAIClient._reasoning_schema()
@@ -165,5 +234,21 @@ class OpenAIClient(LLMClient):
                 action_type="finish",
                 reasoning_summary=reasoning_summary,
                 final_answer=arguments.get("final_answer"),
+            )
+        if name == "delegate":
+            return AgentAction(
+                action_type="delegate",
+                reasoning_summary=reasoning_summary,
+                agent_name=arguments.get("agent_name"),
+                objective=arguments.get("objective"),
+                context=arguments.get("context"),
+                constraints=arguments.get("constraints"),
+                expected_output=arguments.get("expected_output"),
+            )
+        if name == "delegate_parallel":
+            return AgentAction(
+                action_type="delegate_parallel",
+                reasoning_summary=reasoning_summary,
+                delegations=arguments.get("delegations", []),
             )
         raise ValueError(f"OpenAI returned an unknown agent function: {name}")

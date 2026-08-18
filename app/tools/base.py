@@ -4,6 +4,10 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 
+class ToolInputError(ValueError):
+    """A safe, actionable validation failure that may be returned to the agent."""
+
+
 class Tool(ABC):
     """A capability the runtime may expose to the agent."""
 

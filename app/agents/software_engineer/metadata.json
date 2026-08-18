@@ -1,0 +1,9 @@
+{
+  "name": "software_engineer",
+  "description": "Analyzes software architecture, debugging, and technical problems.",
+  "version": "1.0.0",
+  "tags": ["software", "architecture", "debugging"],
+  "allowed_tools": ["calculator", "list_files", "read_file", "write_file", "run_command", "python_exec", "get_repository_tree", "search_files", "get_changed_files", "git_inspect", "register_artifact"],
+  "allowed_skills": ["software_engineering"],
+  "runtime_overrides": {"max_iterations": 8}
+}

@@ -1,0 +1,9 @@
+{
+  "name": "research",
+  "description": "Investigates external factual questions and collects evidence.",
+  "version": "1.0.0",
+  "tags": ["research", "evidence", "verification"],
+  "allowed_tools": [],
+  "allowed_skills": ["research"],
+  "runtime_overrides": {"max_iterations": 6}
+}

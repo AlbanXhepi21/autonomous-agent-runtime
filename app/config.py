@@ -17,6 +17,22 @@ class Settings(BaseSettings):
     max_agent_tool_calls: int = Field(default=16, ge=1)
     max_agent_recoverable_errors: int = Field(default=3, ge=1)
     max_agent_consecutive_duplicate_actions: int = Field(default=2, ge=1)
+    max_parallel_subagents: int = Field(default=3, ge=1)
+    max_delegations_per_run: int = Field(default=8, ge=1)
+    max_subagent_iterations: int = Field(default=6, ge=1)
+    max_agent_depth: int = Field(default=1, ge=0)
+    agent_workspace_root: str = "./workspace"
+    max_file_read_bytes: int = Field(default=65_536, ge=1)
+    max_file_write_bytes: int = Field(default=65_536, ge=1)
+    max_list_files: int = Field(default=100, ge=1)
+    command_allowlist: str = "pytest"
+    command_timeout_seconds: float = Field(default=15, gt=0)
+    max_command_output_bytes: int = Field(default=16_384, ge=1)
+    python_exec_timeout_seconds: float = Field(default=10, gt=0)
+    max_python_code_bytes: int = Field(default=16_384, ge=1)
+    max_python_output_bytes: int = Field(default=16_384, ge=1)
+    max_artifact_bytes: int = Field(default=65_536, ge=1)
+    python_exec_allowed_imports: str = "math,statistics,json,datetime,collections"
     summary_trigger_observations: int = Field(default=8, ge=1)
     recent_observations: int = Field(default=5, ge=1)
     database_url: str = Field(default="", repr=False)

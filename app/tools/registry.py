@@ -34,3 +34,11 @@ class ToolRegistry:
             }
             for tool in self._tools.values()
         ]
+
+    def restricted_to(self, names: set[str]) -> "ToolRegistry":
+        """Return a new registry containing only explicitly granted tools."""
+
+        registry = ToolRegistry()
+        for name in sorted(names):
+            registry.register(self.get(name))
+        return registry

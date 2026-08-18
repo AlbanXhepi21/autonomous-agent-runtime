@@ -1,12 +1,19 @@
-"""Placeholder interface for a future sandboxed Python execution tool."""
+"""Thin public tool adapter for restricted local Python execution."""
 
 from typing import Any
 
+from app.environment.python import PythonExecutor
 from app.tools.base import Tool
 
 
 class PythonExecTool(Tool):
-    """Reserve the interface for Python execution pending sandboxing."""
+    """Keep the existing python_exec tool name while delegating execution policy."""
+
+    operation_kind = "python"
+
+    def __init__(self, python_executor: PythonExecutor) -> None:
+        self._python_executor = python_executor
+        self.max_observation_length = python_executor.max_output_bytes
 
     @property
     def name(self) -> str:
@@ -14,7 +21,7 @@ class PythonExecTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Run Python code in a future sandboxed environment."
+        return "Run short Python code in a restricted local child process for calculations and data work."
 
     @property
     def arguments_schema(self) -> dict[str, Any]:
@@ -25,5 +32,5 @@ class PythonExecTool(Tool):
             "additionalProperties": False,
         }
 
-    async def execute(self, **arguments: Any) -> str:
-        raise NotImplementedError("Python execution requires sandboxing before it is enabled.")
+    async def execute(self, **arguments: Any) -> dict[str, object]:
+        return (await self._python_executor.execute(arguments["code"])).model_dump()

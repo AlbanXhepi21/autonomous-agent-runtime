@@ -5,7 +5,7 @@ import math
 import operator
 from typing import Any
 
-from app.tools.base import Tool
+from app.tools.base import Tool, ToolInputError
 
 
 class CalculatorTool(Tool):
@@ -28,13 +28,26 @@ class CalculatorTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Evaluate a simple arithmetic expression."
+        return (
+            "Evaluate exactly one arithmetic expression using numeric literals, "
+            "parentheses, and +, -, *, /, //, %, or **. Submit only the expression "
+            "(for example, '(7 * 133) - (7 * 101)'); do not include labels, units, "
+            "currency symbols, variable assignments, or an equals sign."
+        )
 
     @property
     def arguments_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {"expression": {"type": "string"}},
+            "properties": {
+                "expression": {
+                    "type": "string",
+                    "description": (
+                        "One arithmetic expression only, such as '7 * 101' or "
+                        "'((931 - 707) / 707) * 100'. Do not include '=' or prose."
+                    ),
+                }
+            },
             "required": ["expression"],
             "additionalProperties": False,
         }
@@ -42,15 +55,21 @@ class CalculatorTool(Tool):
     async def execute(self, **arguments: Any) -> str:
         expression = arguments.get("expression")
         if not isinstance(expression, str) or not expression.strip():
-            raise ValueError("calculator requires a non-empty expression string")
+            raise ToolInputError(
+                "Calculator requires one non-empty arithmetic expression."
+            )
         if len(expression) > 256:
-            raise ValueError("calculator expression is too long")
+            raise ToolInputError("Calculator expressions must be 256 characters or fewer.")
 
         try:
             parsed = ast.parse(expression, mode="eval")
             result = self._evaluate(parsed.body)
         except (ArithmeticError, SyntaxError, TypeError, ValueError) as error:
-            raise ValueError(f"Invalid calculator expression: {expression}") from error
+            raise ToolInputError(
+                "Calculator accepts one expression with numbers, parentheses, and "
+                "+, -, *, /, //, %, or ** only. Submit the expression without labels, "
+                "units, currency symbols, variable assignments, or '='."
+            ) from error
         return str(result)
 
     def _evaluate(self, node: ast.expr) -> int | float:
