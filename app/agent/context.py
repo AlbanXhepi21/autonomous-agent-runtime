@@ -41,8 +41,8 @@ class RecentObservations:
 class ContextBuilder:
     """Build a stable LLM view of runtime state without serializing it wholesale.
 
-    The context keeps task understanding, intentional working memory, and recent
-    evidence distinct rather than serializing runtime state wholesale.
+    The context keeps task understanding, historical memory, intentional working
+    memory, and recent evidence distinct rather than serializing runtime state wholesale.
     """
 
     def __init__(
@@ -59,7 +59,8 @@ class ContextBuilder:
         self._observation_selector = observation_selector or RecentObservations(recent_observations)
 
     def build(
-        self, state: AgentState, *, working_memories: Sequence[Memory] = ()
+        self, state: AgentState, *, working_memories: Sequence[Memory] = (),
+        relevant_memories: Sequence[Memory] = (),
     ) -> dict[str, Any]:
         """Return only information useful for selecting the next action."""
 
@@ -69,6 +70,15 @@ class ContextBuilder:
             "working_memory": [
                 {"content": memory.content, "metadata": memory.metadata}
                 for memory in working_memories
+            ],
+            "relevant_memories": [
+                {
+                    "content": memory.content,
+                    "memory_type": memory.memory_type,
+                    "metadata": memory.metadata,
+                    "created_at": memory.created_at.isoformat(),
+                }
+                for memory in relevant_memories
             ],
             "runtime_status": self._runtime_status(state),
             "available_tools": self._tool_registry.definitions(),

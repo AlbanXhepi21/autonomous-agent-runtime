@@ -16,7 +16,7 @@ async def run_agent(
 ) -> AgentRunResponse:
     """Run the runtime for one submitted goal."""
 
-    state = await runner.run(request.goal)
+    state = await runner.run(request.goal, session_id=request.session_id)
     tool_observations = [
         observation
         for observation in state.observations

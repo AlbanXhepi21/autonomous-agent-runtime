@@ -42,26 +42,58 @@ Agent State
                   └──────→ Decide Again
 ```
 
-## Memory and context management (V3.2)
+## Memory architecture (V3)
 
-Memory is separate from raw run observations. The runtime may use a `MemoryManager`
-for explicit run-local working memory, while the manager owns the domain operations and
-delegates storage to a `MemoryStore` implementation.
+Memory is curated context, not execution history. The runtime keeps these concepts separate:
+
+| Concept | Scope and purpose |
+| --- | --- |
+| Observation | Raw result from the current run; retained in `AgentState`, never made durable automatically. |
+| Working memory | Explicit run-local context, such as the active goal; removed when the run ends. |
+| Task summary | Compact description of older current-run observations; never persisted as memory by itself. |
+| Episodic memory | A useful outcome from one completed run, stored with its source run ID. |
+| Long-term memory | Curated stable facts, project context, decisions, preferences, resolved issues, or lessons. |
+
+At run start, `MemoryRetriever` selects at most five historical records using deterministic
+keyword overlap, tags, type weighting, recency, and session scope. Global and same-session
+records enter the distinct `relevant_memories` context section; other session-scoped records
+do not. Retrieval runs once per run, and historical memory is never authoritative over the
+current goal or current evidence.
+
+After a successful run, `MemoryWritingPipeline` extracts proposals, applies deterministic
+policy, checks normalized duplicates, and only then asks `MemoryManager` to persist accepted
+episodic or long-term records. Raw tool output, calculations, transient failures, generic
+prose, and private-reasoning markers are rejected. Extractors can only propose candidates;
+they cannot write to storage directly.
 
 ```text
-AgentRunner → MemoryManager → MemoryStore → InMemoryMemoryStore
+Run start: Goal → MemoryRetriever → MemoryStore → Relevant Memories → ContextBuilder
+Run finish: Outcome → Candidate Extractor → Memory Policy → MemoryManager → MemoryStore
 ```
 
-The initial store is process-local and concurrency-safe. It supports typed `working`,
-`episodic`, and `long_term` memories; only explicitly created records are memories.
-This leaves a stable boundary for a future persistent implementation such as Postgres.
+The default store is process-local and concurrency-safe. PostgreSQL can be selected for
+persistence. Semantic/vector retrieval, embeddings, pgvector, and LLM reranking are not
+implemented yet.
+
+### PostgreSQL memory backend
+
+Set `MEMORY_BACKEND=postgres` and an asyncpg `DATABASE_URL` in `.env`, then apply the
+schema migration before starting the application:
+
+```bash
+alembic upgrade head
+```
+
+For example: `DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/agent`.
+Keep this value out of source control. The FastAPI lifecycle disposes the shared
+PostgreSQL connection pool on shutdown; application startup never creates tables.
 
 Longer runs also use a typed task summary to avoid carrying every historical
 observation indefinitely. Once `SUMMARY_TRIGGER_OBSERVATIONS` is reached, history that
 would leave the `RECENT_OBSERVATIONS` window is compacted. The model receives:
 
 ```text
-Current Goal + Task Summary + Recent Observations + Working Memory
+Current Goal + Task Summary + Relevant Memories + Working Memory + Recent Observations
 + Loaded Skills + Runtime Status
 ```
 
@@ -345,6 +377,14 @@ duplicate_action_detected
 runtime_limit_reached
 agent_finished
 agent_run_failed
+memory_retrieval_started
+memory_retrieval_finished
+task_summary_started
+task_summary_updated
+memory_candidate_created
+memory_candidate_rejected
+memory_candidate_accepted
+memory_persisted
 ```
 
 Each run receives a unique `run_id`, allowing events from concurrent executions to be correlated.

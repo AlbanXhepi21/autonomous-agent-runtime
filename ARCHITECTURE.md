@@ -89,11 +89,24 @@ available in the current context.
 - `app/memory/base.py`: defines the asynchronous storage-only `MemoryStore` contract.
 - `app/memory/in_memory.py`: provides the concurrency-safe process-local implementation used in development and tests.
 - `app/memory/manager.py`: provides the domain-facing `MemoryManager`, lifecycle logging, and working-memory cleanup.
+- `app/memory/postgres.py`: implements the same `MemoryStore` contract with PostgreSQL.
+
+### Database: `app/db/`
+
+- `app/db/session.py`: owns the application-scoped SQLAlchemy async engine and creates short-lived sessions for individual store operations.
+- `app/db/models.py`: maps the PostgreSQL `memories` table: UUID ID, JSONB metadata, timestamps, and filter indexes.
+- `migrations/`: Alembic environment and initial `20260817_0001` migration. Set `DATABASE_URL` then run `alembic upgrade head`; tables are never created at application startup.
 
 `AgentRunner` optionally receives a `MemoryManager`. It records the submitted goal as
 working memory and clears that run-local record at completion. It never automatically
-turns raw observations into memories. The API composes an in-memory manager, leaving
-persistent stores as a future substitution.
+turns raw observations into memories. The API composes the configured store without
+exposing the selected backend to `AgentRunner`.
+
+`MEMORY_BACKEND=in_memory` selects the process-local store. `MEMORY_BACKEND=postgres`
+selects `PostgresMemoryStore` with `DATABASE_URL`. The dependency layer caches one
+store and manager per process; the PostgreSQL engine owns its connection pool, each
+store operation opens and closes a short-lived session, and the FastAPI lifespan
+disposes the pool at shutdown.
 
 ## V3.2 Context Flow
 

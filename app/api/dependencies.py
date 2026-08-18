@@ -7,8 +7,11 @@ from app.agent.summarization import SummaryPolicy
 from app.config import Settings
 from app.core.limits import RuntimeLimits
 from app.llm.openai_client import OpenAIClient
+from app.memory.base import MemoryStore
 from app.memory.in_memory import InMemoryMemoryStore
 from app.memory.manager import MemoryManager
+from app.memory.retrieval import MemoryRetriever
+from app.memory.writing import MemoryWritingPipeline
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.executor import ToolExecutor
@@ -50,10 +53,50 @@ def get_llm_client(settings: Settings | None = None) -> OpenAIClient:
 
 
 @lru_cache
-def get_memory_manager() -> MemoryManager:
-    """Return the process-local memory boundary used until persistence is added."""
+def get_memory_store() -> MemoryStore:
+    """Build the configured storage implementation without involving the runtime."""
 
-    return MemoryManager(InMemoryMemoryStore())
+    settings = get_settings()
+    if settings.memory_backend == "in_memory":
+        return InMemoryMemoryStore()
+    from app.db.session import Database
+    from app.memory.postgres import PostgresMemoryStore
+
+    return PostgresMemoryStore(Database(settings.database_url))
+
+
+@lru_cache
+def get_memory_manager() -> MemoryManager:
+    """Return the application-scoped memory manager and its selected store."""
+
+    return MemoryManager(get_memory_store())
+
+
+@lru_cache
+def get_memory_retriever() -> MemoryRetriever:
+    """Return the shared selector over the configured persistent memory store."""
+
+    return MemoryRetriever(get_memory_store())
+
+
+@lru_cache
+def get_memory_writer() -> MemoryWritingPipeline:
+    """Return the policy-gated writer for completed-run memory candidates."""
+
+    return MemoryWritingPipeline(get_memory_manager())
+
+
+async def close_memory_resources() -> None:
+    """Dispose an active PostgreSQL pool during application shutdown."""
+
+    store = get_memory_store()
+    close = getattr(store, "close", None)
+    if close is not None:
+        await close()
+    get_memory_manager.cache_clear()
+    get_memory_retriever.cache_clear()
+    get_memory_writer.cache_clear()
+    get_memory_store.cache_clear()
 
 
 def get_agent_runner() -> AgentRunner:
@@ -73,6 +116,8 @@ def get_agent_runner() -> AgentRunner:
         ),
         tool_executor=get_tool_executor(tool_registry),
         memory_manager=get_memory_manager(),
+        memory_retriever=get_memory_retriever(),
+        memory_writer=get_memory_writer(),
         summary_policy=SummaryPolicy(
             trigger_observations=settings.summary_trigger_observations,
             recent_observations=settings.recent_observations,

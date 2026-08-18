@@ -12,7 +12,13 @@ from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient
-from app.memory import InMemoryMemoryStore, MemoryManager, MemoryType
+from app.memory import (
+    InMemoryMemoryStore,
+    MemoryManager,
+    MemoryRetriever,
+    MemoryType,
+)
+from app.memory.writing import MemoryWritingPipeline
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
@@ -155,6 +161,68 @@ async def test_runner_exposes_explicit_working_memory_without_retaining_it_after
     assert llm.contexts[0]["working_memory"] == [
         {"content": "Keep this run-local", "metadata": {"kind": "task_goal"}}
     ]
+
+
+@pytest.mark.asyncio
+async def test_runner_retrieves_history_once_and_keeps_it_distinct_from_current_goal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+    store = InMemoryMemoryStore()
+    manager = MemoryManager(store)
+    await manager.add_long_term_memory("Billing API requires an account ID.")
+    llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
+    tools = ToolRegistry()
+    tools.register(CalculatorTool())
+    runner = AgentRunner(
+        llm, tools, SkillRegistry(), memory_manager=manager, memory_retriever=MemoryRetriever(store)
+    )
+
+    await runner.run("Find the billing API account requirement")
+
+    assert llm.contexts[0]["goal"] == "Find the billing API account requirement"
+    assert llm.contexts[0]["relevant_memories"][0]["content"] == "Billing API requires an account ID."
+    finished = logged_events(caplog, "memory_retrieval_finished")[0]
+    assert finished["candidate_count"] == 1
+    assert finished["returned_count"] == 1
+    assert "duration_ms" in finished
+
+
+@pytest.mark.asyncio
+async def test_memory_retrieval_failure_falls_back_to_empty_history(caplog: pytest.LogCaptureFixture) -> None:
+    class FailingRetriever:
+        async def retrieve(self, request: object) -> object:
+            raise RuntimeError("memory backend unavailable")
+
+    llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
+    tools = ToolRegistry()
+    tools.register(CalculatorTool())
+    runner = AgentRunner(llm, tools, SkillRegistry(), memory_retriever=FailingRetriever())  # type: ignore[arg-type]
+
+    await runner.run("Current goal is authoritative")
+
+    assert llm.contexts[0]["relevant_memories"] == []
+    assert logged_events(caplog, "memory_retrieval_failed")
+
+
+@pytest.mark.asyncio
+async def test_writer_extraction_failure_does_not_fail_a_completed_agent_run() -> None:
+    class FailingExtractor:
+        async def extract(self, state: object) -> list[object]:
+            raise RuntimeError("candidate extraction unavailable")
+
+    store = InMemoryMemoryStore()
+    llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
+    tools = ToolRegistry()
+    tools.register(CalculatorTool())
+    runner = AgentRunner(
+        llm, tools, SkillRegistry(),
+        memory_writer=MemoryWritingPipeline(MemoryManager(store), extractor=FailingExtractor()),  # type: ignore[arg-type]
+    )
+
+    state = await runner.run("Finish even if memory extraction fails")
+
+    assert state.completed
 
 
 @pytest.mark.asyncio

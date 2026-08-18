@@ -9,6 +9,7 @@ class AgentRunRequest(BaseModel):
     """A user goal submitted to the agent runtime."""
 
     goal: str = Field(min_length=1)
+    session_id: str | None = None
 
 
 class ToolOutcomeSummary(BaseModel):
