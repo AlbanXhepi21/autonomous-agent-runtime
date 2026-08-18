@@ -1,0 +1,9 @@
+{
+  "name": "data_analyst",
+  "description": "Performs structured quantitative analysis and interpretation.",
+  "version": "1.0.0",
+  "tags": ["data", "metrics", "quantitative-analysis"],
+  "allowed_tools": ["calculator", "python_exec"],
+  "allowed_skills": ["data_analysis"],
+  "runtime_overrides": {"max_iterations": 6}
+}

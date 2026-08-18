@@ -4,7 +4,7 @@
 
 This repository is a small autonomous-agent harness. A caller submits a goal, and the
 agent runtime repeatedly asks an LLM to choose one next action: call a registered tool,
-load a skill, or finish. The LLM chooses the action dynamically; the application does
+load a skill, request a specialist delegation, or finish. The LLM chooses the action dynamically; the application does
 not impose a fixed workflow.
 
 FastAPI is only one interface. The runtime in `app/agent/` does not import FastAPI and
@@ -19,17 +19,16 @@ POST /agent/run
     |
 AgentRunner.run(goal)
     |
-build_context(state, tools, skills)
+build_context(state, tools, skills, specialists)
     |
 LLMClient.choose_action(...)
     |
 OpenAI function call -> AgentAction
     |
-ToolExecutor.execute(tool_name, arguments)
+use_tool -> ToolExecutor -> ToolResult
+delegate -> SequentialSubagentExecutor -> scoped child AgentRunner -> SubagentResult
     |
-ToolRegistry -> Tool -> ToolResult
-    |
-use ToolResult observation / load skill / finish
+parent observation / load skill / finish
     |
 update AgentState and repeat until complete or iteration limit
 ```
@@ -78,7 +77,10 @@ available in the current context.
 - `app/agent/__init__.py`: marks the agent runtime as a package.
 - `app/agent/runner.py`: implements `AgentRunner`, the bounded loop that requests an action, records its result, summarizes older history when the deterministic policy triggers, and stops on completion or the configured limit.
 - `app/agent/state.py`: defines `Observation`, `TaskSummary`, and `AgentState`, which hold the goal, unique run ID, structured tool results, loaded skill content, summary checkpoint, runtime counters, terminal reason, and final answer.
-- `app/agent/models.py`: defines `AgentAction` and the valid action types: `use_tool`, `load_skill`, and `finish`.
+- `app/agent/models.py`: defines `AgentAction` and the valid action types: `use_tool`, `load_skill`, `delegate`, and `finish`.
+- `app/agent/delegation.py`: defines `DelegationRequest`, compact `SubagentResult`, and `SequentialSubagentExecutor`, which creates one isolated, capability-scoped child runtime at a time.
+- `app/agent/definition.py`: defines immutable-style specialist identity, capability, and optional runtime-override models; it has no run state.
+- `app/agent/registry.py`: discovers specialist definitions in `app/agents/`, validates their declared tools and skills when registries are supplied, exposes compact metadata, and progressively loads `AGENT.md`.
 - `app/agent/prompt.py`: holds the concise provider-neutral instructions for choosing one next action without following a fixed workflow.
 - `app/agent/context.py`: builds the information given to the LLM: goal, task summary, explicit working memory, recent observations, available tools, available skills, loaded skill content, and runtime status.
 - `app/agent/summarization.py`: defines the provider-neutral `TaskSummarizer` contract, deterministic trigger policy, and safe default summarizer.
@@ -137,7 +139,26 @@ without emitting full summary content at INFO.
 - `app/tools/executor.py`: validates tool requests, invokes registered tools, and turns errors into structured failures without exposing exception details to the LLM.
 - `app/tools/calculator.py`: implements safe, limited arithmetic using Python's abstract syntax tree rather than unrestricted `eval`.
 - `app/tools/web_search.py`: reserved interface for a future web-search provider; it is not registered or executable yet.
-- `app/tools/python_exec.py`: reserved interface for future sandboxed Python execution; it is not registered or executable yet.
+- `app/tools/python_exec.py`: thin `python_exec` adapter for restricted local child-process execution.
+- `app/tools/commands.py`: thin `run_command` adapter; subprocess policy lives outside the tool.
+- `app/tools/repository.py`: bounded tree, search, change-tracking, and fixed read-only Git inspection tools.
+- `app/tools/artifacts.py`: explicit `register_artifact` tool; files are not implicitly promoted from ordinary writes.
+
+### Agent Environment: `app/environment/`
+
+- `app/environment/workspace.py`: canonical, root-scoped filesystem operations.
+- `app/environment/policy.py`: shared traversal and symlink-escape prevention.
+- `app/environment/models.py`: bounded read, write, and listing limits.
+- `app/environment/commands.py`: argv-only subprocess executor with timeout, bounded stream capture, and a minimal process environment.
+- `app/environment/python.py`: disposable-directory Python child-process executor with source/import policy checks and bounded output.
+- `app/environment/policy.py`: command-name, shell-syntax, Python source-size, syntax, and import-allowlist checks.
+- `app/environment/repository.py`: source-oriented repository abstraction over `Workspace`; ignores generated/cache trees and exposes fixed read-only Git inspection.
+
+### Artifacts: `app/artifacts/`
+
+- `app/artifacts/models.py`: metadata-only `Artifact` contract, distinct from observations and memories.
+- `app/artifacts/store.py`: replaceable `ArtifactStore` and development `WorkspaceArtifactStore`, which copies registered files to `artifacts/<run_id>/`.
+- `app/tools/filesystem.py`: registered `list_files`, `read_file`, and `write_file` tools; all path security remains in `Workspace`, not tool-specific code.
 
 ### Skills: `app/skills/`
 
@@ -146,6 +167,25 @@ without emitting full summary content at INFO.
 - `app/skills/registry.py`: discovers skill directories from `metadata.json`, exposes compact metadata initially, and loads and caches full `SKILL.md` content when requested.
 - `app/skills/{research,software_engineering,data_analysis}/metadata.json`: compact discovery metadata for each skill.
 - `app/skills/{research,software_engineering,data_analysis}/SKILL.md`: detailed instructions loaded only after the agent selects that skill.
+
+### Specialist Agents: `app/agents/`
+
+- `app/agents/{research,software_engineer,data_analyst}/metadata.json`: compact specialist metadata including the allowed tools and skills.
+- `app/agents/{research,software_engineer,data_analyst}/AGENT.md`: detailed specialist instructions, intentionally not included in normal parent-agent context.
+
+In V4.5 the parent model may select `delegate` or explicit `delegate_parallel`; the runtime validates the target against
+this registry, loads exactly that definition, and runs an isolated child `AgentRunner`.
+Only the definition's tools and skills are available to the child, and the child receives
+only a bounded `DelegationContext`: objective, explicit background, constraints, expected
+output, and an opt-in capped list of memory excerpts. Parent observations, loaded skills,
+runtime state, and historical-memory retrieval are not copied into the child. Its compact `SubagentResult`
+becomes a parent observation separately from `ToolResult`. Parallelism, recursive
+delegation, and automatic routing remain intentionally unimplemented.
+
+`delegate_parallel` is never inferred from sequential actions. It carries two or more
+independent typed delegation payloads, is limited by `MAX_PARALLEL_SUBAGENTS` (default
+3), and uses local async concurrency only. Results remain ordered by request and one
+child failure becomes a bounded sibling outcome rather than cancelling successful work.
 
 ### Shared Domain Code: `app/core/`
 

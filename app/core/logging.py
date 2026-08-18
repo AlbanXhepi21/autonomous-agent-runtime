@@ -166,10 +166,45 @@ def _pretty_event(event: str, fields: dict[str, Any]) -> str:
             parts.append(f"tool={tool}")
         if skill := fields.pop("skill", None):
             parts.append(f"skill={skill}")
+        if specialist := fields.pop("specialist", None):
+            parts.append(f"specialist={specialist}")
         parts.append(f"llm={fields.pop('duration_ms', '?')}ms")
         return " ".join(parts)
     if event == "skill_loaded":
         return f"iter={fields.pop('iteration', '?')} skill_loaded={fields.pop('skill', '?')}"
+    if event == "delegation_requested":
+        return (
+            f"iter={fields.pop('iteration', '?')} delegation={fields.pop('target_agent', '?')} "
+            f"requested objective={_display_value(fields.pop('objective', ''))}"
+        )
+    if event == "delegation_invalid":
+        return (
+            f"iter={fields.pop('iteration', '?')} delegation={fields.pop('target_agent', '?')} "
+            f"invalid error={_display_value(fields.pop('error', ''))}"
+        )
+    if event == "subagent_execution_started":
+        return (
+            f"subagent={fields.pop('agent', '?')} child={str(fields.pop('child_run_id', '?'))[:8]} "
+            f"started"
+        )
+    if event in {"subagent_execution_finished", "subagent_execution_failed"}:
+        return (
+            f"subagent={fields.pop('agent', '?')} child={str(fields.pop('child_run_id', '?'))[:8]} "
+            f"{'finished' if event.endswith('finished') else 'failed'} "
+            f"iterations={fields.pop('iterations', '?')} tools={fields.pop('tool_calls', '?')} "
+            f"duration={fields.pop('duration_ms', '?')}ms"
+        )
+    if event == "parallel_delegation_started":
+        return (
+            f"parallel_delegation count={fields.pop('delegation_count', '?')}/"
+            f"{fields.pop('configured_limit', '?')} started"
+        )
+    if event in {"parallel_delegation_finished", "parallel_delegation_partial_failure"}:
+        return (
+            f"parallel_delegation {'finished' if event.endswith('finished') else 'partial_failure'} "
+            f"success={fields.pop('successful_count', '?')} failed={fields.pop('failed_count', '?')} "
+            f"duration={fields.pop('duration_ms', '?')}ms"
+        )
     if event == "tool_execution_started":
         return f"iter={fields.pop('iteration', '?')} tool={fields.pop('tool', '?')} started"
     if event == "tool_execution_finished":
@@ -182,10 +217,44 @@ def _pretty_event(event: str, fields: dict[str, Any]) -> str:
             f"iter={fields.pop('iteration', '?')} tool={fields.pop('tool', '?')} failed "
             f"error={_display_value(fields.pop('error', ''))}"
         )
+    if event.startswith("command_execution_"):
+        return (
+            f"command={fields.pop('command', '?')} {event.removeprefix('command_execution_')} "
+            f"args={fields.pop('args_summary', '?')} duration={fields.pop('duration_ms', '?')}ms "
+            f"return_code={fields.pop('return_code', '?')}"
+        )
+    if event.startswith("python_execution_"):
+        return (
+            f"python {event.removeprefix('python_execution_')} "
+            f"code={fields.pop('code_bytes', '?')}B duration={fields.pop('duration_ms', '?')}ms "
+            f"return_code={fields.pop('return_code', '?')}"
+        )
+    if event == "repository_search_started":
+        return f"repository search started tool={fields.pop('repository_tool', '?')}"
+    if event == "repository_search_finished":
+        return f"repository search finished tool={fields.pop('repository_tool', '?')} success={fields.pop('success', '?')}"
+    if event == "repository_file_modified":
+        return f"repository file modified path={_display_value(fields.pop('relative_path', ''))}"
+    if event == "repository_inspection":
+        return f"repository inspection tool={fields.pop('repository_tool', '?')}"
+    if event in {"artifact_created", "artifact_registered"}:
+        return f"artifact {event.removeprefix('artifact_')} id={fields.pop('artifact_id', '?')} name={_display_value(fields.pop('name', ''))}"
+    if event == "artifact_registration_failed":
+        return "artifact registration failed"
     if event == "duplicate_action_detected":
         return (
             f"iter={fields.pop('iteration', '?')} duplicate_action tool={fields.pop('tool', '?')} "
             f"count={fields.pop('duplicate_count', '?')}"
+        )
+    if event == "duplicate_delegation_detected":
+        return (
+            f"iter={fields.pop('iteration', '?')} duplicate_delegation "
+            f"agent={fields.pop('target_agent', '?')} count={fields.pop('duplicate_count', '?')}"
+        )
+    if event == "delegation_limit_reached":
+        return (
+            f"delegation_limit type={fields.pop('limit_type', '?')} "
+            f"value={fields.pop('current_value', '?')}/{fields.pop('configured_limit', '?')}"
         )
     if event == "runtime_limit_reached":
         return (

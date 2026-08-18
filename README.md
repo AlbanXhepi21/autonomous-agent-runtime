@@ -316,9 +316,105 @@ This prevents every skill from consuming context on every request.
 
 ---
 
+## Multi-Agent Architecture
+
+The parent agent chooses whether delegation is useful; the runtime validates and bounds
+that choice. There is no keyword-based specialist routing or fixed research-to-review
+workflow.
+
+```text
+Parent Agent → delegate / delegate_parallel → scoped specialist AgentRunner
+             ← bounded SubagentResult       ← tools, skills, and child decisions
+```
+
+A tool is an executable capability such as the calculator. A skill is progressive
+guidance that an agent may load for itself. A subagent is an independent, bounded agent
+run selected for a clearly scoped objective.
+
+Specialists are discovered from `app/agents/`. Their definitions grant the child only
+listed tools and skills; parent capabilities and loaded skills are not inherited. The
+child receives only the typed delegation context (objective, explicit background,
+constraints, expected output, and opt-in memory excerpts), never the parent transcript
+or unrestricted historical memory.
+
+Delegations can be sequential or explicitly parallel. Parallel work occurs only after
+the model selects `delegate_parallel` with independent objectives; it is capped by
+`MAX_PARALLEL_SUBAGENTS`. `MAX_AGENT_DEPTH=1` prevents child delegation in V4, while
+`MAX_DELEGATIONS_PER_RUN` and `MAX_SUBAGENT_ITERATIONS` bound fan-out and child work.
+The parent receives compact results and remains responsible for the final answer.
+
+---
+
 ## Tools
 
 Tools are executable capabilities available to the agent.
+
+### Workspace filesystem tools
+
+`list_files`, `read_file`, and `write_file` operate only inside
+`AGENT_WORKSPACE_ROOT`. The shared workspace policy canonicalizes every relative path,
+rejects absolute paths and traversal outside the root, and rejects symlinks that resolve
+outside it. File reads, writes, and directory listings are bounded by
+`MAX_FILE_READ_BYTES`, `MAX_FILE_WRITE_BYTES`, and `MAX_LIST_FILES`.
+
+Filesystem access still follows the normal runtime boundary:
+
+```text
+Agent → filesystem tool → ToolExecutor → Workspace policy → workspace file
+```
+
+The software-engineer specialist is granted repository-scoped `list_files`, `read_file`,
+and `write_file`; research and data-analysis specialists do not receive edit access.
+
+### Controlled command execution
+
+`run_command` is a separate, argv-only capability for the software-engineer specialist.
+It accepts an allowlisted command name and an `args` array—never a shell command string.
+The default allowlist is `pytest` (`COMMAND_ALLOWLIST`), commands run only in the workspace,
+and `COMMAND_TIMEOUT_SECONDS` plus `MAX_COMMAND_OUTPUT_BYTES` bound execution and output.
+The process receives a minimal environment, so host API keys and database credentials are
+not forwarded.
+
+### Restricted local Python execution
+
+`python_exec` runs short Python source in a separate `python -I` child process, never in
+the FastAPI process. Each call uses a disposable `python-exec-*` directory inside the
+workspace and deletes it after the result is collected. It has no workspace-file API;
+the supported code only receives common builtins and imports from
+`PYTHON_EXEC_ALLOWED_IMPORTS` (default: `math`, `statistics`, `json`, `datetime`, and
+`collections`). Source, execution time, and output are bounded by `MAX_PYTHON_CODE_BYTES`,
+`PYTHON_EXEC_TIMEOUT_SECONDS`, and `MAX_PYTHON_OUTPUT_BYTES`.
+
+This is **restricted local execution for development, not a hostile-code sandbox**.
+Import filtering and a private working directory do not provide operating-system-level
+filesystem or network isolation. The runtime does not pass application secrets to the
+child. `python_exec` is granted to data-analysis and software-engineering specialists,
+not research specialists.
+
+### Repository tools
+
+The software-engineer specialist can inspect a bounded repository tree (`get_repository_tree`),
+search source paths/content (`search_files`), and retrieve files changed through controlled
+`write_file` calls (`get_changed_files`). Generated and cache directories such as `.git`,
+`.venv`, `node_modules`, `__pycache__`, `dist`, and `build` are excluded from tree/search.
+`git_inspect` is limited to fixed read-only `status`, `diff --stat`, and recent-log commands;
+it cannot commit, push, reset, clean, checkout, or alter repository state.
+
+### Artifacts
+
+Artifacts are explicit, user-consumable outputs—not execution observations and not
+long-term memory. An agent creates a file with the normal controlled workspace tools,
+then calls `register_artifact` to copy that selected file into:
+
+```text
+workspace/artifacts/<run_id>/<artifact_id>-<name>
+```
+
+The run response returns metadata only (ID, name, relative artifact path, type, media type,
+size, run ID, creation time, and metadata); it never embeds file content in agent state.
+`GET /artifacts/{artifact_id}` resolves only a validated registered ID through the artifact
+store, never an arbitrary filesystem path. Artifacts persist in the development workspace
+for V5; retention and cleanup policies are future work.
 
 The architecture separates tool selection from tool execution:
 
@@ -593,11 +689,17 @@ Planned:
 
 ### V4 — Multi-Agent
 
-Planned:
+Delivered so far:
 
-- subagents
-- delegation
-- specialist agents
+- model-selected delegation
+- sequential, isolated specialist subagents
+- model-selected bounded parallel specialist subagents
+- definition-scoped tools and skills
+- bounded parent-to-child context and opt-in memory excerpts
+- compact child results returned as parent observations
+
+Still planned:
+
 - parallel execution
 - result aggregation
 

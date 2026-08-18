@@ -209,11 +209,33 @@ async def test_calculator_evaluates_valid_expression() -> None:
 
 @pytest.mark.asyncio
 async def test_calculator_rejects_unsafe_expression() -> None:
-    with pytest.raises(ValueError, match="Invalid calculator expression"):
+    with pytest.raises(ValueError, match="Calculator accepts one expression"):
         await CalculatorTool().execute(expression="__import__('os').system('echo unsafe')")
 
 
 @pytest.mark.asyncio
 async def test_calculator_rejects_complex_results() -> None:
-    with pytest.raises(ValueError, match="Invalid calculator expression"):
+    with pytest.raises(ValueError, match="Calculator accepts one expression"):
         await CalculatorTool().execute(expression="(-1) ** 0.5")
+
+
+@pytest.mark.asyncio
+async def test_executor_returns_actionable_calculator_input_feedback() -> None:
+    registry = ToolRegistry()
+    registry.register(CalculatorTool())
+
+    result = await ToolExecutor(registry).execute(
+        "calculator", {"expression": "7 * 101 = 707"}
+    )
+
+    assert not result.success
+    assert result.error is not None
+    assert "without labels" in result.error
+    assert "7 * 101 = 707" not in result.error
+
+
+def test_calculator_definition_explains_expression_format() -> None:
+    tool = CalculatorTool()
+
+    assert "exactly one arithmetic expression" in tool.description
+    assert "Do not include '='" in tool.arguments_schema["properties"]["expression"]["description"]
