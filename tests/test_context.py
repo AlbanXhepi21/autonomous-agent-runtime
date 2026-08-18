@@ -5,6 +5,7 @@ import json
 from app.agent.context import ContextBuilder
 from app.agent.state import AgentState, Observation, TaskSummary
 from app.core.limits import RuntimeLimits
+from app.memory.models import Memory, MemoryType
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.models import ToolResult
@@ -28,6 +29,7 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
         "goal",
         "task_summary",
         "working_memory",
+        "relevant_memories",
         "runtime_status",
         "available_tools",
         "available_skills",
@@ -37,6 +39,22 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
     assert context["goal"] == "Compare two libraries"
     assert context["task_summary"] is None
     assert context["working_memory"] == []
+    assert context["relevant_memories"] == []
+
+
+def test_context_keeps_historical_memories_distinct_from_observations() -> None:
+    memory = Memory(
+        memory_type=MemoryType.LONG_TERM,
+        content="The billing API needs an account ID.",
+        metadata={"tags": ["billing"]},
+    )
+
+    context = make_builder().build(AgentState(goal="Use the billing API"), relevant_memories=[memory])
+
+    assert context["relevant_memories"][0]["content"] == memory.content
+    assert context["relevant_memories"][0]["memory_type"] is MemoryType.LONG_TERM
+    assert context["recent_observations"] == []
+    json.dumps(context)
 
 
 def test_context_represents_compact_tool_and_unloaded_skill_metadata() -> None:

@@ -1,6 +1,8 @@
 """Central application settings."""
 
-from pydantic import Field
+from typing import Literal
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,5 +19,15 @@ class Settings(BaseSettings):
     max_agent_consecutive_duplicate_actions: int = Field(default=2, ge=1)
     summary_trigger_observations: int = Field(default=8, ge=1)
     recent_observations: int = Field(default=5, ge=1)
+    database_url: str = Field(default="", repr=False)
+    memory_backend: Literal["in_memory", "postgres"] = "in_memory"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_postgres_configuration(self) -> "Settings":
+        """Require an explicit URL only when PostgreSQL memory is selected."""
+
+        if self.memory_backend == "postgres" and not self.database_url:
+            raise ValueError("DATABASE_URL is required when MEMORY_BACKEND=postgres")
+        return self

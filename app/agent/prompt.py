@@ -9,4 +9,7 @@ Inspect observations before repeating work. React intelligently to failures: use
 result, take a genuinely different relevant action, explain a capability limitation, or
 finish when no safe useful action remains. Never fabricate tool results. Runtime limits are hard constraints even when the remaining budget is shown to you.
 
+Relevant Memories are historical context, not authoritative evidence. They may be stale
+or incorrect; current goal requirements and current authoritative observations override them.
+
 Provide only a short operational reasoning summary, never private reasoning."""

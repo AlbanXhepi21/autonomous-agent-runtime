@@ -20,6 +20,8 @@ from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.llm.base import LLMClient
 from app.memory.manager import MemoryManager
 from app.memory.models import Memory, MemoryType
+from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetriever
+from app.memory.writing import MemoryWritingPipeline
 from app.skills.registry import SkillRegistry
 from app.tools.executor import ToolExecutor
 from app.tools.models import ToolResult
@@ -38,6 +40,8 @@ class AgentRunner:
         tool_executor: ToolExecutor | None = None,
         limits: RuntimeLimits | None = None,
         memory_manager: MemoryManager | None = None,
+        memory_retriever: MemoryRetriever | None = None,
+        memory_writer: MemoryWritingPipeline | None = None,
         task_summarizer: TaskSummarizer | None = None,
         summary_policy: SummaryPolicy | None = None,
     ) -> None:
@@ -57,9 +61,11 @@ class AgentRunner:
             recent_observations=self._summary_policy.recent_observations,
         )
         self._memory_manager = memory_manager
+        self._memory_retriever = memory_retriever
+        self._memory_writer = memory_writer
         self._task_summarizer = task_summarizer or DeterministicTaskSummarizer()
 
-    async def run(self, goal: str) -> AgentState:
+    async def run(self, goal: str, *, session_id: str | None = None) -> AgentState:
         """Execute bounded, model-selected actions for a single goal."""
 
         state = AgentState(goal=goal)
@@ -74,6 +80,9 @@ class AgentRunner:
             max_tool_calls=self._limits.max_tool_calls,
             max_recoverable_errors=self._limits.max_recoverable_errors,
             max_consecutive_duplicate_actions=self._limits.max_consecutive_duplicate_actions,
+        )
+        relevant_memories = await self._retrieve_relevant_memories(
+            goal, run_id=state.run_id, session_id=session_id
         )
 
         try:
@@ -95,7 +104,9 @@ class AgentRunner:
                     errors=state.recoverable_error_count,
                 )
                 context = self._context_builder.build(
-                    state, working_memories=await self._working_memories(state.run_id)
+                    state,
+                    working_memories=await self._working_memories(state.run_id),
+                    relevant_memories=relevant_memories,
                 )
                 log_event(
                     self._logger,
@@ -144,15 +155,15 @@ class AgentRunner:
                 await self._maybe_update_summary(state)
 
                 if state.completed or state.stop_reason is not None:
-                    return self._finish_run(state, started_at)
+                    return await self._finish_run(state, started_at, session_id=session_id)
 
-            return self._finish_run(
+            return await self._finish_run(
                 self._stop(
                     state,
                     StopReason.MAX_ITERATIONS,
                     "Agent stopped after reaching the maximum iteration limit.",
                 ),
-                started_at,
+                started_at, session_id=session_id,
             )
         except Exception as error:
             log_event(
@@ -168,6 +179,34 @@ class AgentRunner:
             raise
         finally:
             await self._clear_run_working_memory(state.run_id)
+
+    async def _retrieve_relevant_memories(
+        self, goal: str, *, run_id: str, session_id: str | None
+    ) -> list[Memory]:
+        """Retrieve once per run; a failure leaves the run usable with no history."""
+
+        if self._memory_retriever is None:
+            return []
+        log_event(self._logger, logging.INFO, "memory_retrieval_started", run_id=run_id)
+        started_at = perf_counter()
+        try:
+            result = await self._memory_retriever.retrieve(
+                MemoryRetrievalRequest(query=goal, session_id=session_id)
+            )
+        except Exception as error:
+            log_event(
+                self._logger, logging.WARNING, "memory_retrieval_failed", run_id=run_id,
+                candidate_count=None, returned_count=0,
+                duration_ms=round((perf_counter() - started_at) * 1000),
+                error_type=type(error).__name__, error=safe_error_message(error),
+            )
+            return []
+        log_event(
+            self._logger, logging.INFO, "memory_retrieval_finished", run_id=run_id,
+            candidate_count=result.candidate_count, returned_count=len(result.memories),
+            duration_ms=round((perf_counter() - started_at) * 1000),
+        )
+        return result.memories
 
     async def _working_memories(self, run_id: str) -> list[Memory]:
         """Read explicit working memory without exposing store details to context."""
@@ -402,9 +441,13 @@ class AgentRunner:
             )
         return state
 
-    def _finish_run(self, state: AgentState, started_at: float) -> AgentState:
+    async def _finish_run(
+        self, state: AgentState, started_at: float, *, session_id: str | None
+    ) -> AgentState:
         """Log the terminal summary for a normal or runtime-limited run."""
 
+        if self._memory_writer is not None:
+            await self._memory_writer.capture_completed_run(state, session_id=session_id)
         log_event(
             self._logger,
             logging.INFO,

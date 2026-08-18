@@ -4,6 +4,10 @@ from app.memory.base import MemoryStore
 from app.memory.in_memory import InMemoryMemoryStore
 from app.memory.manager import MemoryManager
 from app.memory.models import Memory, MemoryType
+from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetrievalResult, MemoryRetriever
+from app.memory.writing import (
+    MemoryCandidate, MemoryCategory, MemoryPolicy, MemoryWritingPipeline,
+)
 
 __all__ = [
     "InMemoryMemoryStore",
@@ -11,4 +15,11 @@ __all__ = [
     "MemoryManager",
     "MemoryStore",
     "MemoryType",
+    "MemoryRetrievalRequest",
+    "MemoryRetrievalResult",
+    "MemoryRetriever",
+    "MemoryCandidate",
+    "MemoryCategory",
+    "MemoryPolicy",
+    "MemoryWritingPipeline",
 ]

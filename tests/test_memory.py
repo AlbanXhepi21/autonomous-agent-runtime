@@ -5,7 +5,20 @@ import logging
 
 import pytest
 
+from app.config import Settings
 from app.memory import InMemoryMemoryStore, Memory, MemoryManager, MemoryType
+
+
+def test_postgres_backend_requires_a_database_url() -> None:
+    with pytest.raises(ValueError, match="DATABASE_URL is required"):
+        # Do not inherit a developer's local `.env` database URL in this missing-value test.
+        Settings(memory_backend="postgres", database_url="")
+
+    settings = Settings(
+        memory_backend="postgres", database_url="postgresql+asyncpg://user:password@db/agent"
+    )
+
+    assert settings.memory_backend == "postgres"
 
 
 @pytest.mark.asyncio
