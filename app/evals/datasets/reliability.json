@@ -1,0 +1,8 @@
+{
+  "suite": "reliability",
+  "cases": [
+    {"id": "reliability.llm_timeout_then_success", "name": "LLM timeout recovers", "description": "A transient provider timeout gets one bounded retry before completion.", "goal": "Complete after a transient timeout.", "expected_stop_reason": "completed", "setup": {"actions": [{"failure": "timeout"}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "Recovered."}]}},
+    {"id": "reliability.invalid_output_then_repair", "name": "Invalid output repairs", "description": "One invalid model output is retried, then a valid completion is used.", "goal": "Complete after corrected structured output.", "expected_stop_reason": "completed", "setup": {"actions": [{"failure": "invalid_output"}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "Repaired."}]}},
+    {"id": "reliability.permanent_tool_failure", "name": "Permanent tool failure", "description": "Unsafe calculator input is not retried by the runtime.", "goal": "Handle rejected calculator input.", "expected_capabilities": ["calculator"], "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "use_tool", "reasoning_summary": "", "tool_name": "calculator", "tool_arguments": {"expression": "__import__('os')"}}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "Rejected safely."}]}}
+  ]
+}

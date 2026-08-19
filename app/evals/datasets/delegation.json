@@ -1,0 +1,6 @@
+{
+  "suite": "delegation",
+  "cases": [
+    {"id": "delegation.trivial_task", "name": "No delegation for trivial task", "description": "A simple task remains with the parent agent.", "goal": "Say hello.", "expected_delegation": false, "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "finish", "reasoning_summary": "", "final_answer": "Hello."}]}}
+  ]
+}

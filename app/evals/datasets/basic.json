@@ -1,0 +1,8 @@
+{
+  "suite": "basic",
+  "cases": [
+    {"id": "basic.calculate_2_plus_2", "name": "Calculate 2 + 2", "description": "A basic calculation completes.", "goal": "Calculate 2 + 2.", "expected_stop_reason": "completed", "expected_capabilities": ["calculator"], "trajectory": {"max_iterations": 2, "max_tool_calls": 1, "max_duplicate_actions": 0, "required_action_types": ["tool", "finish"], "max_actions_after_finish": 0}, "setup": {"actions": [{"action_type": "use_tool", "reasoning_summary": "", "tool_name": "calculator", "tool_arguments": {"expression": "2 + 2"}}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "4"}]}},
+    {"id": "basic.explain_tool_vs_skill", "name": "Explain tool versus skill", "description": "A conceptual request needs no tool.", "goal": "Explain a tool versus a skill.", "expected_stop_reason": "completed", "forbidden_capabilities": ["calculator"], "setup": {"actions": [{"action_type": "finish", "reasoning_summary": "", "final_answer": "A tool acts; a skill provides instructions."}]}},
+    {"id": "basic.stop_when_complete", "name": "Stop when complete", "description": "The runtime stops after an answer.", "goal": "Give a short answer.", "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "finish", "reasoning_summary": "", "final_answer": "Done."}]}}
+  ]
+}

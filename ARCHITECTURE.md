@@ -207,6 +207,22 @@ The only registered executable capability is `calculator`. The model can also lo
 the three local skills or call `finish`. Web search and Python execution are deliberately
 not registered until a real provider and sandboxing policy are added.
 
+## V7 Observability, Evaluation, and Reliability
+
+Standard logging remains for human operational diagnostics. `app/observability/`
+records sanitized `RunTrace` records for machine-readable run history, including
+parent/child lineage, events, spans, and derived usage/latency metrics. The in-memory
+store is bounded to 1,000 recent traces and is intentionally non-persistent.
+
+`app/evals/` loads strict JSON datasets, runs deterministic local LLM scenarios, and
+evaluates state and trace constraints. Trajectory evaluation derives actions from
+trace events without retaining chain-of-thought. Evaluation reports include outcome,
+trajectory, and available cost/usage/latency metrics.
+
+`app/reliability/` classifies sanitized failures and supplies the explicit retry
+policy. Only bounded transient LLM failures are retried by default; policy denials,
+approvals, validation failures, and ordinary tool failures remain non-retryable.
+
 ## Extending the System
 
 Add a tool by implementing `Tool`, registering it in `get_tool_registry`, and writing a

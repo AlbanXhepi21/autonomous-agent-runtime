@@ -27,6 +27,7 @@ from app.security import (
 from app.tools.base import Tool, ToolInputError
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
+from app.observability import TraceEventType, TraceRecorder
 
 
 class ToolExecutor:
@@ -37,10 +38,12 @@ class ToolExecutor:
         tool_registry: ToolRegistry,
         *,
         security_policy: SecurityPolicy | None = None,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self._tool_registry = tool_registry
         self._security_policy = security_policy or SecurityPolicy.primary()
         self._approved_execution_token = object()
+        self._trace_recorder = trace_recorder
         self._logger = logging.getLogger(__name__)
 
     def evaluate_policy(
@@ -128,6 +131,9 @@ class ToolExecutor:
             "tool": tool_name if isinstance(tool_name, str) else "",
         }
         log_event(self._logger, logging.INFO, "tool_execution_started", **event_fields)
+        if self._trace_recorder is not None and run_id:
+            self._trace_recorder.record(run_id, TraceEventType.TOOL_STARTED, iteration=iteration,
+                metadata={"tool_name": event_fields["tool"], "arguments": _safe_logged_arguments(tool_name, arguments)})
         log_event(
             self._logger,
             logging.DEBUG,
@@ -140,14 +146,14 @@ class ToolExecutor:
 
         if not isinstance(tool_name, str) or not tool_name.strip():
             return self._finish(
-                self._failure("Unknown tool.", tool_name=""), started_at, event_fields
+                self._failure("Unknown tool.", tool_name="", failure_category="unknown_failure"), started_at, event_fields
             )
 
         if arguments is None:
             arguments = {}
         if not isinstance(arguments, Mapping):
             return self._finish(
-                self._failure("Invalid tool arguments.", tool_name=tool_name),
+                self._failure("Invalid tool arguments.", tool_name=tool_name, failure_category="tool_validation_error"),
                 started_at,
                 event_fields,
             )
@@ -156,7 +162,7 @@ class ToolExecutor:
             tool = self._tool_registry.get(tool_name)
         except UnknownToolError:
             return self._finish(
-                self._failure(f"Unknown tool: {tool_name}.", tool_name=tool_name),
+                self._failure(f"Unknown tool: {tool_name}.", tool_name=tool_name, failure_category="unknown_failure"),
                 started_at,
                 event_fields,
             )
@@ -208,7 +214,7 @@ class ToolExecutor:
         argument_error = self._validate_arguments(tool, arguments)
         if argument_error:
             return self._finish(
-                self._failure(argument_error, tool_name=tool.name), started_at, execution_fields
+                self._failure(argument_error, tool_name=tool.name, failure_category="tool_validation_error"), started_at, execution_fields
             )
 
         subject = subject or SecuritySubject(
@@ -221,10 +227,13 @@ class ToolExecutor:
         try:
             policy_result = self._security_policy.evaluate(subject, security_action)
         except Exception:
+            policy_infrastructure_failed = True
             policy_result = PolicyResult(
                 decision=PolicyDecision.DENY, reason="Security policy evaluation failed.",
                 policy_id="security.policy_evaluation_failed", capability=security_action.capability,
             )
+        else:
+            policy_infrastructure_failed = False
         security_fields = {
             "run_id": subject.run_id, "agent": subject.agent_name,
             "capability": policy_result.capability.value if policy_result.capability else "unknown",
@@ -236,6 +245,14 @@ class ToolExecutor:
             risk_rule=policy_result.metadata.get("risk_rule"),
         )
         log_event(self._logger, logging.INFO, "security_policy_evaluated", **security_fields)
+        if self._trace_recorder is not None and run_id:
+            self._trace_recorder.record(run_id, TraceEventType.SECURITY_POLICY_EVALUATED, iteration=iteration,
+                success=policy_result.decision == PolicyDecision.ALLOW,
+                metadata={"capability": security_fields["capability"], "decision": security_fields["decision"],
+                          "policy_id": policy_result.policy_id, "risk_level": policy_result.metadata.get("risk_level")})
+            if policy_infrastructure_failed:
+                self._trace_recorder.record(run_id, TraceEventType.OPERATION_FAILED, iteration=iteration,
+                    metadata={"failure_category": "policy_failure", "source": "security_policy", "attempt": 1})
         if policy_result.decision != PolicyDecision.ALLOW and not (
             approval_granted and policy_result.decision == PolicyDecision.REQUIRE_APPROVAL
         ):
@@ -257,13 +274,13 @@ class ToolExecutor:
                 output = await tool.execute(**dict(arguments))
         except ToolInputError as error:
             return self._finish(
-                self._failure(str(error), tool_name=tool.name),
+                self._failure(str(error), tool_name=tool.name, failure_category="tool_validation_error"),
                 started_at,
                 execution_fields,
             )
         except (TypeError, ValueError, ZeroDivisionError):
             return self._finish(
-                self._failure("Tool rejected the supplied arguments.", tool_name=tool.name),
+                self._failure("Tool rejected the supplied arguments.", tool_name=tool.name, failure_category="tool_validation_error"),
                 started_at,
                 execution_fields,
             )
@@ -312,6 +329,7 @@ class ToolExecutor:
             "success": result.success,
             "duration_ms": round((perf_counter() - started_at) * 1000),
         }
+        duration_ms = fields["duration_ms"]
         if result.success:
             log_event(self._logger, logging.INFO, "tool_execution_finished", **fields)
         else:
@@ -398,6 +416,23 @@ class ToolExecutor:
                 log_event(self._logger, logging.INFO, "artifact_registered", **fields)
             else:
                 log_event(self._logger, logging.WARNING, "artifact_registration_failed", run_id=event_fields.get("run_id"), error=safe_error_message(result.error or "Artifact registration failed."))
+        run_id = event_fields.get("run_id")
+        if self._trace_recorder is not None and isinstance(run_id, str) and run_id:
+            self._trace_recorder.record(run_id,
+                TraceEventType.TOOL_FINISHED if result.success else TraceEventType.TOOL_FAILED,
+                iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=result.success,
+                metadata={"tool_name": event_fields.get("tool"), "result_metadata": result.metadata,
+                          "error": result.error if not result.success else None})
+            if not result.success:
+                self._trace_recorder.record(run_id, TraceEventType.OPERATION_FAILED,
+                    iteration=event_fields.get("iteration"), metadata={
+                        "failure_category": result.metadata.get("failure_category", "tool_failure"),
+                        "source": "tool", "attempt": 1,
+                    })
+            if event_fields.get("tool") == "register_artifact" and result.success:
+                self._trace_recorder.record(run_id, TraceEventType.ARTIFACT_CREATED,
+                    iteration=event_fields.get("iteration"), success=True,
+                    metadata={"artifact": result.output})
         return result
 
     @staticmethod
@@ -444,13 +479,13 @@ class ToolExecutor:
         return check(value) if check else True
 
     @staticmethod
-    def _failure(error: str, *, tool_name: str) -> ToolResult:
+    def _failure(error: str, *, tool_name: str, failure_category: str = "tool_failure") -> ToolResult:
         """Create a failure result that can safely become an LLM observation."""
 
         return ToolResult(
             success=False,
             error=safe_error_message(error),
-            metadata={"tool_name": tool_name},
+            metadata={"tool_name": tool_name, "failure_category": failure_category},
         )
 
     @staticmethod
@@ -469,6 +504,7 @@ class ToolExecutor:
                 "security_decision": policy_result.decision.value,
                 "capability": policy_result.capability.value if policy_result.capability else "unknown",
                 "policy_id": policy_result.policy_id,
+                "failure_category": "security_denial" if policy_result.policy_id != "security.policy_evaluation_failed" else "policy_failure",
             },
         )
 

@@ -29,6 +29,10 @@ from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from pydantic import ValidationError
 from app.llm.base import LLMClient
+from app.llm.base import LLMDecision
+from app.llm.pricing import PricingRegistry, estimate_cost
+from app.reliability import RetryPolicy, classify_llm_failure
+from app.reliability.retry import Sleep, default_sleep
 from app.memory.manager import MemoryManager
 from app.memory.models import Memory, MemoryType
 from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetriever
@@ -41,6 +45,7 @@ from app.tools.executor import ToolExecutor
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
 from app.artifacts.models import Artifact
+from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder, TraceStatus
 
 
 class AgentRunner:
@@ -71,12 +76,20 @@ class AgentRunner:
         security_agent_type: str = "primary",
         parent_run_id: str | None = None,
         approval_store: ApprovalStore | None = None,
+        trace_recorder: TraceRecorder | None = None,
+        pricing_registry: PricingRegistry | None = None,
+        retry_policy: RetryPolicy | None = None,
+        retry_sleep: Sleep = default_sleep,
     ) -> None:
         self._llm_client = llm_client
         self._tool_registry = tool_registry
         self._security_policy = security_policy or SecurityPolicy.primary()
+        self._trace_recorder = trace_recorder or TraceRecorder(InMemoryTraceStore())
+        self._pricing_registry = pricing_registry or PricingRegistry()
+        self._retry_policy = retry_policy or RetryPolicy()
+        self._retry_sleep = retry_sleep
         self._tool_executor = tool_executor or ToolExecutor(
-            tool_registry, security_policy=self._security_policy
+            tool_registry, security_policy=self._security_policy, trace_recorder=self._trace_recorder
         )
         self._skill_registry = skill_registry
         self._logger = logging.getLogger(__name__)
@@ -95,6 +108,12 @@ class AgentRunner:
         self._agent_registry = agent_registry
         self._delegation_executor = delegation_executor
         self._parallel_delegation_executor = parallel_delegation_executor
+        if (delegation_executor is not None and hasattr(delegation_executor, "_trace_recorder")
+                and getattr(delegation_executor, "_trace_recorder", None) is None):
+            # The concrete executor owns child-run construction; share the parent recorder.
+            setattr(delegation_executor, "_trace_recorder", self._trace_recorder)
+        if delegation_executor is not None and hasattr(delegation_executor, "_pricing_registry"):
+            setattr(delegation_executor, "_pricing_registry", self._pricing_registry)
         self._system_prompt = system_prompt
         self._delegation_enabled = delegation_enabled
         self._agent_depth = agent_depth
@@ -124,6 +143,10 @@ class AgentRunner:
         if state.status is RunStatus.WAITING_FOR_APPROVAL:
             return state
         started_at = perf_counter()
+        self._trace_recorder.start_run(
+            run_id=state.run_id, parent_run_id=self._parent_run_id,
+            agent_name=self._security_agent_name, agent_type=self._security_agent_type, goal=goal,
+        )
         log_event(
             self._logger,
             logging.INFO,
@@ -186,10 +209,59 @@ class AgentRunner:
                     iteration=iteration,
                 )
                 llm_started_at = perf_counter()
-                action = await self._llm_client.choose_action(
-                    system_prompt=self._system_prompt,
-                    context=context,
-                )
+                attempt = 1
+                while True:
+                    llm_span = self._trace_recorder.start_span(
+                        state.run_id, TraceEventType.LLM_REQUEST_STARTED, name="llm_request", iteration=iteration,
+                        metadata={"provider": type(self._llm_client).__name__, "model": getattr(self._llm_client, "_model", None), "attempt": attempt},
+                    )
+                    try:
+                        choose_decision = getattr(self._llm_client, "choose_decision", None)
+                        decision = await (
+                            choose_decision(system_prompt=self._system_prompt, context=context)
+                            if callable(choose_decision)
+                            else self._llm_client.choose_action(system_prompt=self._system_prompt, context=context)
+                        )
+                        candidate_action = decision.action if isinstance(decision, LLMDecision) else decision
+                        if not isinstance(candidate_action, AgentAction):
+                            raise ValueError("Provider did not return a valid agent action.")
+                    except Exception as error:
+                        failure = classify_llm_failure(error, run_id=state.run_id, iteration=iteration, attempt=attempt)
+                        self._trace_recorder.finish_span(state.run_id, llm_span, TraceEventType.LLM_REQUEST_FAILED,
+                            iteration=iteration, success=False, metadata={"failure_category": failure.category.value, "attempt": attempt})
+                        self._trace_recorder.record(state.run_id, TraceEventType.OPERATION_FAILED, iteration=iteration,
+                            metadata={"failure_category": failure.category.value, "source": failure.source, "attempt": attempt})
+                        delay = self._retry_policy.retry_delay(failure)
+                        if delay is None:
+                            self._trace_recorder.record(state.run_id, TraceEventType.RETRY_EXHAUSTED, iteration=iteration,
+                                metadata={"failure_category": failure.category.value, "source": failure.source, "attempt": attempt})
+                            raise
+                        self._trace_recorder.record(state.run_id, TraceEventType.RETRY_SCHEDULED, iteration=iteration,
+                            metadata={"failure_category": failure.category.value, "source": failure.source, "attempt": attempt, "delay_ms": round(delay * 1000)})
+                        if failure.category.value == "invalid_model_output":
+                            context = {**context, "runtime_correction": "Return one valid action matching the available schema."}
+                        await self._retry_sleep(delay)
+                        attempt += 1
+                        self._trace_recorder.record(state.run_id, TraceEventType.RETRY_STARTED, iteration=iteration,
+                            metadata={"failure_category": failure.category.value, "source": failure.source, "attempt": attempt})
+                        continue
+                    break
+                llm_decision = decision if isinstance(decision, LLMDecision) else LLMDecision(
+                    action=decision, model=getattr(self._llm_client, "_model", None), provider=type(self._llm_client).__name__)
+                action = llm_decision.action
+                usage = llm_decision.usage
+                self._trace_recorder.finish_span(state.run_id, llm_span, TraceEventType.LLM_REQUEST_FINISHED,
+                    iteration=iteration, success=True, metadata={
+                        "action_type": action.action_type, "provider": llm_decision.provider,
+                        "model": llm_decision.model, "input_tokens": usage.input_tokens if usage else None,
+                        "output_tokens": usage.output_tokens if usage else None,
+                        "cached_input_tokens": usage.cached_input_tokens if usage else None,
+                        "reasoning_tokens": usage.reasoning_tokens if usage else None,
+                        "estimated_cost": estimate_cost(usage, self._pricing_registry.get(llm_decision.model)),
+                    })
+                if attempt > 1:
+                    self._trace_recorder.record(state.run_id, TraceEventType.RETRY_SUCCEEDED, iteration=iteration,
+                        metadata={"source": "llm", "attempt": attempt})
                 log_event(
                     self._logger,
                     logging.INFO,
@@ -238,6 +310,11 @@ class AgentRunner:
                 error=safe_error_message(error),
                 duration_ms=round((perf_counter() - started_at) * 1000),
             )
+            self._trace_recorder.finish_run(state.run_id, status=TraceStatus.FAILED,
+                stop_reason=StopReason.FATAL_ERROR.value,
+                metrics={"iterations": state.iteration_count, "tool_calls": state.total_tool_calls,
+                         "recoverable_errors": state.recoverable_error_count,
+                         "delegations": len(state.delegation_requests)})
             raise
         finally:
             await self._clear_run_working_memory(state.run_id)
@@ -250,12 +327,15 @@ class AgentRunner:
         if self._memory_retriever is None:
             return []
         log_event(self._logger, logging.INFO, "memory_retrieval_started", run_id=run_id)
+        memory_span = self._trace_recorder.start_span(run_id, TraceEventType.MEMORY_RETRIEVAL_STARTED, name="memory_retrieval")
         started_at = perf_counter()
         try:
             result = await self._memory_retriever.retrieve(
                 MemoryRetrievalRequest(query=goal, session_id=session_id)
             )
         except Exception as error:
+            self._trace_recorder.finish_span(run_id, memory_span, TraceEventType.MEMORY_RETRIEVAL_FINISHED,
+                success=False, metadata={"returned_count": 0, "error_type": type(error).__name__})
             log_event(
                 self._logger, logging.WARNING, "memory_retrieval_failed", run_id=run_id,
                 candidate_count=None, returned_count=0,
@@ -268,6 +348,8 @@ class AgentRunner:
             candidate_count=result.candidate_count, returned_count=len(result.memories),
             duration_ms=round((perf_counter() - started_at) * 1000),
         )
+        self._trace_recorder.finish_span(run_id, memory_span, TraceEventType.MEMORY_RETRIEVAL_FINISHED,
+            success=True, metadata={"candidate_count": result.candidate_count, "returned_count": len(result.memories)})
         for memory in result.memories:
             log_event(self._logger, logging.INFO, "untrusted_content_ingested", run_id=run_id,
                       source_type="memory", source_identifier=str(memory.id))
@@ -295,11 +377,16 @@ class AgentRunner:
             self._logger, logging.INFO, "task_summary_started", run_id=state.run_id,
             iteration=state.iteration_count, observations_summarized=len(observations),
         )
+        summary_span = self._trace_recorder.start_span(state.run_id, TraceEventType.TASK_SUMMARY_STARTED,
+            name="task_summary", iteration=state.iteration_count,
+            metadata={"observations_summarized": len(observations)})
         started_at = perf_counter()
         current_summary = state.task_summary or TaskSummary(goal=state.goal)
         try:
             summary = await self._task_summarizer.summarize(current_summary, observations)
         except Exception as error:
+            self._trace_recorder.finish_span(state.run_id, summary_span, TraceEventType.TASK_SUMMARY_FINISHED,
+                iteration=state.iteration_count, success=False, metadata={"error_type": type(error).__name__})
             log_event(
                 self._logger, logging.WARNING, "task_summary_failed", run_id=state.run_id,
                 iteration=state.iteration_count, observations_summarized=len(observations),
@@ -321,6 +408,8 @@ class AgentRunner:
             duration_ms=round((perf_counter() - started_at) * 1000),
             summary_size=len(state.task_summary.model_dump_json()),
         )
+        self._trace_recorder.finish_span(state.run_id, summary_span, TraceEventType.TASK_SUMMARY_FINISHED,
+            iteration=state.iteration_count, success=True, metadata={"observations_summarized": len(observations)})
         log_event(
             self._logger, logging.DEBUG, "task_summary_content", run_id=state.run_id,
             iteration=state.iteration_count,
@@ -343,6 +432,8 @@ class AgentRunner:
                 error_type=type(error).__name__,
                 error=safe_error_message(error),
             )
+            self._trace_recorder.record(state.run_id, TraceEventType.SKILL_LOADED, iteration=state.iteration_count,
+                success=True, metadata={"skill": skill_name})
 
     async def _apply_action(self, state: AgentState, action: AgentAction) -> None:
         """Apply one model-selected action to the current runtime state."""
@@ -521,6 +612,9 @@ class AgentRunner:
         state.status = RunStatus.WAITING_FOR_APPROVAL
         log_event(self._logger, logging.INFO, "approval_requested", run_id=state.run_id,
                   approval_id=request.id, agent=subject.agent_name, capability=request.capability.value)
+        self._trace_recorder.record(state.run_id, TraceEventType.APPROVAL_REQUESTED,
+            iteration=state.iteration_count, metadata={"approval_id": request.id, "capability": request.capability.value,
+            "policy_id": policy_result.policy_id})
         log_event(self._logger, logging.INFO, "agent_paused_for_approval", run_id=state.run_id,
                   approval_id=request.id, agent=subject.agent_name, capability=request.capability.value)
 
@@ -557,6 +651,8 @@ class AgentRunner:
         state.status = RunStatus.RUNNING
         log_event(self._logger, logging.INFO, "agent_resumed_after_approval", run_id=state.run_id,
                   approval_id=approval_id, agent=subject.agent_name, capability=request.capability.value)
+        self._trace_recorder.record(state.run_id, TraceEventType.APPROVAL_RESOLVED,
+            iteration=state.iteration_count, success=True, metadata={"approval_id": approval_id})
         resumed = await self.run(state.goal, state=state)
         await self._approval_store.complete_execution(approval_id, resumed.model_dump(mode="json"))
         return resumed
@@ -581,6 +677,8 @@ class AgentRunner:
         state.status = RunStatus.RUNNING
         log_event(self._logger, logging.INFO, "agent_resumed_after_approval", run_id=state.run_id,
                   approval_id=approval_id, agent=request.agent_name, capability=request.capability.value)
+        self._trace_recorder.record(state.run_id, TraceEventType.APPROVAL_RESOLVED,
+            iteration=state.iteration_count, success=False, metadata={"approval_id": approval_id})
         resumed = await self.run(state.goal, state=state)
         await self._approval_store.complete_execution(approval_id, resumed.model_dump(mode="json"))
         return resumed
@@ -614,6 +712,10 @@ class AgentRunner:
         log_event(self._logger, logging.INFO, "risk_assessment_created", **fields,
                   risk_level=result.metadata.get("risk_level"), risk_rule=result.metadata.get("risk_rule"))
         log_event(self._logger, logging.INFO, "security_policy_evaluated", **fields)
+        self._trace_recorder.record(state.run_id, TraceEventType.SECURITY_POLICY_EVALUATED,
+            iteration=state.iteration_count, success=result.decision == PolicyDecision.ALLOW,
+            metadata={"capability": Capability.AGENT_DELEGATE.value, "decision": result.decision.value,
+            "policy_id": result.policy_id, "risk_level": result.metadata.get("risk_level")})
         if result.decision == PolicyDecision.ALLOW:
             log_event(self._logger, logging.INFO, "security_action_allowed", **fields)
             return True
@@ -719,6 +821,9 @@ class AgentRunner:
             target_agent=request.target_agent,
             objective=safe_log_value(request.objective),
         )
+        delegation_span = self._trace_recorder.start_span(state.run_id, TraceEventType.DELEGATION_STARTED,
+            name="delegation", iteration=state.iteration_count,
+            metadata={"target_agent": request.target_agent})
         if self._delegation_executor is None:
             self._record_delegation_observation(
                 state,
@@ -734,6 +839,9 @@ class AgentRunner:
             return
 
         result = await self._delegation_executor.execute(request)
+        self._trace_recorder.finish_span(state.run_id, delegation_span, TraceEventType.DELEGATION_FINISHED,
+            iteration=state.iteration_count, success=result.success, metadata={"child_run_id": result.child_run_id,
+            "target_agent": request.target_agent})
         self._record_subagent_observation(state, result)
         self._account_delegation_results(state, [result])
         if not result.success:
@@ -818,6 +926,9 @@ class AgentRunner:
             return
         state.delegation_requests.extend(requests)
         state.parallel_delegation_batch_count += 1
+        parallel_span = self._trace_recorder.start_span(state.run_id, TraceEventType.PARALLEL_DELEGATION_STARTED,
+            name="parallel_delegation", iteration=state.iteration_count,
+            metadata={"delegation_count": len(requests), "target_agents": [request.target_agent for request in requests]})
         if self._parallel_delegation_executor is None:
             self._record_delegation_observation(
                 state,
@@ -828,6 +939,9 @@ class AgentRunner:
             self._record_recoverable_error(state)
             return
         result = await self._parallel_delegation_executor.execute(requests)
+        self._trace_recorder.finish_span(state.run_id, parallel_span, TraceEventType.PARALLEL_DELEGATION_FINISHED,
+            iteration=state.iteration_count, success=result.success,
+            metadata={"child_run_ids": [item.child_run_id for item in result.results]})
         self._record_parallel_subagent_observation(state, result)
         self._account_delegation_results(state, result.results)
         if not result.success:
@@ -997,6 +1111,13 @@ class AgentRunner:
             stop_reason=state.stop_reason,
             duration_ms=round((perf_counter() - started_at) * 1000),
         )
+        if state.status is not RunStatus.WAITING_FOR_APPROVAL:
+            self._trace_recorder.finish_run(state.run_id,
+                status=TraceStatus.COMPLETED if state.completed else TraceStatus.FAILED,
+                stop_reason=state.stop_reason.value if state.stop_reason else None,
+                metrics={"iterations": state.iteration_count, "tool_calls": state.total_tool_calls,
+                         "recoverable_errors": state.recoverable_error_count,
+                         "delegations": len(state.delegation_requests)})
         return state
 
     def _limit_details(

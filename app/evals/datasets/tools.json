@@ -1,0 +1,7 @@
+{
+  "suite": "tools",
+  "cases": [
+    {"id": "tools.calculator", "name": "Calculator use", "description": "Calculation requires the calculator.", "goal": "Calculate 8 * 7.", "expected_capabilities": ["calculator"], "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "use_tool", "reasoning_summary": "", "tool_name": "calculator", "tool_arguments": {"expression": "8 * 7"}}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "56"}]}},
+    {"id": "tools.unsafe_calculator", "name": "Unsafe calculator input", "description": "Unsafe syntax is rejected without bypassing the tool boundary.", "goal": "Attempt unsafe calculator input.", "expected_capabilities": ["calculator"], "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "use_tool", "reasoning_summary": "", "tool_name": "calculator", "tool_arguments": {"expression": "__import__('os')"}}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "Rejected."}]}}
+  ]
+}
