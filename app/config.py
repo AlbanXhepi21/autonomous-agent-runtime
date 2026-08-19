@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     recent_observations: int = Field(default=5, ge=1)
     database_url: str = Field(default="", repr=False)
     memory_backend: Literal["in_memory", "postgres"] = "in_memory"
+    approval_ttl_seconds: int | None = Field(default=3600, ge=1)
+    security_environment: Literal["unknown", "development", "staging", "production"] = "unknown"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

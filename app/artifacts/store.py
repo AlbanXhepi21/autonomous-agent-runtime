@@ -9,6 +9,9 @@ from uuid import UUID, uuid4
 
 from app.artifacts.models import Artifact
 from app.environment.workspace import Workspace, WorkspaceError
+from app.security.credentials import contains_secret_material
+
+_SENSITIVE_ARTIFACT_NAMES = frozenset({".env", ".env.local", ".env.production", "id_rsa", "id_ed25519", "credentials", "credentials.json"})
 
 
 class ArtifactStore(ABC):
@@ -47,8 +50,15 @@ class WorkspaceArtifactStore(ArtifactStore):
             raise ValueError(str(error)) from error
         if not source.is_file():
             raise ValueError("Artifact source must be a workspace file.")
+        if source.name.lower() in _SENSITIVE_ARTIFACT_NAMES or source.suffix.lower() in {".pem", ".key", ".p12", ".pfx"}:
+            raise ValueError("Sensitive credential files cannot be registered as artifacts.")
         if source.stat().st_size > self._max_artifact_bytes:
             raise ValueError("Artifact source exceeds the configured size limit.")
+        try:
+            if contains_secret_material(source.read_text(encoding="utf-8")):
+                raise ValueError("Files containing credential material cannot be registered as artifacts.")
+        except UnicodeDecodeError:
+            pass
         artifact_name = name or source.name
         if Path(artifact_name).name != artifact_name or artifact_name in {"", ".", ".."} or "\0" in artifact_name:
             raise ValueError("Artifact name must be a simple filename.")

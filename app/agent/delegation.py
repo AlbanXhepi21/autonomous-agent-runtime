@@ -13,7 +13,10 @@ from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.llm.base import LLMClient
+from app.security import ContentTrust, SecurityPolicy
+from app.security.approvals import ApprovalStore
 from app.skills.registry import SkillRegistry
+from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 MAX_DELEGATION_OBJECTIVE_LENGTH = 2_000
@@ -32,6 +35,8 @@ class DelegationMemory(BaseModel):
 
     reference: str = Field(min_length=1, max_length=128)
     content: str = Field(min_length=1, max_length=MAX_DELEGATION_MEMORY_CONTENT_LENGTH)
+    trust: ContentTrust = ContentTrust.RETRIEVED_MEMORY
+    source_type: str = "memory"
 
 
 class DelegationContext(BaseModel):
@@ -174,12 +179,16 @@ class SequentialSubagentExecutor:
         skill_registry: SkillRegistry,
         llm_client_factory: Callable[[AgentDefinition], LLMClient],
         parent_limits: RuntimeLimits,
+        security_policy: SecurityPolicy | None = None,
+        approval_store: ApprovalStore | None = None,
     ) -> None:
         self._agent_registry = agent_registry
         self._tool_registry = tool_registry
         self._skill_registry = skill_registry
         self._llm_client_factory = llm_client_factory
         self._parent_limits = parent_limits
+        self._security_policy = security_policy or SecurityPolicy.primary()
+        self._approval_store = approval_store
         self._logger = logging.getLogger(__name__)
 
     async def execute(self, request: DelegationRequest) -> SubagentResult:
@@ -302,6 +311,15 @@ class SequentialSubagentExecutor:
             delegation_enabled=False,
             delegation_context=request.context,
             agent_depth=1,
+            security_policy=self._security_policy.with_specialist(definition),
+            security_agent_name=definition.name,
+            security_agent_type="specialist",
+            parent_run_id=request.parent_run_id,
+            tool_executor=ToolExecutor(
+                self._tool_registry.restricted_to(set(definition.allowed_tools)),
+                security_policy=self._security_policy.with_specialist(definition),
+            ),
+            approval_store=self._approval_store,
         )
 
     @staticmethod

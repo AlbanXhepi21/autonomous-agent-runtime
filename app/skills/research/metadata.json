@@ -1,7 +1,7 @@
 {
   "name": "research",
-  "description": "Research and verify factual information.",
-  "version": "1.0.0",
-  "tags": ["research", "verification", "evidence"],
+  "description": "Plan evidence gathering, assess source quality, and produce qualified factual conclusions.",
+  "version": "1.1.0",
+  "tags": ["research", "verification", "evidence", "source-evaluation", "uncertainty"],
   "recommended_tools": []
 }

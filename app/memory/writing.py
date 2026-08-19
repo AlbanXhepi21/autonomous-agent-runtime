@@ -12,6 +12,7 @@ from app.agent.state import AgentState
 from app.core.logging import log_event, safe_error_message
 from app.memory.manager import MemoryManager
 from app.memory.models import Memory, MemoryType
+from app.security.credentials import contains_secret_material
 
 
 class MemoryCategory(StrEnum):
@@ -93,6 +94,8 @@ class MemoryPolicy:
 
     def rejection_reason(self, candidate: MemoryCandidate) -> str | None:
         content = candidate.content.strip()
+        if contains_secret_material(content):
+            return "credential_material"
         if candidate.memory_type is MemoryType.WORKING:
             return "working_memory_is_not_durable"
         if len(content) < 20:

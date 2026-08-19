@@ -53,6 +53,7 @@ async def run_agent(
         tool_outcomes=tool_outcomes,
         skills_used=list(state.loaded_skills),
         completed=state.completed,
+        status=state.status,
         stop_reason=state.stop_reason,
         artifacts=state.artifacts,
     )

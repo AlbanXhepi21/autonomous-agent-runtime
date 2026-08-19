@@ -3,6 +3,7 @@
 from typing import Any
 
 from pydantic import BaseModel, Field
+from app.security.models import ContentTrust
 
 
 class ToolResult(BaseModel):
@@ -12,3 +13,6 @@ class ToolResult(BaseModel):
     output: Any | None = None
     error: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    trust: ContentTrust = ContentTrust.TOOL_OUTPUT
+    source_type: str | None = None
+    source_identifier: str | None = None

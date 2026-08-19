@@ -12,6 +12,18 @@ from app.core.logging import (
     safe_log_value,
     safe_observation_value,
 )
+from app.security import (
+    PolicyDecision,
+    PolicyResult,
+    ContentTrust,
+    SecurityAction,
+    SecurityPolicy,
+    SecuritySubject,
+    capability_for_tool,
+    external_content_for_tool,
+    injection_indicators,
+    resource_for_tool,
+)
 from app.tools.base import Tool, ToolInputError
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
@@ -20,9 +32,42 @@ from app.tools.registry import ToolRegistry
 class ToolExecutor:
     """Validate and execute registered tools without exposing exceptions to the agent."""
 
-    def __init__(self, tool_registry: ToolRegistry) -> None:
+    def __init__(
+        self,
+        tool_registry: ToolRegistry,
+        *,
+        security_policy: SecurityPolicy | None = None,
+    ) -> None:
         self._tool_registry = tool_registry
+        self._security_policy = security_policy or SecurityPolicy.primary()
+        self._approved_execution_token = object()
         self._logger = logging.getLogger(__name__)
+
+    def evaluate_policy(
+        self, tool_name: str, arguments: Mapping[str, Any], subject: SecuritySubject
+    ) -> tuple[PolicyResult, SecurityAction] | None:
+        """Return the gate decision only for a valid registered tool action."""
+
+        try:
+            tool = self._tool_registry.get(tool_name)
+        except UnknownToolError:
+            return None
+        if self._validate_arguments(tool, arguments):
+            return None
+        action = SecurityAction(
+            capability=capability_for_tool(tool.name), tool_name=tool.name,
+            resource=resource_for_tool(tool.name, arguments),
+        )
+        try:
+            return self._security_policy.evaluate(subject, action), action
+        except Exception:
+            # Security infrastructure failures are never permission grants.
+            return PolicyResult(
+                decision=PolicyDecision.DENY,
+                reason="Security policy evaluation failed.",
+                policy_id="security.policy_evaluation_failed",
+                capability=action.capability,
+            ), action
 
     async def execute(
         self,
@@ -31,8 +76,50 @@ class ToolExecutor:
         *,
         run_id: str | None = None,
         iteration: int | None = None,
+        subject: SecuritySubject | None = None,
     ) -> ToolResult:
         """Run one tool request and return its safe, structured outcome."""
+
+        return await self._execute(
+            tool_name, arguments, run_id=run_id, iteration=iteration, subject=subject,
+            approval_granted=False,
+        )
+
+    async def execute_approved(
+        self,
+        tool_name: str,
+        arguments: Mapping[str, Any] | None = None,
+        *,
+        run_id: str | None = None,
+        iteration: int | None = None,
+        subject: SecuritySubject | None = None,
+        approval_token: object | None = None,
+    ) -> ToolResult:
+        """Internal resume path; only AgentRunner calls this after a claimed approval."""
+
+        if approval_token is not self._approved_execution_token:
+            return ToolResult(
+                success=False,
+                error="Approved execution was not validated by the runtime.",
+                metadata={"tool_name": tool_name, "policy_id": "security.invalid_approval_execution"},
+            )
+
+        return await self._execute(
+            tool_name, arguments, run_id=run_id, iteration=iteration, subject=subject,
+            approval_granted=True,
+        )
+
+    async def _execute(
+        self,
+        tool_name: str,
+        arguments: Mapping[str, Any] | None = None,
+        *,
+        run_id: str | None = None,
+        iteration: int | None = None,
+        subject: SecuritySubject | None = None,
+        approval_granted: bool,
+    ) -> ToolResult:
+        """Shared implementation; the public execute path can never bypass approval."""
 
         started_at = perf_counter()
         event_fields = {
@@ -124,6 +211,45 @@ class ToolExecutor:
                 self._failure(argument_error, tool_name=tool.name), started_at, execution_fields
             )
 
+        subject = subject or SecuritySubject(
+            agent_name="runtime", agent_type="system", run_id=run_id or "unscoped"
+        )
+        security_action = SecurityAction(
+            capability=capability_for_tool(tool.name), tool_name=tool.name,
+            resource=resource_for_tool(tool.name, arguments),
+        )
+        try:
+            policy_result = self._security_policy.evaluate(subject, security_action)
+        except Exception:
+            policy_result = PolicyResult(
+                decision=PolicyDecision.DENY, reason="Security policy evaluation failed.",
+                policy_id="security.policy_evaluation_failed", capability=security_action.capability,
+            )
+        security_fields = {
+            "run_id": subject.run_id, "agent": subject.agent_name,
+            "capability": policy_result.capability.value if policy_result.capability else "unknown",
+            "decision": policy_result.decision.value, "policy_id": policy_result.policy_id,
+        }
+        log_event(
+            self._logger, logging.INFO, "risk_assessment_created", **security_fields,
+            risk_level=policy_result.metadata.get("risk_level"),
+            risk_rule=policy_result.metadata.get("risk_rule"),
+        )
+        log_event(self._logger, logging.INFO, "security_policy_evaluated", **security_fields)
+        if policy_result.decision != PolicyDecision.ALLOW and not (
+            approval_granted and policy_result.decision == PolicyDecision.REQUIRE_APPROVAL
+        ):
+            event = (
+                "security_approval_required"
+                if policy_result.decision == PolicyDecision.REQUIRE_APPROVAL
+                else "security_action_denied"
+            )
+            log_event(self._logger, logging.WARNING, event, **security_fields)
+            return self._finish(
+                self._policy_failure(tool.name, policy_result), started_at, execution_fields
+            )
+        log_event(self._logger, logging.INFO, "security_action_allowed", **security_fields)
+
         try:
             if getattr(tool, "requires_run_id", False):
                 output = await tool.execute_for_run(run_id=run_id, **dict(arguments))
@@ -148,6 +274,16 @@ class ToolExecutor:
                 execution_fields,
             )
 
+        untrusted_content = external_content_for_tool(tool.name, arguments, output)
+        if untrusted_content is not None:
+            log_event(self._logger, logging.INFO, "untrusted_content_ingested",
+                      run_id=run_id, source_type=untrusted_content.source_type,
+                      source_identifier=safe_log_value(untrusted_content.source))
+            for indicator in injection_indicators(untrusted_content.content):
+                log_event(self._logger, logging.WARNING, "prompt_injection_indicator_detected",
+                          run_id=run_id, source_type=untrusted_content.source_type,
+                          source_identifier=safe_log_value(untrusted_content.source), matched_heuristic=indicator)
+
         return self._finish(
             ToolResult(
                 success=True,
@@ -155,6 +291,9 @@ class ToolExecutor:
                     output, max_length=getattr(tool, "max_observation_length", 200)
                 ),
                 metadata={"tool_name": tool.name},
+                trust=untrusted_content.trust if untrusted_content else ContentTrust.TOOL_OUTPUT,
+                source_type=untrusted_content.source_type if untrusted_content else None,
+                source_identifier=untrusted_content.source if untrusted_content else None,
             ),
             started_at,
             execution_fields,
@@ -312,6 +451,25 @@ class ToolExecutor:
             success=False,
             error=safe_error_message(error),
             metadata={"tool_name": tool_name},
+        )
+
+    @staticmethod
+    def _policy_failure(tool_name: str, policy_result: PolicyResult) -> ToolResult:
+        """Turn a non-executable policy result into a safe agent observation."""
+
+        approval = policy_result.decision == PolicyDecision.REQUIRE_APPROVAL
+        return ToolResult(
+            success=False,
+            error=(
+                "This action requires human approval, which is not available in this runtime."
+                if approval else "This action is not permitted by runtime security policy."
+            ),
+            metadata={
+                "tool_name": tool_name,
+                "security_decision": policy_result.decision.value,
+                "capability": policy_result.capability.value if policy_result.capability else "unknown",
+                "policy_id": policy_result.policy_id,
+            },
         )
 
 

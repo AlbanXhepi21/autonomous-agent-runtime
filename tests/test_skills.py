@@ -46,8 +46,8 @@ def test_skill_discovery_and_metadata_parsing() -> None:
     research = registry.get_metadata("research")
 
     assert research.name == "research"
-    assert research.description == "Research and verify factual information."
-    assert research.version == "1.0.0"
+    assert research.description == "Plan evidence gathering, assess source quality, and produce qualified factual conclusions."
+    assert research.version == "1.1.0"
     assert "verification" in research.tags
     assert [skill.name for skill in registry.list_skills()] == [
         "data_analysis",
@@ -89,7 +89,7 @@ def test_initial_context_contains_metadata_but_not_skill_instructions() -> None:
     context = build_context(state, ToolRegistry(), registry)
 
     research = next(skill for skill in context["available_skills"] if skill["name"] == "research")
-    assert research["description"] == "Research and verify factual information."
+    assert research["description"] == "Plan evidence gathering, assess source quality, and produce qualified factual conclusions."
     assert "Define the claim" not in json.dumps(context)
     assert context["loaded_skills"] == []
 
@@ -105,6 +105,7 @@ def test_loaded_skill_content_appears_only_after_loading() -> None:
         skill for skill in context["loaded_skills"] if skill["name"] == "research"
     )
     assert "Define the claim" in loaded_research["instructions"]
+    assert "evidence ledger" in loaded_research["instructions"]
     assert "research" not in {skill["name"] for skill in context["available_skills"]}
 
 

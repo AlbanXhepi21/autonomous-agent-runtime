@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from app.agent.state import StopReason
+from app.agent.state import RunStatus, StopReason
 from app.artifacts.models import Artifact
 
 
@@ -35,5 +35,6 @@ class AgentRunResponse(BaseModel):
     tool_outcomes: list[ToolOutcomeSummary]
     skills_used: list[str]
     completed: bool
+    status: RunStatus
     stop_reason: StopReason | None
     artifacts: list[Artifact] = Field(default_factory=list)
