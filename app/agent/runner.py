@@ -18,7 +18,7 @@ from app.agent.models import AgentAction
 from app.agent.registry import AgentRegistry
 from app.agent.policy import delegation_fingerprint, tool_action_fingerprint
 from app.agent.prompt import SYSTEM_PROMPT
-from app.agent.state import AgentState, Observation, StopReason, TaskSummary
+from app.agent.state import AgentState, Observation, RunStatus, StopReason, TaskSummary
 from app.agent.summarization import (
     DeterministicTaskSummarizer,
     SummaryPolicy,
@@ -33,6 +33,9 @@ from app.memory.manager import MemoryManager
 from app.memory.models import Memory, MemoryType
 from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetriever
 from app.memory.writing import MemoryWritingPipeline
+from app.security import Capability, PolicyDecision, PolicyResult, SecurityAction, SecurityPolicy, SecurityResource, SecuritySubject
+from app.security.approvals import ApprovalCheckpoint, ApprovalRequest, ApprovalStatus, ApprovalStore, action_fingerprint, safe_argument_summary
+from app.security import ContentTrust, injection_indicators
 from app.skills.registry import SkillRegistry
 from app.tools.executor import ToolExecutor
 from app.tools.models import ToolResult
@@ -63,10 +66,18 @@ class AgentRunner:
         delegation_enabled: bool = True,
         delegation_context: DelegationContext | None = None,
         agent_depth: int = 0,
+        security_policy: SecurityPolicy | None = None,
+        security_agent_name: str = "primary",
+        security_agent_type: str = "primary",
+        parent_run_id: str | None = None,
+        approval_store: ApprovalStore | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._tool_registry = tool_registry
-        self._tool_executor = tool_executor or ToolExecutor(tool_registry)
+        self._security_policy = security_policy or SecurityPolicy.primary()
+        self._tool_executor = tool_executor or ToolExecutor(
+            tool_registry, security_policy=self._security_policy
+        )
         self._skill_registry = skill_registry
         self._logger = logging.getLogger(__name__)
         if limits is not None and max_iterations is not None:
@@ -87,6 +98,10 @@ class AgentRunner:
         self._system_prompt = system_prompt
         self._delegation_enabled = delegation_enabled
         self._agent_depth = agent_depth
+        self._security_agent_name = security_agent_name
+        self._security_agent_type = security_agent_type
+        self._parent_run_id = parent_run_id
+        self._approval_store = approval_store
         self._memory_manager = memory_manager
         self._memory_retriever = memory_retriever
         self._memory_writer = memory_writer
@@ -106,6 +121,8 @@ class AgentRunner:
             raise ValueError("Provided agent state goal must match the run goal.")
         if state.agent_depth != self._agent_depth:
             raise ValueError("Provided agent state depth must match the runner depth.")
+        if state.status is RunStatus.WAITING_FOR_APPROVAL:
+            return state
         started_at = perf_counter()
         log_event(
             self._logger,
@@ -197,6 +214,8 @@ class AgentRunner:
                 await self._apply_action(state, action)
                 await self._maybe_update_summary(state)
 
+                if state.status is RunStatus.WAITING_FOR_APPROVAL:
+                    return await self._finish_run(state, started_at, session_id=session_id)
                 if state.completed or state.stop_reason is not None:
                     return await self._finish_run(state, started_at, session_id=session_id)
 
@@ -249,6 +268,12 @@ class AgentRunner:
             candidate_count=result.candidate_count, returned_count=len(result.memories),
             duration_ms=round((perf_counter() - started_at) * 1000),
         )
+        for memory in result.memories:
+            log_event(self._logger, logging.INFO, "untrusted_content_ingested", run_id=run_id,
+                      source_type="memory", source_identifier=str(memory.id))
+            for indicator in injection_indicators(memory.content):
+                log_event(self._logger, logging.WARNING, "prompt_injection_indicator_detected", run_id=run_id,
+                          source_type="memory", source_identifier=str(memory.id), matched_heuristic=indicator)
         return result.memories
 
     async def _working_memories(self, run_id: str) -> list[Memory]:
@@ -363,11 +388,27 @@ class AgentRunner:
 
             state.recent_action_fingerprints.append(fingerprint)
             state.total_tool_calls += 1
+            subject = self._security_subject(state)
+            preflight = self._tool_executor.evaluate_policy(
+                tool_name, action.tool_arguments, subject
+            )
+            if preflight is not None and preflight[0].decision is PolicyDecision.REQUIRE_APPROVAL:
+                policy_result = preflight[0]
+                log_event(self._logger, logging.INFO, "risk_assessment_created", run_id=state.run_id,
+                          agent=subject.agent_name,
+                          capability=policy_result.capability.value if policy_result.capability else "unknown",
+                          risk_level=policy_result.metadata.get("risk_level"),
+                          risk_rule=policy_result.metadata.get("risk_rule"))
+                await self._pause_for_approval(
+                    state, tool_name, action.tool_arguments, subject, *preflight
+                )
+                return
             result = await self._tool_executor.execute(
                 tool_name,
                 action.tool_arguments,
                 run_id=state.run_id,
                 iteration=state.iteration_count,
+                subject=subject,
             )
             if result.success and tool_name == "register_artifact" and isinstance(result.output, dict):
                 try:
@@ -451,7 +492,134 @@ class AgentRunner:
 
         state.final_answer = action.final_answer
         state.completed = True
+        state.status = RunStatus.COMPLETED
         state.stop_reason = StopReason.COMPLETED
+
+    async def _pause_for_approval(self, state: AgentState, tool_name: str, arguments: dict,
+                                  subject: SecuritySubject, policy_result: PolicyResult,
+                                  security_action: SecurityAction) -> None:
+        """Persist a safe request and private exact-action checkpoint, then pause."""
+
+        if self._approval_store is None or security_action.capability is None:
+            self._record_observation(state, source=tool_name, result=ToolResult(
+                success=False, error="This action requires human approval, which is not available in this runtime.",
+                metadata={"tool_name": tool_name, "security_decision": "require_approval"},
+            ))
+            return
+        fingerprint = action_fingerprint(subject, security_action, arguments)
+        request = ApprovalRequest(
+            run_id=state.run_id, parent_run_id=subject.parent_run_id, agent_name=subject.agent_name,
+            capability=security_action.capability, tool_name=tool_name,
+            resource=security_action.resource.identifier if security_action.resource else None,
+            argument_summary=safe_argument_summary(arguments), reason=policy_result.reason,
+            policy_id=policy_result.policy_id, action_fingerprint=fingerprint,
+        )
+        await self._approval_store.create(request, ApprovalCheckpoint(
+            state=state.model_dump(mode="json"), tool_name=tool_name, tool_arguments=arguments,
+            action_fingerprint=fingerprint,
+        ))
+        state.status = RunStatus.WAITING_FOR_APPROVAL
+        log_event(self._logger, logging.INFO, "approval_requested", run_id=state.run_id,
+                  approval_id=request.id, agent=subject.agent_name, capability=request.capability.value)
+        log_event(self._logger, logging.INFO, "agent_paused_for_approval", run_id=state.run_id,
+                  approval_id=request.id, agent=subject.agent_name, capability=request.capability.value)
+
+    async def resume_approval(self, approval_id: str) -> AgentState | None:
+        """Execute one human-approved checkpoint exactly once, then continue the loop."""
+
+        if self._approval_store is None:
+            return None
+        claimed = await self._approval_store.claim_approved(approval_id)
+        if claimed is None:
+            checkpoint = await self._approval_store.checkpoint(approval_id)
+            return AgentState.model_validate(checkpoint.state) if checkpoint else None
+        request, checkpoint = claimed
+        state = AgentState.model_validate(checkpoint.state)
+        subject = self._security_subject(state)
+        preflight = self._tool_executor.evaluate_policy(checkpoint.tool_name, checkpoint.tool_arguments, subject)
+        if (
+            preflight is None
+            or request.action_fingerprint != checkpoint.action_fingerprint
+            or action_fingerprint(subject, preflight[1], checkpoint.tool_arguments)
+            != checkpoint.action_fingerprint
+        ):
+            self._record_observation(state, source=checkpoint.tool_name, result=ToolResult(
+                success=False, error="Approved action could not be validated for execution.",
+                metadata={"tool_name": checkpoint.tool_name, "approval_id": approval_id},
+            ))
+        else:
+            result = await self._tool_executor.execute_approved(
+                checkpoint.tool_name, checkpoint.tool_arguments, run_id=state.run_id,
+                iteration=state.iteration_count, subject=subject,
+                approval_token=self._tool_executor._approved_execution_token,
+            )
+            self._record_observation(state, source=checkpoint.tool_name, result=result)
+        state.status = RunStatus.RUNNING
+        log_event(self._logger, logging.INFO, "agent_resumed_after_approval", run_id=state.run_id,
+                  approval_id=approval_id, agent=subject.agent_name, capability=request.capability.value)
+        resumed = await self.run(state.goal, state=state)
+        await self._approval_store.complete_execution(approval_id, resumed.model_dump(mode="json"))
+        return resumed
+
+    async def resume_rejection(self, approval_id: str) -> AgentState | None:
+        """Record a human rejection as an observation and let the agent choose again."""
+
+        if self._approval_store is None:
+            return None
+        claimed = await self._approval_store.claim_rejected(approval_id)
+        if claimed is None:
+            checkpoint = await self._approval_store.checkpoint(approval_id)
+            return AgentState.model_validate(checkpoint.state) if checkpoint else None
+        request, checkpoint = claimed
+        state = AgentState.model_validate(checkpoint.state)
+        self._record_observation(state, source=checkpoint.tool_name, result=ToolResult(
+            success=False, error="The requested action was rejected by a human reviewer.",
+            metadata={"tool_name": checkpoint.tool_name, "approval_id": approval_id,
+                      "security_decision": "rejected"},
+        ))
+        state.recoverable_error_count += 1
+        state.status = RunStatus.RUNNING
+        log_event(self._logger, logging.INFO, "agent_resumed_after_approval", run_id=state.run_id,
+                  approval_id=approval_id, agent=request.agent_name, capability=request.capability.value)
+        resumed = await self.run(state.goal, state=state)
+        await self._approval_store.complete_execution(approval_id, resumed.model_dump(mode="json"))
+        return resumed
+
+    def _security_subject(self, state: AgentState) -> SecuritySubject:
+        """Construct identity solely from runner and state owned by the runtime."""
+
+        return SecuritySubject(
+            agent_name=self._security_agent_name,
+            agent_type=self._security_agent_type,
+            run_id=state.run_id,
+            parent_run_id=self._parent_run_id,
+            delegation_depth=self._agent_depth,
+        )
+
+    def _delegation_allowed(self, state: AgentState, target_agent: str) -> bool:
+        """Apply the same centralized gate to delegation actions."""
+
+        result = self._security_policy.evaluate(
+            self._security_subject(state),
+            SecurityAction(
+                capability=Capability.AGENT_DELEGATE,
+                resource=SecurityResource(resource_type="specialist_agent", identifier=target_agent or "unknown"),
+            ),
+        )
+        fields = {
+            "run_id": state.run_id, "agent": self._security_agent_name,
+            "capability": Capability.AGENT_DELEGATE.value, "decision": result.decision.value,
+            "policy_id": result.policy_id,
+        }
+        log_event(self._logger, logging.INFO, "risk_assessment_created", **fields,
+                  risk_level=result.metadata.get("risk_level"), risk_rule=result.metadata.get("risk_rule"))
+        log_event(self._logger, logging.INFO, "security_policy_evaluated", **fields)
+        if result.decision == PolicyDecision.ALLOW:
+            log_event(self._logger, logging.INFO, "security_action_allowed", **fields)
+            return True
+        event = "security_approval_required" if result.decision == PolicyDecision.REQUIRE_APPROVAL else "security_action_denied"
+        log_event(self._logger, logging.WARNING, event, **fields)
+        return False
 
     async def _handle_delegation(self, state: AgentState, action: AgentAction) -> None:
         """Validate and execute a model-selected delegation through its boundary."""
@@ -465,6 +633,13 @@ class AgentRunner:
                 current_value=self._agent_depth,
                 configured_limit=self._limits.max_agent_depth,
             )
+            return
+        if not self._delegation_allowed(state, target_agent):
+            self._record_delegation_observation(
+                state, status="invalid", target_agent=target_agent,
+                error="Delegation is not permitted by runtime security policy.",
+            )
+            self._record_recoverable_error(state)
             return
         if len(state.delegation_requests) >= self._limits.max_delegations_per_run:
             self._record_delegation_limit(
@@ -574,6 +749,13 @@ class AgentRunner:
                 current_value=self._agent_depth,
                 configured_limit=self._limits.max_agent_depth,
             )
+            return
+        if not self._delegation_allowed(state, "parallel"):
+            self._record_delegation_observation(
+                state, status="invalid", target_agent="parallel",
+                error="Delegation is not permitted by runtime security policy.",
+            )
+            self._record_recoverable_error(state)
             return
         if not self._delegation_enabled or self._agent_registry is None:
             self._record_delegation_observation(
@@ -777,6 +959,7 @@ class AgentRunner:
         """Record a runtime-enforced terminal state."""
 
         state.completed = False
+        state.status = RunStatus.FAILED
         state.stop_reason = reason
         state.final_answer = answer
         limit = self._limit_details(state, reason)

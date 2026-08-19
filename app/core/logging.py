@@ -17,6 +17,25 @@ _SENSITIVE_KEY_PARTS = (
     "cookie",
 )
 _MAX_LOG_VALUE_LENGTH = 200
+_KNOWN_SECRET_VALUES: set[str] = set()
+
+
+def register_secret_value(value: str) -> None:
+    """Register a runtime-resolved secret for defensive output redaction."""
+
+    if isinstance(value, str) and value:
+        _KNOWN_SECRET_VALUES.add(value)
+
+
+def redact_secret_text(value: str) -> str:
+    """Redact known runtime values plus common credential material."""
+
+    for secret in _KNOWN_SECRET_VALUES:
+        value = value.replace(secret, "[REDACTED]")
+    value = re.sub(r"\b(?:ghp|github_pat|sk|AIza)[A-Za-z0-9_\-]{12,}\b", "[REDACTED]", value)
+    value = re.sub(r"\bBearer\s+[A-Za-z0-9._\-]{12,}\b", "[REDACTED]", value, flags=re.I)
+    value = re.sub(r"-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----", "[REDACTED]", value)
+    return value
 
 
 class StructuredEventFormatter(logging.Formatter):
@@ -93,7 +112,7 @@ def safe_log_value(value: Any, *, max_length: int = _MAX_LOG_VALUE_LENGTH) -> An
     if isinstance(value, list | tuple):
         return [safe_log_value(item, max_length=max_length) for item in value]
     if isinstance(value, str):
-        return _truncate(value, max_length)
+        return _truncate(redact_secret_text(value), max_length)
     return value
 
 
@@ -110,7 +129,7 @@ def safe_observation_value(value: Any, *, max_length: int = _MAX_LOG_VALUE_LENGT
     if isinstance(value, list | tuple):
         return [safe_observation_value(item, max_length=max_length) for item in value]
     if isinstance(value, str):
-        return _truncate(value, max_length)
+        return _truncate(redact_secret_text(value), max_length)
     if isinstance(value, float) and not math.isfinite(value):
         return "[non-finite number]"
     if value is None or isinstance(value, bool | int | float):
@@ -121,7 +140,7 @@ def safe_observation_value(value: Any, *, max_length: int = _MAX_LOG_VALUE_LENGT
 def safe_error_message(error: BaseException | str) -> str:
     """Return a short error description suitable for application logs."""
 
-    message = str(error)
+    message = redact_secret_text(str(error))
     for key in _SENSITIVE_KEY_PARTS:
         message = re.sub(
             rf"(?i)({re.escape(key)}\s*[=:]\s*)[^\s,;]+",

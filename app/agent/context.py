@@ -10,6 +10,8 @@ from app.core.limits import RuntimeLimits
 from app.memory.models import Memory
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
+from app.tools.models import ToolResult
+from app.security import ContentTrust, UntrustedContent
 
 
 class ObservationSelector(Protocol):
@@ -72,6 +74,7 @@ class ContextBuilder:
 
         context = {
             "goal": state.goal,
+            "user_request": {"content": state.goal, "trust": ContentTrust.USER_INPUT.value},
             "task_summary": state.task_summary.model_dump() if state.task_summary else None,
             "working_memory": [
                 {"content": memory.content, "metadata": memory.metadata}
@@ -83,9 +86,12 @@ class ContextBuilder:
                     "memory_type": memory.memory_type,
                     "metadata": memory.metadata,
                     "created_at": memory.created_at.isoformat(),
+                    "trust": ContentTrust.RETRIEVED_MEMORY.value,
+                    "source_type": "memory",
                 }
                 for memory in relevant_memories
             ],
+            "untrusted_evidence": self._untrusted_memory_view(relevant_memories),
             "runtime_status": self._runtime_status(state),
             "available_tools": self._tool_registry.definitions(),
             "available_skills": [
@@ -110,7 +116,7 @@ class ContextBuilder:
                 "constraints": self._delegation_context.constraints,
                 "expected_output": self._delegation_context.expected_output,
                 "relevant_memories": [
-                    memory.model_dump()
+                    memory.model_dump(exclude_defaults=True)
                     for memory in self._delegation_context.selected_memories
                 ],
             }
@@ -120,6 +126,19 @@ class ContextBuilder:
                 agent.model_dump() for agent in self._agent_registry.list_agents()
             ]
         return context
+
+    @staticmethod
+    def _untrusted_memory_view(memories: Sequence[Memory]) -> list[dict[str, Any]]:
+        """Expose historical memory as evidence, never runtime instruction."""
+
+        return [
+            UntrustedContent(
+                content=memory.content, source=str(memory.id), source_type="memory",
+                trust=ContentTrust.RETRIEVED_MEMORY, metadata=dict(memory.metadata),
+                retrieved_at=memory.updated_at,
+            ).model_dump(mode="json")
+            for memory in memories
+        ]
 
     def _select_observations(self, state: AgentState) -> list[Observation]:
         if isinstance(self._observation_selector, RecentObservations):
@@ -193,7 +212,7 @@ class ContextBuilder:
                     for result in observation.content.results
                 ],
             }
-        return {
+        view = {
             "sequence": observation.sequence,
             "iteration": observation.iteration,
             "source": observation.source,
@@ -201,6 +220,18 @@ class ContextBuilder:
             "output": observation.content.output,
             "error": observation.content.error,
         }
+        if isinstance(observation.content, ToolResult) and observation.content.trust in {
+            ContentTrust.UNTRUSTED_EXTERNAL, ContentTrust.RETRIEVED_MEMORY,
+        }:
+            view["untrusted_content"] = UntrustedContent(
+                content=observation.content.output,
+                source=observation.content.source_identifier or observation.source,
+                source_type=observation.content.source_type or "tool",
+                trust=observation.content.trust,
+                metadata={"tool_name": observation.content.metadata.get("tool_name", observation.source)},
+            ).model_dump(mode="json")
+            view["output"] = "[Untrusted evidence is provided separately.]"
+        return view
 
 
 def build_context(

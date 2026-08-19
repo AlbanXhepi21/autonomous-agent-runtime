@@ -47,6 +47,13 @@ class StopReason(StrEnum):
     FATAL_ERROR = "fatal_error"
 
 
+class RunStatus(StrEnum):
+    RUNNING = "running"
+    WAITING_FOR_APPROVAL = "waiting_for_approval"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class AgentState(BaseModel):
     """All mutable state belonging to one bounded agent run."""
 
@@ -68,5 +75,6 @@ class AgentState(BaseModel):
     recoverable_error_count: int = 0
     recent_action_fingerprints: list[str] = Field(default_factory=list)
     completed: bool = False
+    status: RunStatus = RunStatus.RUNNING
     final_answer: str | None = None
     stop_reason: StopReason | None = None

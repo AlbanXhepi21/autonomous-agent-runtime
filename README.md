@@ -274,6 +274,55 @@ Repeated identical actions are detected to reduce the risk of an agent getting s
 
 Tool failures are returned to the agent as structured observations whenever possible, allowing the model to decide whether to retry, change its approach, use another capability, or stop.
 
+## Security Architecture (V6)
+
+Security is defense in depth. The LLM proposes an action; deterministic runtime controls decide
+whether it is permitted, requires approval, or is denied:
+
+```text
+Agent action → capability normalization → risk classification → SecurityPolicy
+             → allow / require approval / deny → tool policy → environment boundary
+```
+
+Specialist definitions grant only named tools and skills. `ToolExecutor` is the common
+execution gate; workspace paths, command allowlists, restricted Python, repository controls,
+and artifact validation remain independent downstream checks. Every applicable layer must allow
+the action.
+
+### Risk classification and approval
+
+Risk is typed and runtime-derived (`low`, `medium`, `high`, `critical`) from semantic capability,
+resource, configured environment, and runtime identity—not LLM claims such as `safe=true`.
+Sensitive actions can create an action-bound approval request. The request contains a safe
+summary and fingerprint; approval executes only the exact persisted action once. Rejection
+becomes an observation so the agent can choose another strategy.
+
+### Trust boundaries and prompt injection
+
+System/runtime and on-disk agent-definition instructions are trusted instruction sources. User
+requests are task input. Files, repository data, web output, tool output, and retrieved memory
+are evidence with explicit provenance. They are not allowed to grant permissions, alter risk,
+change policy, reveal secrets, or bypass approval. Heuristic injection indicators provide
+diagnostics only; prompt injection is not considered solved.
+
+### Credential isolation
+
+Tools use logical `SecretReference` names (for example `github.default`) and trusted runtime
+integrations resolve values internally through a `CredentialProvider`. Raw secrets are not placed
+in LLM context, agent state, memory, approvals, artifacts, child environments, or subagent
+context. Known values and common credential patterns are redacted from logs and observations.
+Artifacts reject common secret files and detected credential material; memory writing rejects
+obvious credential forms.
+
+### Known limitations
+
+The environment credential provider is intentionally local and does not provide rotation,
+central auditing, or a production secret-manager integration. Approval endpoints require an
+authenticated deployment boundary before production use. Restricted Python and command execution
+are development controls, **not** a hardened VM or container sandbox. File-backed approvals use
+local-process locking and should be replaced by transactional shared persistence for multi-process
+production deployments.
+
 ---
 
 ## Skills

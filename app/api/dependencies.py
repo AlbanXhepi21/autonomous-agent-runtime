@@ -12,12 +12,14 @@ from app.environment import CommandExecutor, PythonExecutor, Workspace, Workspac
 from app.environment.repository import Repository
 from app.artifacts.store import ArtifactStore, WorkspaceArtifactStore
 from app.core.limits import RuntimeLimits
+from app.core.logging import register_secret_value
 from app.llm.openai_client import OpenAIClient
 from app.memory.base import MemoryStore
 from app.memory.in_memory import InMemoryMemoryStore
 from app.memory.manager import MemoryManager
 from app.memory.retrieval import MemoryRetriever
 from app.memory.writing import MemoryWritingPipeline
+from app.security import ApprovalStore, CredentialProvider, EnvironmentCredentialProvider, FileApprovalStore, RiskClassifier, SecurityEnvironment, SecurityPolicy, SecretReference
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.commands import RunCommandTool
@@ -48,6 +50,24 @@ def get_workspace(settings: Settings | None = None) -> Workspace:
             max_list_files=settings.max_list_files,
         ),
     )
+
+
+@lru_cache
+def get_approval_store() -> ApprovalStore:
+    """Persist approval requests independently from transient API requests."""
+
+    settings = get_settings()
+    return FileApprovalStore(
+        get_workspace(settings).root / ".runtime" / "approvals",
+        ttl_seconds=settings.approval_ttl_seconds,
+    )
+
+
+@lru_cache
+def get_credential_provider() -> CredentialProvider:
+    """Return the runtime-only resolver; no credential values enter agent context."""
+
+    return EnvironmentCredentialProvider()
 
 
 def get_command_executor(
@@ -140,14 +160,18 @@ def get_agent_registry() -> AgentRegistry:
 def get_tool_executor(tool_registry: ToolRegistry | None = None) -> ToolExecutor:
     """Build the runtime boundary for executing registered tools."""
 
-    return ToolExecutor(tool_registry or get_tool_registry())
+    return ToolExecutor(tool_registry or get_tool_registry(), security_policy=SecurityPolicy.primary())
 
 
 def get_llm_client(settings: Settings | None = None) -> OpenAIClient:
     """Build the configured LLM provider implementation."""
 
     settings = settings or get_settings()
-    return OpenAIClient(api_key=settings.openai_api_key, model=settings.openai_model)
+    api_key = get_credential_provider().resolve(SecretReference(name="openai.default"))
+    api_key = api_key or settings.openai_api_key
+    if api_key:
+        register_secret_value(api_key)
+    return OpenAIClient(api_key=api_key, model=settings.openai_model)
 
 
 @lru_cache
@@ -224,12 +248,17 @@ def get_agent_runner() -> AgentRunner:
         max_agent_depth=settings.max_agent_depth,
     )
     llm_client = get_llm_client(settings)
+    security_policy = SecurityPolicy.primary(
+        risk_classifier=RiskClassifier(SecurityEnvironment(settings.security_environment))
+    ).with_human_approval_gates()
     delegation_executor = SequentialSubagentExecutor(
         agent_registry=agent_registry,
         tool_registry=tool_registry,
         skill_registry=skill_registry,
         llm_client_factory=lambda _definition: llm_client,
         parent_limits=limits,
+        security_policy=security_policy,
+        approval_store=get_approval_store(),
     )
     return AgentRunner(
         llm_client=llm_client,
@@ -241,7 +270,9 @@ def get_agent_runner() -> AgentRunner:
             delegation_executor,
             max_parallel_subagents=limits.max_parallel_subagents,
         ),
-        tool_executor=get_tool_executor(tool_registry),
+        tool_executor=ToolExecutor(tool_registry, security_policy=security_policy),
+        security_policy=security_policy,
+        approval_store=get_approval_store(),
         memory_manager=get_memory_manager(),
         memory_retriever=get_memory_retriever(),
         memory_writer=get_memory_writer(),

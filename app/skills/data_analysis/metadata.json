@@ -1,7 +1,7 @@
 {
   "name": "data_analysis",
-  "description": "Analyze structured data and derive evidence-based conclusions.",
-  "version": "1.0.0",
-  "tags": ["data", "analysis", "evidence"],
-  "recommended_tools": []
+  "description": "Analyze structured data with validated assumptions and reproducible summaries.",
+  "version": "1.1.0",
+  "tags": ["data", "analysis", "evidence", "statistics", "reproducibility"],
+  "recommended_tools": ["calculator", "python_exec"]
 }

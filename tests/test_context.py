@@ -27,9 +27,11 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
 
     assert list(context) == [
         "goal",
+        "user_request",
         "task_summary",
         "working_memory",
         "relevant_memories",
+        "untrusted_evidence",
         "runtime_status",
         "available_tools",
         "available_skills",
@@ -65,7 +67,7 @@ def test_context_represents_compact_tool_and_unloaded_skill_metadata() -> None:
     assert calculator["description"]
     assert calculator["arguments_schema"]["type"] == "object"
     research = next(skill for skill in context["available_skills"] if skill["name"] == "research")
-    assert research["version"] == "1.0.0"
+    assert research["version"] == "1.1.0"
     assert "Define the claim" not in json.dumps(context)
 
 
