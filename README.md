@@ -782,6 +782,55 @@ Planned:
 - tracing
 - production hardening
 
+#### V7.1 — In-memory execution traces
+
+The runtime records a sanitized, machine-readable `RunTrace` for each run. It keeps
+run lifecycle, LLM, tool, skill, memory, summary, delegation, security, approval,
+and artifact events separate from human-oriented application logs. Child traces use
+their own `run_id` and retain `parent_run_id`; delegation events retain child IDs.
+
+`GET /runs/{run_id}/trace` returns the sanitized trace while the process is running.
+V7.1 uses an in-memory store, so traces disappear after an application restart.
+
+#### V7.2 — Deterministic evaluations
+
+`app.evals` runs outcome-based JSON suites against a local scripted LLM, so CI does
+not need an API key or model call. Run `python -m app.evals.runner --suite basic`,
+`--case basic.calculate_2_plus_2`, or `--all`; add `--json-output report.json` for
+machine-readable suite reports. Each result carries its runtime `run_id` and trace
+reference for failure investigation.
+
+#### V7.3 — Trajectory quality
+
+Evaluations also derive a sanitized action trajectory from `RunTrace`. Optional
+case constraints can bound iterations, tool calls, delegation, repeats, action
+types, failure recovery, stopping, and denied-capability retries. Child trajectories
+are evaluated separately and aggregated for total system accounting.
+
+#### V7.4 — Usage, latency, and estimated cost
+
+LLM decisions can return optional provider-neutral token usage. The trace derives
+typed run metrics for LLM, tool, memory, summary, delegation, and total duration.
+Pricing is supplied through the versioned `PricingRegistry`; unknown model pricing
+leaves estimated cost as `null`. Parent/child aggregation reports root wall-clock
+latency separately from summed child execution duration.
+
+#### V7.5 — Typed reliability
+
+The runtime classifies safe operational failures and retries only bounded transient
+LLM failures (timeouts, rate limits, provider faults, and one structured-output
+repair). Security denials, approval decisions, validation errors, and ordinary tool
+failures are not automatically retried. Retry events are retained in the run trace.
+
+### Current V7 limitations
+
+The bundled suites are deterministic regression checks, not a real-model quality or
+load benchmark. They do not currently establish memory effectiveness, delegation
+benefit, approval behavior, or end-to-end prompt-injection resistance. Trace storage
+is process-local with bounded retention and is not durable across restart. See
+[`docs/V7_FINAL_REPORT.md`](docs/V7_FINAL_REPORT.md) for the benchmark and production
+readiness review.
+
 ---
 
 ## Why Build the Runtime Directly?

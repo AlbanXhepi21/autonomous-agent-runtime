@@ -1,0 +1,7 @@
+{
+  "suite": "skills",
+  "cases": [
+    {"id": "skills.data_analysis", "name": "Load data analysis", "description": "The data analysis skill is available and loaded.", "goal": "Analyze a small data series.", "expected_skills": ["data_analysis"], "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "load_skill", "reasoning_summary": "", "skill_name": "data_analysis"}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "Analysis complete."}]}},
+    {"id": "skills.software_engineering", "name": "Load software engineering", "description": "The engineering skill is available and loaded.", "goal": "Explain a software design choice.", "expected_skills": ["software_engineering"], "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "load_skill", "reasoning_summary": "", "skill_name": "software_engineering"}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "Explanation complete."}]}}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "suite": "memory",
+  "cases": [
+    {"id": "memory.transient_task", "name": "Transient task", "description": "A one-shot calculation completes without requiring persisted history.", "goal": "Calculate 1 + 1.", "expected_capabilities": ["calculator"], "expected_stop_reason": "completed", "setup": {"actions": [{"action_type": "use_tool", "reasoning_summary": "", "tool_name": "calculator", "tool_arguments": {"expression": "1 + 1"}}, {"action_type": "finish", "reasoning_summary": "", "final_answer": "2"}]}}
+  ]
+}

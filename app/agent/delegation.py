@@ -13,11 +13,13 @@ from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.llm.base import LLMClient
+from app.llm.pricing import PricingRegistry
 from app.security import ContentTrust, SecurityPolicy
 from app.security.approvals import ApprovalStore
 from app.skills.registry import SkillRegistry
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
+from app.observability import TraceRecorder
 
 MAX_DELEGATION_OBJECTIVE_LENGTH = 2_000
 MAX_DELEGATION_BACKGROUND_LENGTH = 2_000
@@ -181,6 +183,8 @@ class SequentialSubagentExecutor:
         parent_limits: RuntimeLimits,
         security_policy: SecurityPolicy | None = None,
         approval_store: ApprovalStore | None = None,
+        trace_recorder: TraceRecorder | None = None,
+        pricing_registry: PricingRegistry | None = None,
     ) -> None:
         self._agent_registry = agent_registry
         self._tool_registry = tool_registry
@@ -189,6 +193,8 @@ class SequentialSubagentExecutor:
         self._parent_limits = parent_limits
         self._security_policy = security_policy or SecurityPolicy.primary()
         self._approval_store = approval_store
+        self._trace_recorder = trace_recorder
+        self._pricing_registry = pricing_registry or PricingRegistry()
         self._logger = logging.getLogger(__name__)
 
     async def execute(self, request: DelegationRequest) -> SubagentResult:
@@ -318,8 +324,11 @@ class SequentialSubagentExecutor:
             tool_executor=ToolExecutor(
                 self._tool_registry.restricted_to(set(definition.allowed_tools)),
                 security_policy=self._security_policy.with_specialist(definition),
+                trace_recorder=self._trace_recorder,
             ),
             approval_store=self._approval_store,
+            trace_recorder=self._trace_recorder,
+            pricing_registry=self._pricing_registry,
         )
 
     @staticmethod

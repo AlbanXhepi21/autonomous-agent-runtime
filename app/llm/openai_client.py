@@ -6,7 +6,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.agent.models import AgentAction
-from app.llm.base import LLMClient
+from app.llm.base import LLMClient, LLMDecision, LLMUsage
 
 
 class OpenAIClient(LLMClient):
@@ -22,6 +22,16 @@ class OpenAIClient(LLMClient):
         system_prompt: str,
         context: dict[str, Any],
     ) -> AgentAction:
+        """Compatibility action-only provider interface."""
+
+        return (await self.choose_decision(system_prompt=system_prompt, context=context)).action
+
+    async def choose_decision(
+        self,
+        *,
+        system_prompt: str,
+        context: dict[str, Any],
+    ) -> LLMDecision:
         """Return one action selected through native function calling."""
 
         response = await self._client.responses.create(
@@ -48,7 +58,17 @@ class OpenAIClient(LLMClient):
         if not isinstance(arguments, dict):
             raise ValueError("OpenAI function arguments must be a JSON object.")
 
-        return self._to_agent_action(function_call.name, arguments)
+        usage = getattr(response, "usage", None)
+        input_details = getattr(usage, "input_tokens_details", None)
+        output_details = getattr(usage, "output_tokens_details", None)
+        return LLMDecision(
+            action=self._to_agent_action(function_call.name, arguments), model=self._model, provider="openai",
+            usage=LLMUsage(
+                input_tokens=getattr(usage, "input_tokens", None), output_tokens=getattr(usage, "output_tokens", None),
+                cached_input_tokens=getattr(input_details, "cached_tokens", None),
+                reasoning_tokens=getattr(output_details, "reasoning_tokens", None),
+            ) if usage is not None else None,
+        )
 
     def _function_definitions(self, context: dict[str, Any]) -> list[dict[str, Any]]:
         """Build strict native function definitions from the runtime context."""

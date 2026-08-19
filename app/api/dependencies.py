@@ -29,6 +29,7 @@ from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, Git
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
+from app.observability import InMemoryTraceStore, TraceRecorder
 
 
 @lru_cache
@@ -160,7 +161,14 @@ def get_agent_registry() -> AgentRegistry:
 def get_tool_executor(tool_registry: ToolRegistry | None = None) -> ToolExecutor:
     """Build the runtime boundary for executing registered tools."""
 
-    return ToolExecutor(tool_registry or get_tool_registry(), security_policy=SecurityPolicy.primary())
+    return ToolExecutor(tool_registry or get_tool_registry(), security_policy=SecurityPolicy.primary(), trace_recorder=get_trace_recorder())
+
+
+@lru_cache
+def get_trace_recorder() -> TraceRecorder:
+    """Return the process-local recorder; traces disappear when the API restarts."""
+
+    return TraceRecorder(InMemoryTraceStore())
 
 
 def get_llm_client(settings: Settings | None = None) -> OpenAIClient:
@@ -259,6 +267,7 @@ def get_agent_runner() -> AgentRunner:
         parent_limits=limits,
         security_policy=security_policy,
         approval_store=get_approval_store(),
+        trace_recorder=get_trace_recorder(),
     )
     return AgentRunner(
         llm_client=llm_client,
@@ -270,7 +279,7 @@ def get_agent_runner() -> AgentRunner:
             delegation_executor,
             max_parallel_subagents=limits.max_parallel_subagents,
         ),
-        tool_executor=ToolExecutor(tool_registry, security_policy=security_policy),
+        tool_executor=ToolExecutor(tool_registry, security_policy=security_policy, trace_recorder=get_trace_recorder()),
         security_policy=security_policy,
         approval_store=get_approval_store(),
         memory_manager=get_memory_manager(),
@@ -281,4 +290,5 @@ def get_agent_runner() -> AgentRunner:
             trigger_observations=settings.summary_trigger_observations,
             recent_observations=settings.recent_observations,
         ),
+        trace_recorder=get_trace_recorder(),
     )
