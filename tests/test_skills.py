@@ -51,6 +51,7 @@ def test_skill_discovery_and_metadata_parsing() -> None:
     assert "verification" in research.tags
     assert [skill.name for skill in registry.list_skills()] == [
         "data_analysis",
+        "executive_reporting",
         "research",
         "software_engineering",
     ]

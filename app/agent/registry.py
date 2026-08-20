@@ -22,6 +22,10 @@ _RUNTIME_TOOL_NAMES = frozenset({
     "get_repository_tree", "search_files", "get_changed_files", "git_inspect",
     "register_artifact", "web_search", "list_tables", "describe_table",
     "get_table_relationships", "search_schema",
+    "query_database",
+    "analyze_dataset",
+    "generate_report",
+    "list_metrics", "describe_metric",
 })
 
 

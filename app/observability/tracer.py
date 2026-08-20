@@ -110,5 +110,10 @@ def _derive_metrics(trace: RunTrace, base: dict[str, int]) -> RunMetrics:
         memory_duration_ms=durations(TraceEventType.MEMORY_RETRIEVAL_FINISHED),
         summary_duration_ms=durations(TraceEventType.TASK_SUMMARY_FINISHED),
         delegation_duration_ms=sum(event.duration_ms or 0 for event in trace.events if event.event_type in {TraceEventType.DELEGATION_FINISHED, TraceEventType.PARALLEL_DELEGATION_FINISHED}),
+        database_query_count=sum(1 for event in trace.events if event.event_type is TraceEventType.DATABASE_QUERY_FINISHED),
+        database_query_duration_ms=sum(event.duration_ms or 0 for event in trace.events if event.event_type is TraceEventType.DATABASE_QUERY_FINISHED),
+        database_rows_returned=sum(event.metadata.get("row_count", 0) for event in trace.events if event.event_type is TraceEventType.DATABASE_QUERY_FINISHED and isinstance(event.metadata.get("row_count"), int)),
+        database_rejected_query_count=sum(1 for event in trace.events if event.event_type is TraceEventType.DATABASE_QUERY_REJECTED),
+        database_timeout_count=sum(1 for event in trace.events if event.event_type is TraceEventType.DATABASE_QUERY_FAILED and event.metadata.get("failure_category") == "database_timeout"),
         total_duration_ms=trace.duration_ms,
     )

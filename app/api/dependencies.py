@@ -12,7 +12,11 @@ from app.environment import CommandExecutor, PythonExecutor, Workspace, Workspac
 from app.environment.repository import Repository
 from app.artifacts.store import ArtifactStore, WorkspaceArtifactStore
 from app.analytics import AnalyticsDatabase, PostgreSQLInspector
+from app.analytics.datasets import AnalyticsDatasetStore
+from app.analytics.metrics import MetricRegistry
 from app.analytics.policy import AnalyticsSchemaPolicy
+from app.analytics.sql import AnalyticsSQLExecutor, PostgreSQLQueryValidator
+from app.analytics.sql.limits import AnalyticsQueryLimits
 from app.core.limits import RuntimeLimits
 from app.core.logging import register_secret_value
 from app.llm.openai_client import OpenAIClient
@@ -29,7 +33,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
-from app.tools.database import DescribeTableTool, GetTableRelationshipsTool, ListTablesTool, SearchSchemaTool
+from app.tools.database import AnalyzeDatasetTool, DescribeMetricTool, DescribeTableTool, GenerateReportTool, GetTableRelationshipsTool, ListMetricsTool, ListTablesTool, QueryDatabaseTool, SearchSchemaTool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
 from app.observability import InMemoryTraceStore, TraceRecorder
@@ -149,6 +153,11 @@ def get_tool_registry(
     registry.register(DescribeTableTool(inspector))
     registry.register(GetTableRelationshipsTool(inspector))
     registry.register(SearchSchemaTool(inspector))
+    registry.register(QueryDatabaseTool(inspector, get_analytics_query_validator(), get_analytics_query_executor(), get_analytics_dataset_store()))
+    registry.register(AnalyzeDatasetTool(get_analytics_dataset_store(), get_analytics_python_executor(), artifact_store or get_artifact_store()))
+    registry.register(GenerateReportTool(get_analytics_dataset_store(), workspace, artifact_store or get_artifact_store()))
+    registry.register(ListMetricsTool(get_metric_registry()))
+    registry.register(DescribeMetricTool(get_metric_registry()))
     return registry
 
 
@@ -166,6 +175,41 @@ def get_analytics_inspector() -> PostgreSQLInspector:
         get_analytics_database(), AnalyticsSchemaPolicy.configured(settings.analytics_db_schema),
         cache_ttl_seconds=settings.analytics_schema_cache_ttl_seconds,
     )
+
+
+@lru_cache
+def get_analytics_query_validator() -> PostgreSQLQueryValidator:
+    return PostgreSQLQueryValidator(AnalyticsSchemaPolicy.configured(get_settings().analytics_db_schema))
+
+
+@lru_cache
+def get_analytics_query_executor() -> AnalyticsSQLExecutor:
+    settings = get_settings()
+    return AnalyticsSQLExecutor(get_analytics_database(), AnalyticsQueryLimits(
+        max_result_rows=settings.analytics_max_result_rows,
+        max_result_bytes=settings.analytics_max_result_bytes,
+        timeout_seconds=settings.analytics_query_timeout_seconds,
+    ))
+
+
+@lru_cache
+def get_analytics_dataset_store() -> AnalyticsDatasetStore:
+    settings = get_settings()
+    return AnalyticsDatasetStore(max_rows=settings.analytics_python_max_dataset_rows,
+                                 max_bytes=settings.analytics_python_max_dataset_bytes)
+
+
+@lru_cache
+def get_metric_registry() -> MetricRegistry:
+    return MetricRegistry()
+
+
+def get_analytics_python_executor() -> PythonExecutor:
+    settings = get_settings()
+    return PythonExecutor(get_workspace(settings), allowed_imports=("math", "statistics", "json", "datetime", "collections", "pandas", "numpy", "matplotlib"),
+                          timeout_seconds=settings.analytics_python_timeout_seconds,
+                          max_code_bytes=settings.max_python_code_bytes,
+                          max_output_bytes=settings.max_python_output_bytes)
 
 
 def get_skill_registry() -> SkillRegistry:
@@ -253,6 +297,9 @@ async def close_memory_resources() -> None:
     get_memory_store.cache_clear()
     await get_analytics_database().dispose()
     get_analytics_inspector.cache_clear()
+    get_analytics_query_validator.cache_clear()
+    get_analytics_query_executor.cache_clear()
+    get_analytics_dataset_store.cache_clear()
     get_analytics_database.cache_clear()
 
 

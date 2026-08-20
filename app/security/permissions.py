@@ -22,6 +22,11 @@ _TOOL_CAPABILITIES = {
     "describe_table": Capability.DATABASE_SCHEMA_READ,
     "get_table_relationships": Capability.DATABASE_SCHEMA_READ,
     "search_schema": Capability.DATABASE_SCHEMA_READ,
+    "query_database": Capability.DATABASE_QUERY_READ,
+    "analyze_dataset": Capability.ANALYTICS_PYTHON_EXECUTE,
+    "generate_report": Capability.ANALYTICS_REPORT_CREATE,
+    "list_metrics": Capability.DATABASE_METRIC_READ,
+    "describe_metric": Capability.DATABASE_METRIC_READ,
 }
 
 
@@ -50,4 +55,6 @@ def resource_for_tool(tool_name: str, arguments: Mapping[str, Any]) -> SecurityR
         names = arguments.get("table_names", arguments.get("table_name", ""))
         identifier = ",".join(names) if isinstance(names, list) else str(names)
         return SecurityResource(resource_type="database_schema", identifier=identifier or "configured_schema")
+    if _TOOL_CAPABILITIES.get(tool_name) is Capability.DATABASE_QUERY_READ:
+        return SecurityResource(resource_type="analytics_database", identifier="configured_schema")
     return None

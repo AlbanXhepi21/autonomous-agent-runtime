@@ -11,6 +11,7 @@ import shutil
 import signal
 import sys
 import tempfile
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from time import perf_counter
@@ -25,13 +26,15 @@ _BOOTSTRAP = '''\
 import builtins
 import importlib
 import sys
+import json
 
 ALLOWED_IMPORTS = frozenset({allowed_imports!r})
 
 def restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
     if level or name.split('.', 1)[0] not in ALLOWED_IMPORTS:
         raise ImportError("This import is not allowed in restricted local execution.")
-    return importlib.import_module(name)
+    module = importlib.import_module(name)
+    return module if fromlist else importlib.import_module(name.split('.', 1)[0])
 
 SAFE_BUILTINS = {{
     "__build_class__": builtins.__build_class__, "__import__": restricted_import,
@@ -45,8 +48,9 @@ SAFE_BUILTINS = {{
 }}
 
 try:
+    analytics_data = json.loads(builtins.open("dataset.json", "r", encoding="utf-8").read())
     source = builtins.open("payload.py", "r", encoding="utf-8").read()
-    exec(compile(source, "payload.py", "exec"), {{"__builtins__": SAFE_BUILTINS, "__name__": "__main__"}})
+    exec(compile(source, "payload.py", "exec"), {{"__builtins__": SAFE_BUILTINS, "__name__": "__main__", "analytics_data": analytics_data}})
 except BaseException as error:
     print(f"Python execution failed: {{type(error).__name__}}: {{error}}", file=sys.stderr)
     raise SystemExit(1)
@@ -82,7 +86,16 @@ class PythonExecutor:
     def allowed_imports(self) -> frozenset[str]:
         return self._policy.allowed_imports
 
-    async def execute(self, code: str) -> PythonExecutionResult:
+    @property
+    def workspace(self) -> Workspace:
+        """Expose the trusted workspace only to runtime-owned adapters."""
+
+        return self._workspace
+
+    async def execute(
+        self, code: str, *, dataset: dict[str, object] | None = None,
+        output_directory: Path | None = None,
+    ) -> PythonExecutionResult:
         """Run source in a private temp directory and remove it on every outcome."""
 
         started_at = perf_counter()
@@ -99,10 +112,14 @@ class PythonExecutor:
 
         try:
             (run_directory / "payload.py").write_text(code, encoding="utf-8")
+            (run_directory / "dataset.json").write_text(json.dumps(dataset or {}), encoding="utf-8")
             (run_directory / "bootstrap.py").write_text(
                 _BOOTSTRAP.format(allowed_imports=sorted(self.allowed_imports)), encoding="utf-8"
             )
-            return await self._run_child(run_directory, started_at)
+            result = await self._run_child(run_directory, started_at)
+            if output_directory is not None and result.success:
+                result.generated_files = self._collect_charts(run_directory, output_directory)
+            return result
         except OSError:
             return self._result(False, started_at, error="Python execution could not be prepared.")
         finally:
@@ -175,7 +192,27 @@ class PythonExecutor:
 
     @staticmethod
     def _safe_environment() -> dict[str, str]:
-        return {"PATH": os.defpath, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
+        return {"PATH": os.defpath, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1", "MPLCONFIGDIR": "."}
+
+    def _collect_charts(self, run_directory: Path, output_directory: Path) -> list[str]:
+        """Copy only bounded PNG charts into a runtime-owned workspace directory."""
+
+        try:
+            output_directory.resolve(strict=False).relative_to(self._workspace.root)
+            output_directory.mkdir(parents=True, exist_ok=True)
+        except (OSError, ValueError):
+            return []
+        results: list[str] = []
+        for index, source in enumerate(sorted(run_directory.glob("*.png")), start=1):
+            if index > 5 or source.stat().st_size > self._workspace.limits.max_file_write_bytes:
+                break
+            destination = output_directory / f"chart-{index}.png"
+            try:
+                shutil.copyfile(source, destination)
+                results.append(destination.relative_to(self._workspace.root).as_posix())
+            except OSError:
+                continue
+        return results
 
     @staticmethod
     def _result(

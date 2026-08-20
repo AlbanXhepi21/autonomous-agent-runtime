@@ -30,6 +30,17 @@ class RiskClassifier:
                                  Capability.DATABASE_SCHEMA_READ}:
             return self._assessment(RiskLevel.LOW, RiskCategory.READ_ONLY,
                                     "risk.read_only", "The action is read-only.")
+        if action.capability is Capability.DATABASE_METRIC_READ:
+            return self._assessment(RiskLevel.LOW, RiskCategory.READ_ONLY, "risk.metric_read", "Metric definitions are runtime-owned read-only configuration.")
+        if action.capability is Capability.DATABASE_QUERY_READ:
+            return self._assessment(RiskLevel.MEDIUM, RiskCategory.READ_ONLY,
+                                    "risk.database_query", "Read-only database queries can consume shared resources.")
+        if action.capability is Capability.ANALYTICS_PYTHON_EXECUTE:
+            return self._assessment(RiskLevel.MEDIUM, RiskCategory.CODE_EXECUTION,
+                                    "risk.analytics_python", "Restricted analysis runs on a bounded runtime dataset.")
+        if action.capability is Capability.ANALYTICS_REPORT_CREATE:
+            return self._assessment(RiskLevel.MEDIUM, RiskCategory.LOCAL_MODIFICATION,
+                                    "risk.analytics_report", "Report generation creates bounded local artifacts.")
         if action.capability in {Capability.FILESYSTEM_WRITE, Capability.ARTIFACT_CREATE}:
             return self._assessment(RiskLevel.MEDIUM, RiskCategory.LOCAL_MODIFICATION,
                                     "risk.local_modification", "The action modifies local workspace data.")

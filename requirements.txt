@@ -9,3 +9,7 @@ pytest-asyncio>=0.23
 SQLAlchemy>=2.0
 asyncpg>=0.29
 alembic>=1.13
+sqlglot>=26.0
+pandas>=2.0
+numpy>=1.26
+matplotlib>=3.8

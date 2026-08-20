@@ -54,3 +54,4 @@ class PythonExecutionResult(BaseModel):
     stderr_truncated: bool = False
     timed_out: bool = False
     error: str | None = None
+    generated_files: list[str] = Field(default_factory=list)

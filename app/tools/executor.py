@@ -1,6 +1,7 @@
 """Structured execution boundary for runtime tools."""
 
 from collections.abc import Mapping
+from hashlib import sha256
 import logging
 from time import perf_counter
 from typing import Any
@@ -170,6 +171,7 @@ class ToolExecutor:
         filesystem = getattr(tool, "operation_kind", None) == "filesystem"
         command = getattr(tool, "operation_kind", None) == "command"
         python_execution = getattr(tool, "operation_kind", None) == "python"
+        analytics_python = getattr(tool, "operation_kind", None) == "analytics_python"
         repository = getattr(tool, "operation_kind", None) == "repository"
         if filesystem:
             log_event(
@@ -207,9 +209,11 @@ class ToolExecutor:
             "command": arguments.get("command", ""),
             "args_summary": _command_args_summary(arguments.get("args")),
             "python_execution": python_execution,
+            "analytics_python": analytics_python,
             "code_bytes": _code_bytes(arguments.get("code")),
             "repository": repository,
             "database_table_names": _database_table_names(tool.name, arguments),
+            "query_quality": _query_quality_metadata(arguments.get("sql")) if tool.name == "query_database" else {},
         }
 
         argument_error = self._validate_arguments(tool, arguments)
@@ -222,6 +226,15 @@ class ToolExecutor:
             agent_name="runtime", agent_type="system", run_id=run_id or "unscoped"
         )
         execution_fields["agent"] = subject.agent_name
+        if self._trace_recorder is not None and run_id and tool.name == "query_database":
+            trace = self._trace_recorder.get_trace(run_id)
+            existing_queries = sum(1 for event in (trace.events if trace else []) if event.event_type is TraceEventType.DATABASE_QUERY_VALIDATION_STARTED)
+            execution_fields["query_id"] = f"query_{existing_queries + 1:03d}"
+            self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_VALIDATION_STARTED,
+                iteration=iteration, metadata={"agent": subject.agent_name, "operation": "query_database", "query_id": execution_fields["query_id"]})
+        if self._trace_recorder is not None and run_id and analytics_python:
+            self._trace_recorder.record(run_id, TraceEventType.ANALYTICS_PYTHON_STARTED, iteration=iteration,
+                metadata={"agent": subject.agent_name, "operation": "analyze_dataset", "dataset_id": arguments.get("dataset_id")})
         security_action = SecurityAction(
             capability=capability_for_tool(tool.name), tool_name=tool.name,
             resource=resource_for_tool(tool.name, arguments),
@@ -271,9 +284,14 @@ class ToolExecutor:
 
         try:
             if getattr(tool, "requires_run_id", False):
-                output = await tool.execute_for_run(run_id=run_id, **dict(arguments))
+                runtime_arguments = dict(arguments)
+                if tool.name == "query_database":
+                    runtime_arguments["query_id"] = execution_fields.get("query_id", "query_001")
+                output = await tool.execute_for_run(run_id=run_id, **runtime_arguments)
             else:
                 output = await tool.execute(**dict(arguments))
+            if tool.name == "query_database" and isinstance(output, Mapping):
+                output = {**output, "query_id": execution_fields.get("query_id", "query_001")}
         except ToolInputError as error:
             return self._finish(
                 self._failure(str(error), tool_name=tool.name, failure_category="tool_validation_error"),
@@ -452,6 +470,35 @@ class ToolExecutor:
                         "agent": event_fields.get("agent"), "operation": event_fields.get("tool"),
                         "table_names": event_fields.get("database_table_names", []),
                     })
+            if event_fields.get("tool") == "query_database":
+                output = result.output if isinstance(result.output, Mapping) else {}
+                metadata = {"agent": event_fields.get("agent"), "operation": "query_database",
+                    "referenced_tables": output.get("referenced_tables", []), "row_count": output.get("row_count", 0),
+                    "truncated": output.get("truncated", False), "query_id": output.get("query_id", event_fields.get("query_id")),
+                    **event_fields.get("query_quality", {})}
+                if result.success:
+                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_VALIDATED, iteration=event_fields.get("iteration"), success=True, metadata=metadata)
+                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_STARTED, iteration=event_fields.get("iteration"), metadata=metadata)
+                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_FINISHED, iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=True, metadata=metadata)
+                elif result.metadata.get("failure_category") == "database_query_rejected":
+                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_REJECTED, iteration=event_fields.get("iteration"), success=False, metadata={**metadata, "failure_category": "database_query_rejected"})
+                else:
+                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_FAILED, iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=False, metadata={**metadata, "failure_category": result.metadata.get("failure_category", "database_query_error")})
+            if event_fields.get("analytics_python"):
+                output = result.output if isinstance(result.output, Mapping) else {}
+                metadata = {"agent": event_fields.get("agent"), "dataset_id": output.get("dataset_id"),
+                            "duration_ms": output.get("duration_ms", duration_ms),
+                            "failure_category": result.metadata.get("failure_category")}
+                event = TraceEventType.ANALYTICS_PYTHON_FINISHED if result.success else TraceEventType.ANALYTICS_PYTHON_FAILED
+                self._trace_recorder.record(run_id, event, iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=result.success, metadata=metadata)
+                if result.success:
+                    for artifact in output.get("artifacts", []) if isinstance(output.get("artifacts"), list) else []:
+                        artifact_metadata = {"artifact_id": artifact.get("id") if isinstance(artifact, Mapping) else None,
+                                             "dataset_id": output.get("dataset_id")}
+                        self._trace_recorder.record(run_id, TraceEventType.ARTIFACT_CREATED, iteration=event_fields.get("iteration"), success=True,
+                            metadata=artifact_metadata)
+                        self._trace_recorder.record(run_id, TraceEventType.CHART_CREATED, iteration=event_fields.get("iteration"), success=True,
+                            metadata=artifact_metadata)
         return result
 
     @staticmethod
@@ -545,6 +592,9 @@ def _safe_logged_arguments(
             key: (f"[{len(value.encode('utf-8'))} bytes of code]" if key == "code" and isinstance(value, str) else value)
             for key, value in arguments.items()
         }
+    if tool_name == "query_database":
+        sql = arguments.get("sql")
+        return {"sql": f"[{len(sql.encode('utf-8'))} bytes of SQL]" if isinstance(sql, str) else "[invalid SQL]"}
     if tool_name != "write_file":
         return arguments
     return {
@@ -576,3 +626,17 @@ def _database_table_names(tool_name: object, arguments: object) -> list[str]:
     if tool_name in {"describe_table", "get_table_relationships"} and isinstance(arguments.get("table_name"), str):
         return [arguments["table_name"]]
     return []
+
+
+def _query_quality_metadata(sql: Any) -> dict[str, object]:
+    """Expose only coarse SQL-quality signals to evaluations, never query text."""
+
+    if not isinstance(sql, str):
+        return {}
+    compact = " ".join(sql.lower().split())
+    return {
+        "query_fingerprint": sha256(compact.encode("utf-8")).hexdigest()[:16],
+        "select_star": "select *" in compact,
+        "has_limit": " limit " in f" {compact} ",
+        "raw_event_query": "web_events" in compact and "group by" not in compact,
+    }
