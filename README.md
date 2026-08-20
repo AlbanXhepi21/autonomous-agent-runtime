@@ -88,6 +88,25 @@ For example: `DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/age
 Keep this value out of source control. The FastAPI lifecycle disposes the shared
 PostgreSQL connection pool on shutdown; application startup never creates tables.
 
+### Analytics schema discovery (DA1)
+
+The data-analyst specialist has a separate external metadata connection. Configure
+`ANALYTICS_DATABASE_URL` and `ANALYTICS_DB_SCHEMA` (default: `public`); do not reuse
+the runtime `DATABASE_URL` unless that is an intentional deployment choice. DA1 exposes
+only `list_tables`, `describe_table`, `get_table_relationships`, and deterministic
+`search_schema`. It never executes SQL against table data.
+
+Use a PostgreSQL role with the minimum metadata/read permissions needed for the intended
+analytics schema; a dedicated read-only role is recommended. Credentials remain in
+runtime configuration and are never included in model context, observations, or traces.
+
+For a local metadata-only check, run:
+
+```bash
+python -m app.analytics.inspect
+python -m app.analytics.inspect orders
+```
+
 Longer runs also use a typed task summary to avoid carrying every historical
 observation indefinitely. Once `SUMMARY_TRIGGER_OBSERVATIONS` is reached, history that
 would leave the `RECENT_OBSERVATIONS` window is compacted. The model receives:

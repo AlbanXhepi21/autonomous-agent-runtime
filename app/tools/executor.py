@@ -24,7 +24,7 @@ from app.security import (
     injection_indicators,
     resource_for_tool,
 )
-from app.tools.base import Tool, ToolInputError
+from app.tools.base import Tool, ToolExecutionError, ToolInputError
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
 from app.observability import TraceEventType, TraceRecorder
@@ -209,6 +209,7 @@ class ToolExecutor:
             "python_execution": python_execution,
             "code_bytes": _code_bytes(arguments.get("code")),
             "repository": repository,
+            "database_table_names": _database_table_names(tool.name, arguments),
         }
 
         argument_error = self._validate_arguments(tool, arguments)
@@ -220,6 +221,7 @@ class ToolExecutor:
         subject = subject or SecuritySubject(
             agent_name="runtime", agent_type="system", run_id=run_id or "unscoped"
         )
+        execution_fields["agent"] = subject.agent_name
         security_action = SecurityAction(
             capability=capability_for_tool(tool.name), tool_name=tool.name,
             resource=resource_for_tool(tool.name, arguments),
@@ -277,6 +279,11 @@ class ToolExecutor:
                 self._failure(str(error), tool_name=tool.name, failure_category="tool_validation_error"),
                 started_at,
                 execution_fields,
+            )
+        except ToolExecutionError as error:
+            return self._finish(
+                self._failure(str(error), tool_name=tool.name, failure_category=error.failure_category),
+                started_at, execution_fields,
             )
         except (TypeError, ValueError, ZeroDivisionError):
             return self._finish(
@@ -433,6 +440,18 @@ class ToolExecutor:
                 self._trace_recorder.record(run_id, TraceEventType.ARTIFACT_CREATED,
                     iteration=event_fields.get("iteration"), success=True,
                     metadata={"artifact": result.output})
+            database_events = {
+                "list_tables": TraceEventType.DATABASE_SCHEMA_LISTED,
+                "describe_table": TraceEventType.DATABASE_TABLE_DESCRIBED,
+                "get_table_relationships": TraceEventType.DATABASE_RELATIONSHIPS_INSPECTED,
+                "search_schema": TraceEventType.DATABASE_SCHEMA_SEARCHED,
+            }
+            if (database_event := database_events.get(event_fields.get("tool"))) is not None:
+                self._trace_recorder.record(run_id, database_event, iteration=event_fields.get("iteration"),
+                    duration_ms=duration_ms, success=result.success, metadata={
+                        "agent": event_fields.get("agent"), "operation": event_fields.get("tool"),
+                        "table_names": event_fields.get("database_table_names", []),
+                    })
         return result
 
     @staticmethod
@@ -544,3 +563,16 @@ def _code_bytes(code: Any) -> int:
     """Report source size without retaining source text in execution events."""
 
     return len(code.encode("utf-8")) if isinstance(code, str) else 0
+
+
+def _database_table_names(tool_name: object, arguments: object) -> list[str]:
+    """Extract only safe table identifiers for database trace events."""
+
+    if not isinstance(arguments, Mapping):
+        return []
+    names = arguments.get("table_names")
+    if isinstance(names, list):
+        return [item for item in names if isinstance(item, str)]
+    if tool_name in {"describe_table", "get_table_relationships"} and isinstance(arguments.get("table_name"), str):
+        return [arguments["table_name"]]
+    return []

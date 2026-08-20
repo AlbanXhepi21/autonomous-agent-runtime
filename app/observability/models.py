@@ -38,6 +38,10 @@ class TraceEventType(StrEnum):
     RETRY_STARTED = "retry_started"
     RETRY_SUCCEEDED = "retry_succeeded"
     RETRY_EXHAUSTED = "retry_exhausted"
+    DATABASE_SCHEMA_LISTED = "database_schema_listed"
+    DATABASE_TABLE_DESCRIBED = "database_table_described"
+    DATABASE_RELATIONSHIPS_INSPECTED = "database_relationships_inspected"
+    DATABASE_SCHEMA_SEARCHED = "database_schema_searched"
 
 
 class TraceStatus(StrEnum):

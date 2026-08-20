@@ -8,6 +8,14 @@ class ToolInputError(ValueError):
     """A safe, actionable validation failure that may be returned to the agent."""
 
 
+class ToolExecutionError(RuntimeError):
+    """A safe operational failure with a runtime failure-taxonomy category."""
+
+    def __init__(self, message: str, *, failure_category: str = "tool_failure") -> None:
+        super().__init__(message)
+        self.failure_category = failure_category
+
+
 class Tool(ABC):
     """A capability the runtime may expose to the agent."""
 
