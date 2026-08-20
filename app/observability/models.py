@@ -42,6 +42,16 @@ class TraceEventType(StrEnum):
     DATABASE_TABLE_DESCRIBED = "database_table_described"
     DATABASE_RELATIONSHIPS_INSPECTED = "database_relationships_inspected"
     DATABASE_SCHEMA_SEARCHED = "database_schema_searched"
+    DATABASE_QUERY_VALIDATION_STARTED = "database_query_validation_started"
+    DATABASE_QUERY_VALIDATED = "database_query_validated"
+    DATABASE_QUERY_REJECTED = "database_query_rejected"
+    DATABASE_QUERY_STARTED = "database_query_started"
+    DATABASE_QUERY_FINISHED = "database_query_finished"
+    DATABASE_QUERY_FAILED = "database_query_failed"
+    ANALYTICS_PYTHON_STARTED = "analytics_python_started"
+    ANALYTICS_PYTHON_FINISHED = "analytics_python_finished"
+    ANALYTICS_PYTHON_FAILED = "analytics_python_failed"
+    CHART_CREATED = "chart_created"
 
 
 class TraceStatus(StrEnum):
@@ -122,6 +132,11 @@ class RunMetrics(BaseModel):
     memory_duration_ms: int = 0
     summary_duration_ms: int = 0
     delegation_duration_ms: int = 0
+    database_query_count: int = 0
+    database_query_duration_ms: int = 0
+    database_rows_returned: int = 0
+    database_rejected_query_count: int = 0
+    database_timeout_count: int = 0
     total_duration_ms: int | None = None
 
 

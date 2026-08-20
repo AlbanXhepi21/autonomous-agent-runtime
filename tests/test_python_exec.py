@@ -124,6 +124,6 @@ async def test_python_execution_logging_and_specialist_capabilities(
     event = next(record.event_fields for record in caplog.records if record.getMessage() == "python_execution_finished")
     assert result.output["success"] is True
     assert event["run_id"] == "run" and event["code_bytes"] == len("print(1)".encode())
-    assert "python_exec" in registry.get_metadata("data_analyst").allowed_tools
+    assert "python_exec" not in registry.get_metadata("data_analyst").allowed_tools
     assert "python_exec" in registry.get_metadata("software_engineer").allowed_tools
     assert "python_exec" not in registry.get_metadata("research").allowed_tools

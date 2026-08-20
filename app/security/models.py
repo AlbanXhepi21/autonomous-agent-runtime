@@ -25,6 +25,10 @@ class Capability(StrEnum):
     AGENT_DELEGATE = "agent.delegate"
     WEB_SEARCH = "web.search"
     DATABASE_SCHEMA_READ = "database.schema.read"
+    DATABASE_QUERY_READ = "database.query.read"
+    ANALYTICS_PYTHON_EXECUTE = "analytics.python.execute"
+    ANALYTICS_REPORT_CREATE = "analytics.report.create"
+    DATABASE_METRIC_READ = "database.metric.read"
 
 
 class RiskLevel(StrEnum):

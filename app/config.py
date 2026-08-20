@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     analytics_database_url: str = Field(default="", repr=False)
     analytics_db_schema: str = "public"
     analytics_schema_cache_ttl_seconds: float = Field(default=300, ge=0)
+    analytics_max_result_rows: int = Field(default=5_000, ge=1, le=50_000)
+    analytics_max_result_bytes: int = Field(default=1_000_000, ge=1_024)
+    analytics_query_timeout_seconds: float = Field(default=15, gt=0, le=120)
+    analytics_python_max_dataset_rows: int = Field(default=1_000, ge=1, le=10_000)
+    analytics_python_max_dataset_bytes: int = Field(default=500_000, ge=1_024)
+    analytics_python_timeout_seconds: float = Field(default=15, gt=0, le=60)
     memory_backend: Literal["in_memory", "postgres"] = "in_memory"
     approval_ttl_seconds: int | None = Field(default=3600, ge=1)
     security_environment: Literal["unknown", "development", "staging", "production"] = "unknown"

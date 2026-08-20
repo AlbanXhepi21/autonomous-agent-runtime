@@ -1,5 +1,22 @@
 # Autonomous Agent Runtime
 
+## DA7: Data Analyst evaluation suite
+
+`app/evals/datasets/analytics_cases.json` contains 26 public benchmark questions across analytics basics, sales, profitability, marketing, customers, operations, inventory, root cause, security, reporting, and advanced investigations. Private generator scenarios are deliberately not copied into this repository or supplied to an analyst run. The evaluator loads them only after a run has completed and compares the sanitized trace and final answer against observable tables, effects, root cause, artifacts, SQL quality, and security behavior.
+
+Evaluate recorded runs and write comparable JSON/Markdown baselines:
+
+```bash
+python -m app.evals.analytics_runner \
+  --ground-truth ../DataGenerator/generator/ground_truth/scenarios.json \
+  --recordings benchmark-recordings.json \
+  --json-output benchmark-current.json \
+  --markdown-output benchmark-current.md \
+  --previous benchmark-previous.json
+```
+
+The command is intentionally offline and never calls a model. For an optional real-model comparison, run each question through the normal configured Data Analyst runtime, export its sanitized `AgentState` and `RunTrace` as recordings, then invoke the same command once per model. This keeps paid calls out of CI and makes token, cost, latency, query, iteration, delegation, duplicate-query, rejected-query, and SQL-quality comparisons reproducible.
+
 A modular Python runtime for building autonomous LLM agents that dynamically decide how to accomplish a goal using tools, skills, observations, and iterative decision-making.
 
 The project focuses on understanding and implementing the core architecture behind autonomous AI agents without relying on high-level agent orchestration frameworks.
@@ -94,11 +111,25 @@ The data-analyst specialist has a separate external metadata connection. Configu
 `ANALYTICS_DATABASE_URL` and `ANALYTICS_DB_SCHEMA` (default: `public`); do not reuse
 the runtime `DATABASE_URL` unless that is an intentional deployment choice. DA1 exposes
 only `list_tables`, `describe_table`, `get_table_relationships`, and deterministic
-`search_schema`. It never executes SQL against table data.
+`search_schema`. DA2 adds `query_database` for a single AST-validated `SELECT` or
+`WITH ... SELECT`. It executes in a read-only transaction with server-side timeout and
+bounded rows/result bytes; mutation, session-changing, system-schema, multi-statement,
+and unsafe PostgreSQL function constructs are rejected.
 
 Use a PostgreSQL role with the minimum metadata/read permissions needed for the intended
 analytics schema; a dedicated read-only role is recommended. Credentials remain in
 runtime configuration and are never included in model context, observations, or traces.
+
+Provision a dedicated external reader role; application validation never replaces
+database permissions:
+
+```sql
+CREATE ROLE analytics_reader LOGIN PASSWORD 'use-a-secret-manager';
+GRANT CONNECT ON DATABASE analytics TO analytics_reader;
+GRANT USAGE ON SCHEMA public TO analytics_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytics_reader;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO analytics_reader;
+```
 
 For a local metadata-only check, run:
 
@@ -106,6 +137,38 @@ For a local metadata-only check, run:
 python -m app.analytics.inspect
 python -m app.analytics.inspect orders
 ```
+
+### Manual Data Analyst scenarios (DA3)
+
+With the analytics database configured, use the `data_analyst` specialist for questions
+such as total 2026 revenue, top categories by gross profit, payment-failure rate by country,
+monthly mobile conversion, slowest warehouse delivery, product refund rates, a significant
+April 2026 revenue change, electronics margin changes, campaign traffic with poor conversion,
+or the largest 2026 business problems. The agent should inspect only relevant schema, query
+iteratively, and cite returned `query_###` evidence references rather than relying on a
+predefined investigation workflow.
+
+### Python analysis and charts (DA4)
+
+`query_database` can expose a small result as a run-scoped `dataset_query_###` reference.
+The analyst may pass that reference to `analyze_dataset` for pandas/numpy statistics or a
+matplotlib PNG chart. SQL remains the default for large relational joins and aggregation;
+Python is for bounded post-query work such as distributions, correlations, transformations,
+cohorts, or visualization. The restricted child process receives data only—never database
+credentials—and has no network, subprocess, general filesystem, or package-install access.
+
+Useful manual questions include “Plot monthly revenue for 2026,” “Show the distribution of
+order values,” “Compare delivery-time distributions across warehouses,” and “Create a chart
+of conversion rate by device over time.” Generated charts are registered under the run’s
+artifact directory with runtime-generated filenames.
+
+### Analytical reports (DA5)
+
+Load the `executive_reporting` skill when a concise executive, sales, marketing, customer,
+operations, or inventory report is needed. `generate_report` accepts a typed, evidence-linked
+report and produces `report.md`, `supporting_metrics.json`, and optional bounded CSV extracts.
+Every artifact records its report type, time period, and source `query_###` references; missing
+or failed evidence should become a stated limitation rather than a fabricated metric.
 
 Longer runs also use a typed task summary to avoid carrying every historical
 observation indefinitely. Once `SUMMARY_TRIGGER_OBSERVATIONS` is reached, history that

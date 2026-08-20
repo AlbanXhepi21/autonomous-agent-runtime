@@ -50,8 +50,9 @@ def load_dataset(path: Path) -> EvalDataset:
 def load_datasets(directory: Path = DATASET_DIRECTORY) -> dict[str, EvalDataset]:
     """Load all suite files, rejecting duplicate suite names or case IDs."""
 
-    datasets = {dataset.suite: dataset for dataset in (load_dataset(path) for path in sorted(directory.glob("*.json")))}
-    if len(datasets) != len(list(directory.glob("*.json"))):
+    paths = [path for path in sorted(directory.glob("*.json")) if path.name != "analytics_cases.json"]
+    datasets = {dataset.suite: dataset for dataset in (load_dataset(path) for path in paths)}
+    if len(datasets) != len(paths):
         raise ValueError("Dataset suite names must be unique.")
     case_ids = [case.id for dataset in datasets.values() for case in dataset.cases]
     if len(case_ids) != len(set(case_ids)):

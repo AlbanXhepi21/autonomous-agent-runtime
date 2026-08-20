@@ -193,8 +193,8 @@ async def test_child_receives_only_agent_definition_capabilities() -> None:
 
     assert state.observations[0].content.success
     child_context = child_llm.contexts[0]
-    assert [tool["name"] for tool in child_context["available_tools"]] == ["calculator", "python_exec"]
-    assert [skill["name"] for skill in child_context["available_skills"]] == ["data_analysis"]
+    assert [tool["name"] for tool in child_context["available_tools"]] == ["calculator"]
+    assert [skill["name"] for skill in child_context["available_skills"]] == ["data_analysis", "executive_reporting"]
 
 
 @pytest.mark.asyncio
