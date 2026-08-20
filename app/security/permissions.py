@@ -18,6 +18,10 @@ _TOOL_CAPABILITIES = {
     "git_inspect": Capability.REPOSITORY_READ,
     "register_artifact": Capability.ARTIFACT_CREATE,
     "web_search": Capability.WEB_SEARCH,
+    "list_tables": Capability.DATABASE_SCHEMA_READ,
+    "describe_table": Capability.DATABASE_SCHEMA_READ,
+    "get_table_relationships": Capability.DATABASE_SCHEMA_READ,
+    "search_schema": Capability.DATABASE_SCHEMA_READ,
 }
 
 
@@ -42,4 +46,8 @@ def resource_for_tool(tool_name: str, arguments: Mapping[str, Any]) -> SecurityR
         return SecurityResource(resource_type="workspace_artifact", identifier=str(arguments.get("source_path", "")))
     if tool_name in _TOOL_CAPABILITIES and _TOOL_CAPABILITIES[tool_name] == Capability.REPOSITORY_READ:
         return SecurityResource(resource_type="repository", identifier="workspace")
+    if _TOOL_CAPABILITIES.get(tool_name) is Capability.DATABASE_SCHEMA_READ:
+        names = arguments.get("table_names", arguments.get("table_name", ""))
+        identifier = ",".join(names) if isinstance(names, list) else str(names)
+        return SecurityResource(resource_type="database_schema", identifier=identifier or "configured_schema")
     return None

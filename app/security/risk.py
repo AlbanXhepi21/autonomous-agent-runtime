@@ -26,7 +26,8 @@ class RiskClassifier:
             return self._assessment(RiskLevel.CRITICAL, RiskCategory.PRODUCTION_CHANGE,
                                     "risk.production_target", "The action targets a production-like resource.")
         if action.capability in {Capability.CALCULATOR_EVALUATE, Capability.FILESYSTEM_READ,
-                                 Capability.REPOSITORY_READ, Capability.WEB_SEARCH}:
+                                 Capability.REPOSITORY_READ, Capability.WEB_SEARCH,
+                                 Capability.DATABASE_SCHEMA_READ}:
             return self._assessment(RiskLevel.LOW, RiskCategory.READ_ONLY,
                                     "risk.read_only", "The action is read-only.")
         if action.capability in {Capability.FILESYSTEM_WRITE, Capability.ARTIFACT_CREATE}:

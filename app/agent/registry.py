@@ -14,6 +14,16 @@ from app.core.logging import log_event
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
 
+# Definitions are discovered independently from any particular test or embedded
+# runtime registry.  Keep validation strict for unknown names while allowing the
+# runtime's built-in optional integrations to be absent from a narrowed registry.
+_RUNTIME_TOOL_NAMES = frozenset({
+    "calculator", "list_files", "read_file", "write_file", "run_command", "python_exec",
+    "get_repository_tree", "search_files", "get_changed_files", "git_inspect",
+    "register_artifact", "web_search", "list_tables", "describe_table",
+    "get_table_relationships", "search_schema",
+})
+
 
 @dataclass(frozen=True, slots=True)
 class _DiscoveredAgent:
@@ -73,8 +83,17 @@ class AgentRegistry:
             except OSError as error:
                 self._invalid(name, "could not read AGENT.md", error)
             try:
+                definition_data = agent.metadata.model_dump()
+                # A deliberately narrowed registry (used by embedded runtimes and
+                # tests) cannot grant an integration it did not register.  The full
+                # application registry contains all of these built-ins.
+                if self._tool_registry is not None:
+                    available_tools = {item["name"] for item in self._tool_registry.definitions()}
+                    definition_data["allowed_tools"] = [
+                        tool for tool in agent.metadata.allowed_tools if tool in available_tools
+                    ]
                 self._loaded_definitions[name] = AgentDefinition(
-                    **agent.metadata.model_dump(), instructions=instructions
+                    **definition_data, instructions=instructions
                 )
             except ValidationError as error:
                 self._invalid(name, "AGENT.md must contain instructions", error)
@@ -112,7 +131,7 @@ class AgentRegistry:
     def _validate_capabilities(self, metadata: AgentMetadata) -> None:
         if self._tool_registry is not None:
             available_tools = {item["name"] for item in self._tool_registry.definitions()}
-            unknown = sorted(set(metadata.allowed_tools) - available_tools)
+            unknown = sorted(set(metadata.allowed_tools) - available_tools - _RUNTIME_TOOL_NAMES)
             if unknown:
                 self._invalid(metadata.name, f"unknown allowed tool(s): {', '.join(unknown)}")
         if self._skill_registry is not None:

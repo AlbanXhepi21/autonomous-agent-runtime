@@ -11,6 +11,8 @@ from app.config import Settings
 from app.environment import CommandExecutor, PythonExecutor, Workspace, WorkspaceLimits
 from app.environment.repository import Repository
 from app.artifacts.store import ArtifactStore, WorkspaceArtifactStore
+from app.analytics import AnalyticsDatabase, PostgreSQLInspector
+from app.analytics.policy import AnalyticsSchemaPolicy
 from app.core.limits import RuntimeLimits
 from app.core.logging import register_secret_value
 from app.llm.openai_client import OpenAIClient
@@ -27,6 +29,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
+from app.tools.database import DescribeTableTool, GetTableRelationshipsTool, ListTablesTool, SearchSchemaTool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
 from app.observability import InMemoryTraceStore, TraceRecorder
@@ -141,7 +144,28 @@ def get_tool_registry(
     registry.register(GetChangedFilesTool(repository))
     registry.register(GitInspectTool(repository))
     registry.register(RegisterArtifactTool(artifact_store or get_artifact_store()))
+    inspector = get_analytics_inspector()
+    registry.register(ListTablesTool(inspector))
+    registry.register(DescribeTableTool(inspector))
+    registry.register(GetTableRelationshipsTool(inspector))
+    registry.register(SearchSchemaTool(inspector))
     return registry
+
+
+@lru_cache
+def get_analytics_database() -> AnalyticsDatabase:
+    """Build the external analytics source independently of runtime persistence."""
+
+    return AnalyticsDatabase(get_settings().analytics_database_url)
+
+
+@lru_cache
+def get_analytics_inspector() -> PostgreSQLInspector:
+    settings = get_settings()
+    return PostgreSQLInspector(
+        get_analytics_database(), AnalyticsSchemaPolicy.configured(settings.analytics_db_schema),
+        cache_ttl_seconds=settings.analytics_schema_cache_ttl_seconds,
+    )
 
 
 def get_skill_registry() -> SkillRegistry:
@@ -227,6 +251,9 @@ async def close_memory_resources() -> None:
     get_memory_retriever.cache_clear()
     get_memory_writer.cache_clear()
     get_memory_store.cache_clear()
+    await get_analytics_database().dispose()
+    get_analytics_inspector.cache_clear()
+    get_analytics_database.cache_clear()
 
 
 def get_agent_runner() -> AgentRunner:

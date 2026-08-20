@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     summary_trigger_observations: int = Field(default=8, ge=1)
     recent_observations: int = Field(default=5, ge=1)
     database_url: str = Field(default="", repr=False)
+    # This is deliberately separate from DATABASE_URL, which belongs to runtime
+    # persistence (for example the optional memory backend).
+    analytics_database_url: str = Field(default="", repr=False)
+    analytics_db_schema: str = "public"
+    analytics_schema_cache_ttl_seconds: float = Field(default=300, ge=0)
     memory_backend: Literal["in_memory", "postgres"] = "in_memory"
     approval_ttl_seconds: int | None = Field(default=3600, ge=1)
     security_environment: Literal["unknown", "development", "staging", "production"] = "unknown"

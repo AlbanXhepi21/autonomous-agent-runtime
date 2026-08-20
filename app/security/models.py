@@ -24,6 +24,7 @@ class Capability(StrEnum):
     ARTIFACT_CREATE = "artifact.create"
     AGENT_DELEGATE = "agent.delegate"
     WEB_SEARCH = "web.search"
+    DATABASE_SCHEMA_READ = "database.schema.read"
 
 
 class RiskLevel(StrEnum):
