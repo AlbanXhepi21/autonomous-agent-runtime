@@ -1,0 +1,17 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { DatabaseExplorer } from "./database-explorer";
+import { explorerApi } from "@/lib/api/explorer";
+
+vi.mock("@/lib/api/explorer", () => ({ explorerApi: { tables: vi.fn(), table: vi.fn() } }));
+
+describe("DatabaseExplorer", () => {
+  it("ignores malformed table entries and renders the backend table-detail contract", async () => {
+    vi.mocked(explorerApi.tables).mockResolvedValue({ tables: [undefined, { name: "orders", schema: "public" }] as never[] });
+    vi.mocked(explorerApi.table).mockResolvedValue({ name: "orders", schema: "public", columns: [{ name: "id", data_type: "uuid", nullable: false, primary_key: true }], foreign_keys: [{ source_column: "customer_id", target_table: "customers", target_column: "id" }] });
+    render(<DatabaseExplorer />);
+    expect(await screen.findByRole("button", { name: "orders" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "orders" }));
+    expect(await screen.findByText("customer_id → customers.id")).toBeInTheDocument();
+  });
+});

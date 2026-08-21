@@ -15,7 +15,7 @@ class GetTableRelationshipsTool(Tool):
     def description(self) -> str: return "Return direct foreign-key relationships for one or more analytics tables; never guess joins."
     @property
     def arguments_schema(self) -> dict[str, Any]:
-        return {"type": "object", "properties": {"table_name": {"type": "string"}, "table_names": {"type": "array"}}, "required": [], "additionalProperties": False}
+        return {"type": "object", "properties": {"table_name": {"type": "string"}, "table_names": {"type": "array", "items": {"type": "string"}}}, "required": [], "additionalProperties": False}
     async def execute(self, **arguments: Any) -> list[dict[str, Any]]:
         single, many = arguments.get("table_name"), arguments.get("table_names")
         if single is not None and many is not None:

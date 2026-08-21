@@ -75,3 +75,48 @@ outlier checks, or a matplotlib chart. For example, aggregate monthly revenue by
 SQL, then use Python for correlation or visualization; do not extract millions of raw events
 for a Python groupby. The Python boundary has no credentials or database connection. Save
 charts as PNG files in its working directory and let the runtime assign artifact filenames.
+
+`analyze_dataset` receives `analytics_data` as `{"columns": [...], "rows": [[...], ...]}`,
+not a pandas DataFrame. Read the returned column names and map them to row indexes before
+plotting. Do not assume names such as `month`; use the query's actual column labels. Avoid
+`pathlib`, filesystem APIs, and database connections inside the restricted Python boundary.
+
+## Interactive Workbench charts
+
+When a user asks to plot, compare, or visualize query results, prefer `create_chart` after
+`query_database`. It creates a validated, interactive data-only display in the Workbench; it
+does not create React, JavaScript, HTML, or executable formatter code. Copy only a bounded set
+of values from the query result, use the exact field names returned by SQL, and include the
+actual `query_###` identifier in `source_query_ids`.
+
+For a line chart, set `type` to `line`, give `x_field` the time column, give `y_fields` the
+numeric metric column, and add the matching rows as scalar objects. A compact example is
+`{"type":"line","title":"Monthly revenue","x_field":"month","y_fields":["revenue"],"data":[{"month":"2026-01","revenue":1200}],"source_query_ids":["query_001"]}`.
+
+Use `line` or `area` for time trends, `bar` for category comparisons, `stacked_bar` for
+composition, `pie` only for a small part-to-whole comparison, and `scatter` for relationships
+between numeric variables. Use `table` for a compact result grid and `kpi` for a few headline
+values. Do not use `analyze_dataset` merely to create a PNG when an interactive chart answers
+the request. A PNG/chart artifact remains appropriate only when the user explicitly wants a
+downloadable image or report artifact.
+
+For a time comparison (for example, new versus returning customers), return one row per time
+period with one numeric field per series, such as `month`, `new_orders`, and `returning_orders`.
+Set both numeric fields in `y_fields` and give each a clear series label. Do not emit repeated
+`month` rows with a separate `customer_type` field when a pivoted SQL aggregate can produce the
+two series directly. Keep time axes bounded to the requested period so charts remain readable.
+
+## KPI card requests
+
+For a request such as “total revenue, gross margin, and month-over-month growth,” use a compact
+workflow. Load this skill, then use `list_metrics` at most once only if the canonical metric
+names are needed. Inspect `orders` and `order_items` only when their columns have not already
+been observed. Run one bounded aggregate query that calculates the requested values together;
+for a month-over-month value, calculate the current and immediately preceding comparable period
+in the same query. After a successful query, call `create_chart` with `type: "kpi"`, 2–4
+human-readable `kpis`, and the successful `query_###` in `source_query_ids`, then finish with a
+short evidence-backed summary.
+
+Do not repeatedly call `list_metrics`, `list_tables`, or `search_schema` after a useful result.
+Do not load unrelated skills. If the first query fails, inspect the one relevant table, make one
+corrected query, and finish with either the resulting KPI cards or a clear data limitation.

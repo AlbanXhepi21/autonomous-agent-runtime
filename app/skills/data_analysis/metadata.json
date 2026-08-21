@@ -3,5 +3,5 @@
   "description": "Analyze structured data with validated assumptions and reproducible summaries.",
   "version": "1.3.0",
   "tags": ["data", "analysis", "evidence", "statistics", "reproducibility"],
-  "recommended_tools": ["calculator", "list_tables", "describe_table", "get_table_relationships", "search_schema", "query_database", "analyze_dataset"]
+  "recommended_tools": ["calculator", "list_tables", "describe_table", "get_table_relationships", "search_schema", "query_database", "create_chart", "analyze_dataset"]
 }

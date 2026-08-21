@@ -256,8 +256,9 @@ class AgentRunner:
                         "model": llm_decision.model, "input_tokens": usage.input_tokens if usage else None,
                         "output_tokens": usage.output_tokens if usage else None,
                         "cached_input_tokens": usage.cached_input_tokens if usage else None,
+                        "cache_write_tokens": usage.cache_write_tokens if usage else None,
                         "reasoning_tokens": usage.reasoning_tokens if usage else None,
-                        "estimated_cost": estimate_cost(usage, self._pricing_registry.get(llm_decision.model)),
+                        "estimated_cost": estimate_cost(usage, self._pricing_registry.get(llm_decision.model), model=llm_decision.model),
                     })
                 if attempt > 1:
                     self._trace_recorder.record(state.run_id, TraceEventType.RETRY_SUCCEEDED, iteration=iteration,
