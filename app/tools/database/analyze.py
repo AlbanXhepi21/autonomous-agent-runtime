@@ -23,7 +23,16 @@ class AnalyzeDatasetTool(Tool):
     def name(self) -> str: return "analyze_dataset"
     @property
     def description(self) -> str:
-        return "Run restricted Python over one bounded query dataset. analytics_data contains columns and rows; use pandas/numpy/matplotlib only when SQL is not sufficient. Save charts as .png in the current directory."
+        return (
+            "Run restricted Python over one bounded query dataset. `analytics_data` is a JSON dict, "
+            "not a DataFrame: `analytics_data['columns']` is a list of column names and "
+            "`analytics_data['rows']` is a list of same-order row arrays. Inspect columns first and "
+            "use indexes, for example `idx = {name: i for i, name in enumerate(analytics_data['columns'])}` "
+            "then `values = [row[idx['revenue']] for row in analytics_data['rows']]`. Do not use "
+            "DataFrame attributes, pathlib, filesystem APIs, or database connections. Use Python only "
+            "when SQL is insufficient or a chart adds value. For a chart, import matplotlib, call "
+            "`plt.savefig('chart.png')`, and save only PNG files in the current directory."
+        )
     @property
     def arguments_schema(self) -> dict[str, Any]:
         return {"type": "object", "properties": {"dataset_id": {"type": "string"}, "code": {"type": "string"}}, "required": ["dataset_id", "code"], "additionalProperties": False}

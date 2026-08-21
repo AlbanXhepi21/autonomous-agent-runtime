@@ -86,6 +86,24 @@ async def test_query_tool_and_trace_are_bounded_and_safe() -> None:
 
 
 @pytest.mark.asyncio
+async def test_explicit_developer_sql_trace_retains_only_successful_bounded_sql() -> None:
+    tool = QueryDatabaseTool(Inspector(), PostgreSQLQueryValidator(AnalyticsSchemaPolicy.configured("public")), Executor())  # type: ignore[arg-type]
+    registry, store = ToolRegistry(), InMemoryTraceStore()
+    registry.register(tool)
+    recorder = TraceRecorder(store)
+    recorder.start_run(run_id="sql-dev", parent_run_id=None, agent_name="data_analyst", agent_type="specialist", goal="count")
+    policy = SecurityPolicy.primary().with_specialist(AgentDefinition(name="data_analyst", description="x", version="1", instructions="x", allowed_tools=["query_database"]))
+
+    result = await ToolExecutor(registry, security_policy=policy, trace_recorder=recorder, expose_sql=True, max_sql_chars=12).execute("query_database", {"sql": "SELECT COUNT(*) FROM orders"}, run_id="sql-dev", subject=SecuritySubject(agent_name="data_analyst", agent_type="specialist", run_id="sql-dev"))
+
+    assert result.success
+    trace = store.get("sql-dev")
+    assert trace is not None
+    completed = next(event for event in trace.events if event.event_type is TraceEventType.DATABASE_QUERY_FINISHED)
+    assert completed.metadata["sql"] == "SELECT COUNT"
+
+
+@pytest.mark.asyncio
 async def test_query_tool_rejects_before_executor() -> None:
     tool = QueryDatabaseTool(Inspector(), PostgreSQLQueryValidator(AnalyticsSchemaPolicy.configured("public")), Executor())  # type: ignore[arg-type]
     registry = ToolRegistry(); registry.register(tool)

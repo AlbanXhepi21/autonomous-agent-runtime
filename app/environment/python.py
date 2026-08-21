@@ -57,6 +57,13 @@ except BaseException as error:
 '''
 
 
+def _child_error(stderr: str) -> str:
+    """Return one safe, bounded sandbox diagnostic for agent recovery."""
+
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    return (lines[-1] if lines else "Python execution failed.")[:500]
+
+
 class PythonExecutor:
     """Execute policy-approved code only in a separate disposable Python process."""
 
@@ -157,7 +164,10 @@ class PythonExecutor:
             process.returncode == 0, started_at, stdout=stdout, stderr=stderr,
             return_code=process.returncode, stdout_truncated=stdout_truncated,
             stderr_truncated=stderr_truncated,
-            error=None if process.returncode == 0 else "Python execution failed.",
+            # The child has no credentials or inherited environment. Retain a
+            # bounded diagnostic so the agent can correct safe Python mistakes
+            # instead of blindly repeating the same failing action.
+            error=None if process.returncode == 0 else _child_error(stderr),
         )
 
     async def _capture_output(self, stream: asyncio.StreamReader | None) -> tuple[str, bool]:

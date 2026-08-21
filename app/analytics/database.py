@@ -31,15 +31,25 @@ class AnalyticsDatabase:
 
     @asynccontextmanager
     async def connection(self) -> AsyncIterator[AsyncConnection]:
+        """Yield a connection without hiding errors raised by its caller.
+
+        A try/except around ``yield`` also catches query and transaction failures,
+        which used to misreport every SQL error as a database outage. Only opening
+        the connection belongs to this availability boundary; query execution is
+        classified by the SQL executor.
+        """
         try:
-            async with self._get_engine().connect() as connection:
-                yield connection
+            connection = await self._get_engine().connect()
         except AnalyticsDatabaseError:
             raise
         except Exception as error:
             message = str(error).lower()
             safe_message = "Analytics database permission was denied." if "permission denied" in message else "Analytics database is unavailable."
             raise AnalyticsDatabaseError(safe_message) from error
+        try:
+            yield connection
+        finally:
+            await connection.close()
 
     async def health_check(self) -> bool:
         try:

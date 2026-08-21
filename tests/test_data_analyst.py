@@ -69,3 +69,4 @@ def test_data_analyst_definition_is_least_privilege_and_skill_is_business_orient
     assert not {"python_exec", "read_file", "write_file", "run_command", "search_files"} & set(definition.allowed_tools)
     assert definition.allowed_skills == ["data_analysis", "executive_reporting"]
     assert "profitability" in instructions and "campaign" in instructions and "query_###" in instructions
+    assert "KPI card requests" in instructions and "list_metrics` at most once" in instructions

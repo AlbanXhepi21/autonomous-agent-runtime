@@ -52,6 +52,7 @@ class TraceEventType(StrEnum):
     ANALYTICS_PYTHON_FINISHED = "analytics_python_finished"
     ANALYTICS_PYTHON_FAILED = "analytics_python_failed"
     CHART_CREATED = "chart_created"
+    REPORT_CREATED = "report_created"
 
 
 class TraceStatus(StrEnum):

@@ -72,8 +72,8 @@ return 404. This prevents an otherwise unbounded process-memory collection.
 
 - In-memory traces are not durable and have no authenticated multi-tenant access
   control.
-- The default pricing registry intentionally has no prices; configure pricing before
-  relying on cost reports.
+- OpenAI GPT-5.4+ pricing is versioned in `app/llm/pricing.py`; unsupported provider
+  models intentionally remain unpriced rather than receiving a guessed estimate.
 - No real-model benchmark is included in automated tests. Use the existing API or
   an injected `LLMClient` manually with a configured provider, then compare the
   generated `EvalResult` fields: pass status, trajectory score, tokens, cost, and

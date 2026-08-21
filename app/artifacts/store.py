@@ -28,6 +28,9 @@ class ArtifactStore(ABC):
     @abstractmethod
     def path_for(self, artifact_id: str) -> Path | None: ...
 
+    @abstractmethod
+    def list(self, *, run_id: str | None = None) -> list[Artifact]: ...
+
 
 class WorkspaceArtifactStore(ArtifactStore):
     """Copy explicit workspace files into ``artifacts/<run_id>/`` for development."""
@@ -102,6 +105,12 @@ class WorkspaceArtifactStore(ArtifactStore):
         except (WorkspaceError, ValueError):
             return None
         return path if path.is_file() else None
+
+    def list(self, *, run_id: str | None = None) -> list[Artifact]:
+        items = self._artifacts.values()
+        if run_id is not None:
+            items = (artifact for artifact in items if artifact.run_id == run_id)
+        return sorted(items, key=lambda artifact: artifact.created_at, reverse=True)
 
     @staticmethod
     def _validated_id(artifact_id: str) -> str:

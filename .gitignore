@@ -17,6 +17,7 @@ vevn/
 env/
 ENV/
 
+/frontend/node_modules/
 # Test and coverage output
 .pytest_cache/
 .coverage

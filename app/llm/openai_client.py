@@ -62,10 +62,11 @@ class OpenAIClient(LLMClient):
         input_details = getattr(usage, "input_tokens_details", None)
         output_details = getattr(usage, "output_tokens_details", None)
         return LLMDecision(
-            action=self._to_agent_action(function_call.name, arguments), model=self._model, provider="openai",
+            action=self._to_agent_action(function_call.name, arguments), model=getattr(response, "model", None) or self._model, provider="openai",
             usage=LLMUsage(
                 input_tokens=getattr(usage, "input_tokens", None), output_tokens=getattr(usage, "output_tokens", None),
                 cached_input_tokens=getattr(input_details, "cached_tokens", None),
+                cache_write_tokens=getattr(input_details, "cache_write_tokens", None),
                 reasoning_tokens=getattr(output_details, "reasoning_tokens", None),
             ) if usage is not None else None,
         )
@@ -116,8 +117,29 @@ class OpenAIClient(LLMClient):
             "name": f"tool_{name}",
             "description": description,
             "parameters": OpenAIClient._schema_with_reasoning(schema),
-            "strict": True,
+            # A few bounded runtime tools accept a deliberately free-form object
+            # (for example a typed report payload). OpenAI strict mode cannot
+            # represent an unconstrained object; runtime validation still applies.
+            "strict": OpenAIClient._strict_compatible(schema),
         }
+
+    @staticmethod
+    def _strict_compatible(schema: Any) -> bool:
+        """Return whether a tool schema can satisfy OpenAI strict JSON Schema rules."""
+
+        if not isinstance(schema, dict):
+            return True
+        value_type = schema.get("type")
+        types = {value_type} if isinstance(value_type, str) else set(value_type) if isinstance(value_type, list) else set()
+        if "object" in types:
+            properties = schema.get("properties")
+            if not isinstance(properties, dict) or schema.get("additionalProperties") is not False:
+                return False
+            return all(OpenAIClient._strict_compatible(value) for value in properties.values())
+        if "array" in types:
+            items = schema.get("items")
+            return isinstance(items, dict) and OpenAIClient._strict_compatible(items)
+        return True
 
     @staticmethod
     def _load_skill_function(skill_names: list[str]) -> dict[str, Any]:
@@ -171,7 +193,7 @@ class OpenAIClient(LLMClient):
                     "expected_output": {"type": ["string", "null"]},
                     "reasoning_summary": OpenAIClient._reasoning_schema(),
                 },
-                "required": ["agent_name", "objective", "reasoning_summary"],
+                "required": ["agent_name", "objective", "context", "constraints", "expected_output", "reasoning_summary"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -197,7 +219,7 @@ class OpenAIClient(LLMClient):
                         "type": "array", "minItems": 2, "maxItems": max_parallel,
                         "items": {
                             "type": "object", "properties": item_properties,
-                            "required": ["agent_name", "objective"],
+                            "required": ["agent_name", "objective", "context", "constraints", "expected_output"],
                             "additionalProperties": False,
                         },
                     },
@@ -213,15 +235,32 @@ class OpenAIClient(LLMClient):
     def _schema_with_reasoning(schema: dict[str, Any]) -> dict[str, Any]:
         properties = dict(schema.get("properties", {}))
         properties["reasoning_summary"] = OpenAIClient._reasoning_schema()
-        required = list(schema.get("required", []))
-        if "reasoning_summary" not in required:
-            required.append("reasoning_summary")
+        originally_required = set(schema.get("required", []))
+        for name, definition in list(properties.items()):
+            if name not in originally_required and name != "reasoning_summary":
+                properties[name] = OpenAIClient._nullable_property(definition)
         return {
             "type": "object",
             "properties": properties,
-            "required": required,
+            # OpenAI strict function schemas require every declared property. Optional
+            # runtime arguments are represented as nullable and normalized away below.
+            "required": list(properties),
             "additionalProperties": False,
         }
+
+    @staticmethod
+    def _nullable_property(definition: Any) -> Any:
+        """Make an optional flat tool argument valid in OpenAI strict mode."""
+
+        if not isinstance(definition, dict):
+            return definition
+        nullable = dict(definition)
+        value_type = nullable.get("type")
+        if isinstance(value_type, str):
+            nullable["type"] = [value_type, "null"]
+        elif isinstance(value_type, list) and "null" not in value_type:
+            nullable["type"] = [*value_type, "null"]
+        return nullable
 
     @staticmethod
     def _reasoning_schema() -> dict[str, str]:
@@ -232,11 +271,16 @@ class OpenAIClient(LLMClient):
 
     @staticmethod
     def _to_agent_action(name: str, arguments: dict[str, Any]) -> AgentAction:
-        reasoning_summary = arguments.pop("reasoning_summary", None)
+        # This is public, optional trace metadata—not the model's private
+        # reasoning.  Providers can occasionally omit it despite the strict
+        # schema, and an omitted summary must not discard an otherwise valid
+        # tool call or final answer.
+        reasoning_summary = arguments.pop("reasoning_summary", "")
         if not isinstance(reasoning_summary, str):
-            raise ValueError("OpenAI function call is missing reasoning_summary.")
+            reasoning_summary = ""
 
         if name.startswith("tool_"):
+            arguments = {key: value for key, value in arguments.items() if value is not None}
             return AgentAction(
                 action_type="use_tool",
                 reasoning_summary=reasoning_summary,

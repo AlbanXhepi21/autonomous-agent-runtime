@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     memory_backend: Literal["in_memory", "postgres"] = "in_memory"
     approval_ttl_seconds: int | None = Field(default=3600, ge=1)
     security_environment: Literal["unknown", "development", "staging", "production"] = "unknown"
+    analytics_ui_frontend_origins: str = "http://localhost:3000"
+    analytics_ui_expose_sql: bool = False
+    analytics_ui_max_sql_chars: int = Field(default=4_000, ge=0, le=20_000)
+    workbench_developer_mode: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -3,7 +3,7 @@
   "description": "Performs structured quantitative analysis and interpretation.",
   "version": "1.3.0",
   "tags": ["data", "metrics", "quantitative-analysis"],
-  "allowed_tools": ["calculator", "list_tables", "describe_table", "get_table_relationships", "search_schema", "query_database", "analyze_dataset", "generate_report", "list_metrics", "describe_metric"],
+  "allowed_tools": ["calculator", "list_tables", "describe_table", "get_table_relationships", "search_schema", "query_database", "analyze_dataset", "create_chart", "generate_report", "list_metrics", "describe_metric"],
   "allowed_skills": ["data_analysis", "executive_reporting"],
   "runtime_overrides": {"max_iterations": 8}
 }

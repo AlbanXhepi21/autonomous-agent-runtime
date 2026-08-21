@@ -29,7 +29,7 @@ class RunCommandTool(Tool):
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "Allowlisted executable name."},
-                "args": {"type": "array", "description": "Structured argv arguments."},
+                "args": {"type": "array", "items": {"type": "string"}, "description": "Structured argv arguments."},
                 "working_directory": {"type": "string", "description": "Optional relative workspace directory."},
             },
             "required": ["command"],

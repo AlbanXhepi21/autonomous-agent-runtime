@@ -25,6 +25,7 @@ _RUNTIME_TOOL_NAMES = frozenset({
     "query_database",
     "analyze_dataset",
     "generate_report",
+    "create_chart",
     "list_metrics", "describe_metric",
 })
 

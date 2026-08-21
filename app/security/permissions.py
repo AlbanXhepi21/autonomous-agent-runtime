@@ -25,6 +25,7 @@ _TOOL_CAPABILITIES = {
     "query_database": Capability.DATABASE_QUERY_READ,
     "analyze_dataset": Capability.ANALYTICS_PYTHON_EXECUTE,
     "generate_report": Capability.ANALYTICS_REPORT_CREATE,
+    "create_chart": Capability.ANALYTICS_REPORT_CREATE,
     "list_metrics": Capability.DATABASE_METRIC_READ,
     "describe_metric": Capability.DATABASE_METRIC_READ,
 }

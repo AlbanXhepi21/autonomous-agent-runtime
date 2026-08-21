@@ -40,11 +40,15 @@ class ToolExecutor:
         *,
         security_policy: SecurityPolicy | None = None,
         trace_recorder: TraceRecorder | None = None,
+        expose_sql: bool = False,
+        max_sql_chars: int = 4_000,
     ) -> None:
         self._tool_registry = tool_registry
         self._security_policy = security_policy or SecurityPolicy.primary()
         self._approved_execution_token = object()
         self._trace_recorder = trace_recorder
+        self._expose_sql = expose_sql
+        self._max_sql_chars = max_sql_chars
         self._logger = logging.getLogger(__name__)
 
     def evaluate_policy(
@@ -214,6 +218,7 @@ class ToolExecutor:
             "repository": repository,
             "database_table_names": _database_table_names(tool.name, arguments),
             "query_quality": _query_quality_metadata(arguments.get("sql")) if tool.name == "query_database" else {},
+            "sql_for_trace": _safe_sql_for_trace(arguments.get("sql"), self._max_sql_chars) if self._expose_sql and tool.name == "query_database" else None,
         }
 
         argument_error = self._validate_arguments(tool, arguments)
@@ -477,13 +482,15 @@ class ToolExecutor:
                     "truncated": output.get("truncated", False), "query_id": output.get("query_id", event_fields.get("query_id")),
                     **event_fields.get("query_quality", {})}
                 if result.success:
+                    if event_fields.get("sql_for_trace"):
+                        metadata["sql"] = event_fields["sql_for_trace"]
                     self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_VALIDATED, iteration=event_fields.get("iteration"), success=True, metadata=metadata)
                     self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_STARTED, iteration=event_fields.get("iteration"), metadata=metadata)
                     self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_FINISHED, iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=True, metadata=metadata)
                 elif result.metadata.get("failure_category") == "database_query_rejected":
                     self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_REJECTED, iteration=event_fields.get("iteration"), success=False, metadata={**metadata, "failure_category": "database_query_rejected"})
                 else:
-                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_FAILED, iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=False, metadata={**metadata, "failure_category": result.metadata.get("failure_category", "database_query_error")})
+                    self._trace_recorder.record(run_id, TraceEventType.DATABASE_QUERY_FAILED, iteration=event_fields.get("iteration"), duration_ms=duration_ms, success=False, metadata={**metadata, "failure_category": result.metadata.get("failure_category", "database_query_error"), "error": result.error})
             if event_fields.get("analytics_python"):
                 output = result.output if isinstance(result.output, Mapping) else {}
                 metadata = {"agent": event_fields.get("agent"), "dataset_id": output.get("dataset_id"),
@@ -499,6 +506,18 @@ class ToolExecutor:
                             metadata=artifact_metadata)
                         self._trace_recorder.record(run_id, TraceEventType.CHART_CREATED, iteration=event_fields.get("iteration"), success=True,
                             metadata=artifact_metadata)
+            if event_fields.get("tool") == "generate_report" and result.success:
+                output = result.output if isinstance(result.output, Mapping) else {}
+                for artifact in output.get("artifacts", []) if isinstance(output.get("artifacts"), list) else []:
+                    if not isinstance(artifact, Mapping):
+                        continue
+                    metadata = {key: artifact.get(key) for key in ("id", "artifact_type", "name")}
+                    metadata["report_type"] = output.get("report_type")
+                    self._trace_recorder.record(run_id, TraceEventType.ARTIFACT_CREATED,
+                        iteration=event_fields.get("iteration"), success=True, metadata=metadata)
+                    if artifact.get("artifact_type") == "report":
+                        self._trace_recorder.record(run_id, TraceEventType.REPORT_CREATED,
+                            iteration=event_fields.get("iteration"), success=True, metadata=metadata)
         return result
 
     @staticmethod
@@ -640,3 +659,11 @@ def _query_quality_metadata(sql: Any) -> dict[str, object]:
         "has_limit": " limit " in f" {compact} ",
         "raw_event_query": "web_events" in compact and "group by" not in compact,
     }
+
+
+def _safe_sql_for_trace(sql: Any, max_chars: int) -> str | None:
+    """Keep SQL only for an explicitly enabled, bounded developer trace."""
+
+    if not isinstance(sql, str) or max_chars <= 0:
+        return None
+    return sql[:max_chars]

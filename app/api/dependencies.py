@@ -13,6 +13,7 @@ from app.environment.repository import Repository
 from app.artifacts.store import ArtifactStore, WorkspaceArtifactStore
 from app.analytics import AnalyticsDatabase, PostgreSQLInspector
 from app.analytics.datasets import AnalyticsDatasetStore
+from app.analytics.chart_specs import ChartSpecStore
 from app.analytics.metrics import MetricRegistry
 from app.analytics.policy import AnalyticsSchemaPolicy
 from app.analytics.sql import AnalyticsSQLExecutor, PostgreSQLQueryValidator
@@ -20,6 +21,7 @@ from app.analytics.sql.limits import AnalyticsQueryLimits
 from app.core.limits import RuntimeLimits
 from app.core.logging import register_secret_value
 from app.llm.openai_client import OpenAIClient
+from app.llm.pricing import PricingRegistry
 from app.memory.base import MemoryStore
 from app.memory.in_memory import InMemoryMemoryStore
 from app.memory.manager import MemoryManager
@@ -33,10 +35,12 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
-from app.tools.database import AnalyzeDatasetTool, DescribeMetricTool, DescribeTableTool, GenerateReportTool, GetTableRelationshipsTool, ListMetricsTool, ListTablesTool, QueryDatabaseTool, SearchSchemaTool
+from app.tools.database import AnalyzeDatasetTool, CreateChartTool, DescribeMetricTool, DescribeTableTool, GenerateReportTool, GetTableRelationshipsTool, ListMetricsTool, ListTablesTool, QueryDatabaseTool, SearchSchemaTool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
 from app.observability import InMemoryTraceStore, TraceRecorder
+from app.api.run_manager import AnalyticsRunManager
+from app.conversations.store import ConversationStore, PostgresConversationStore
 
 
 @lru_cache
@@ -44,6 +48,13 @@ def get_settings() -> Settings:
     """Return the shared settings instance."""
 
     return Settings()
+
+
+def require_developer_mode() -> None:
+    """Developer-only UI endpoints remain server-authorized, never frontend-gated."""
+    from fastapi import HTTPException
+    if not get_settings().workbench_developer_mode:
+        raise HTTPException(status_code=404, detail={"code": "developer_mode_disabled", "message": "Developer mode is disabled."})
 
 
 def get_workspace(settings: Settings | None = None) -> Workspace:
@@ -155,6 +166,7 @@ def get_tool_registry(
     registry.register(SearchSchemaTool(inspector))
     registry.register(QueryDatabaseTool(inspector, get_analytics_query_validator(), get_analytics_query_executor(), get_analytics_dataset_store()))
     registry.register(AnalyzeDatasetTool(get_analytics_dataset_store(), get_analytics_python_executor(), artifact_store or get_artifact_store()))
+    registry.register(CreateChartTool(get_chart_spec_store(), get_analytics_dataset_store()))
     registry.register(GenerateReportTool(get_analytics_dataset_store(), workspace, artifact_store or get_artifact_store()))
     registry.register(ListMetricsTool(get_metric_registry()))
     registry.register(DescribeMetricTool(get_metric_registry()))
@@ -200,6 +212,12 @@ def get_analytics_dataset_store() -> AnalyticsDatasetStore:
 
 
 @lru_cache
+def get_chart_spec_store() -> ChartSpecStore:
+    """Runtime store for specs that will be persisted with completed runs."""
+    return ChartSpecStore()
+
+
+@lru_cache
 def get_metric_registry() -> MetricRegistry:
     return MetricRegistry()
 
@@ -229,7 +247,9 @@ def get_agent_registry() -> AgentRegistry:
 def get_tool_executor(tool_registry: ToolRegistry | None = None) -> ToolExecutor:
     """Build the runtime boundary for executing registered tools."""
 
-    return ToolExecutor(tool_registry or get_tool_registry(), security_policy=SecurityPolicy.primary(), trace_recorder=get_trace_recorder())
+    settings = get_settings()
+    return ToolExecutor(tool_registry or get_tool_registry(), security_policy=SecurityPolicy.primary(), trace_recorder=get_trace_recorder(),
+                        expose_sql=settings.analytics_ui_expose_sql, max_sql_chars=settings.analytics_ui_max_sql_chars)
 
 
 @lru_cache
@@ -237,6 +257,28 @@ def get_trace_recorder() -> TraceRecorder:
     """Return the process-local recorder; traces disappear when the API restarts."""
 
     return TraceRecorder(InMemoryTraceStore())
+
+
+@lru_cache
+def get_analytics_run_manager() -> AnalyticsRunManager:
+    """Return process-local UI run coordination over the shared trace recorder."""
+
+    settings = get_settings()
+    return AnalyticsRunManager(
+        get_trace_recorder(), get_conversation_store(), get_chart_spec_store(), expose_sql=settings.analytics_ui_expose_sql,
+        max_sql_chars=settings.analytics_ui_max_sql_chars,
+    )
+
+
+@lru_cache
+def get_conversation_store() -> ConversationStore:
+    """Use the existing runtime PostgreSQL database for durable UI history."""
+
+    from app.db.session import Database
+    settings = get_settings()
+    if not settings.database_url:
+        raise RuntimeError("DATABASE_URL is required for persistent conversation history")
+    return PostgresConversationStore(Database(settings.database_url))
 
 
 def get_llm_client(settings: Settings | None = None) -> OpenAIClient:
@@ -248,6 +290,13 @@ def get_llm_client(settings: Settings | None = None) -> OpenAIClient:
     if api_key:
         register_secret_value(api_key)
     return OpenAIClient(api_key=api_key, model=settings.openai_model)
+
+
+def get_pricing_registry(settings: Settings | None = None) -> PricingRegistry:
+    """Return the built-in, versioned model-pricing registry."""
+
+    del settings
+    return PricingRegistry()
 
 
 @lru_cache
@@ -295,6 +344,10 @@ async def close_memory_resources() -> None:
     get_memory_retriever.cache_clear()
     get_memory_writer.cache_clear()
     get_memory_store.cache_clear()
+    conversation_store = get_conversation_store() if get_settings().database_url else None
+    if conversation_store is not None:
+        await conversation_store._database.dispose()  # type: ignore[attr-defined]
+    get_conversation_store.cache_clear()
     await get_analytics_database().dispose()
     get_analytics_inspector.cache_clear()
     get_analytics_query_validator.cache_clear()
@@ -353,7 +406,8 @@ def get_agent_runner() -> AgentRunner:
             delegation_executor,
             max_parallel_subagents=limits.max_parallel_subagents,
         ),
-        tool_executor=ToolExecutor(tool_registry, security_policy=security_policy, trace_recorder=get_trace_recorder()),
+        tool_executor=ToolExecutor(tool_registry, security_policy=security_policy, trace_recorder=get_trace_recorder(),
+                                   expose_sql=settings.analytics_ui_expose_sql, max_sql_chars=settings.analytics_ui_max_sql_chars),
         security_policy=security_policy,
         approval_store=get_approval_store(),
         memory_manager=get_memory_manager(),
@@ -365,4 +419,5 @@ def get_agent_runner() -> AgentRunner:
             recent_observations=settings.recent_observations,
         ),
         trace_recorder=get_trace_recorder(),
+        pricing_registry=get_pricing_registry(settings),
     )
