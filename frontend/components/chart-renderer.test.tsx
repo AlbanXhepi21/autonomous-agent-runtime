@@ -10,7 +10,10 @@ const chart = {
   x_field: "month",
   y_fields: ["revenue"],
   series: [{ field: "revenue", label: "Revenue" }],
-  data: [{ month: "2026-01", revenue: 14_000_000 }, { month: "2026-02", revenue: 18_000_000 }],
+  data: [
+    { month: "2026-01", revenue: 14_000_000 },
+    { month: "2026-02", revenue: 18_000_000 },
+  ],
   source_query_ids: ["query_001"],
   created_at: "2026-01-01T00:00:00Z",
   kpis: [],
@@ -19,19 +22,56 @@ const chart = {
 
 describe("ChartRenderer", () => {
   it("uses an adaptive, bounded category-label rule", () => {
-    expect(xAxisLabelPolicy([{ product: "Camera" }], "product", "bar")).toMatchObject({ limit: 12, rotate: false, horizontalBars: false });
-    expect(xAxisLabelPolicy([{ product: "Long Product Title" }], "product", "bar")).toMatchObject({ limit: 16, rotate: true, horizontalBars: false });
-    expect(xAxisLabelPolicy([{ product: "An exceptionally long product category name" }], "product", "bar")).toMatchObject({ limit: 18, horizontalBars: true });
-    expect(xAxisLabelPolicy([{ month: "2026-01" }], "month", "line")).toMatchObject({ isTime: true, includeYear: false, rotate: false, interval: 0 });
-    expect(xAxisLabelPolicy([{ month: "2024-01-01" }, { month: "2025-01-01" }], "month", "line")).toMatchObject({ includeYear: true });
-    expect(xAxisLabelPolicy(Array.from({ length: 24 }, (_, index) => ({ month: `2026-${String((index % 12) + 1).padStart(2, "0")}` })), "month", "line").interval).toBe(2);
+    expect(xAxisLabelPolicy([{ product: "Camera" }], "product", "bar")).toMatchObject({
+      limit: 12,
+      rotate: false,
+      horizontalBars: false,
+    });
+    expect(xAxisLabelPolicy([{ product: "Long Product Title" }], "product", "bar")).toMatchObject({
+      limit: 16,
+      rotate: true,
+      horizontalBars: false,
+    });
+    expect(
+      xAxisLabelPolicy(
+        [{ product: "An exceptionally long product category name" }],
+        "product",
+        "bar",
+      ),
+    ).toMatchObject({ limit: 18, horizontalBars: true });
+    expect(xAxisLabelPolicy([{ month: "2026-01" }], "month", "line")).toMatchObject({
+      isTime: true,
+      includeYear: false,
+      rotate: false,
+      interval: 0,
+    });
+    expect(
+      xAxisLabelPolicy([{ month: "2024-01-01" }, { month: "2025-01-01" }], "month", "line"),
+    ).toMatchObject({ includeYear: true });
+    expect(
+      xAxisLabelPolicy(
+        Array.from({ length: 24 }, (_, index) => ({
+          month: `2026-${String((index % 12) + 1).padStart(2, "0")}`,
+        })),
+        "month",
+        "line",
+      ).interval,
+    ).toBe(2);
   });
 
   it("pivots a repeated comparison category into chart series", () => {
-    const prepared = prepareChart({ ...chart, type: "line", y_fields: ["orders"], series: [], data: [
-      { month: "2026-01", customer_type: "New", orders: 10 }, { month: "2026-01", customer_type: "Returning", orders: 20 },
-      { month: "2026-02", customer_type: "New", orders: 11 }, { month: "2026-02", customer_type: "Returning", orders: 21 },
-    ] });
+    const prepared = prepareChart({
+      ...chart,
+      type: "line",
+      y_fields: ["orders"],
+      series: [],
+      data: [
+        { month: "2026-01", customer_type: "New", orders: 10 },
+        { month: "2026-01", customer_type: "Returning", orders: 20 },
+        { month: "2026-02", customer_type: "New", orders: 11 },
+        { month: "2026-02", customer_type: "Returning", orders: 21 },
+      ],
+    });
     expect(prepared.data).toHaveLength(2);
     expect(prepared.series.map((item) => item.label)).toEqual(["New", "Returning"]);
   });
