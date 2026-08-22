@@ -1,7 +1,6 @@
 """Render evidence-linked reports and bounded CSV exports as artifacts."""
 
 import csv
-import json
 from pathlib import Path
 from typing import Any
 

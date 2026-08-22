@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.logging import safe_error_message, safe_log_value
+from app.core.logging import safe_error_message
 
 
 class FailureCategory(StrEnum):
