@@ -6,7 +6,7 @@ from app.agent.state import AgentState, RunStatus
 from app.evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
                                  GroundTruthLoader, load_analytics_dataset)
 from app.observability import RunMetrics, RunTrace, TraceEvent, TraceEventType
-from app.tools.executor import _query_quality_metadata
+from app.tools.execution.redaction import query_quality_metadata
 
 
 ROOT = Path(__file__).parents[1]
@@ -50,7 +50,7 @@ def test_root_cause_uses_evidence_not_exact_case_wording() -> None:
 
 
 def test_sql_quality_security_and_summary_checks() -> None:
-    quality = _query_quality_metadata("SELECT * FROM web_events")
+    quality = query_quality_metadata("SELECT * FROM web_events")
     assert quality["select_star"] and quality["raw_event_query"] and "sql" not in quality
     case = next(item for item in load_analytics_dataset(DATASET).cases if item.id == "reporting.executive")
     result = DeterministicAnalyticsEvaluator().evaluate(case, state("Executive summary: marketing results."), trace("orders", artifact_type="report"))

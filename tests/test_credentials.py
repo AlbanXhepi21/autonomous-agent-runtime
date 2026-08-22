@@ -19,7 +19,7 @@ from app.security import EnvironmentCredentialProvider, SecretReference, Securit
 from app.security.approvals import safe_argument_summary
 from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 SECRET = "ghp_abcdefghijklmnopqrstuvwxyz123456"

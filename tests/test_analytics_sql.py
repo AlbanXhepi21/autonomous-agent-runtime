@@ -17,7 +17,7 @@ from app.analytics.sql.validator import PostgreSQLQueryValidator
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.security import Capability, PolicyDecision, SecurityAction, SecurityPolicy, SecuritySubject
 from app.tools.database.query import QueryDatabaseTool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 

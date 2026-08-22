@@ -13,7 +13,7 @@ from app.environment.workspace import Workspace
 from app.memory.models import Memory, MemoryType
 from app.security import ContentTrust, SecurityPolicy, SecuritySubject, injection_indicators
 from app.skills.registry import SkillRegistry
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.filesystem import ReadFileTool, WriteFileTool
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry

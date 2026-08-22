@@ -17,7 +17,7 @@ from app.llm.pricing import PricingRegistry
 from app.security import ContentTrust, SecurityPolicy
 from app.security.approvals import ApprovalStore
 from app.skills.registry import SkillRegistry
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 from app.observability import TraceRecorder
 

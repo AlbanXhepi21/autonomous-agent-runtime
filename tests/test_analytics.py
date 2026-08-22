@@ -9,7 +9,7 @@ from app.config import Settings
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.security import Capability, PolicyDecision, SecurityAction, SecurityPolicy, SecuritySubject
 from app.tools.database import DescribeTableTool, GetTableRelationshipsTool, ListTablesTool, SearchSchemaTool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 

@@ -13,7 +13,7 @@ from app.core.limits import RuntimeLimits
 from app.security import Capability, PermissionRule, PolicyDecision, SecurityPolicy
 from app.security.approvals import ApprovalConflictError, ApprovalRequest, ApprovalStatus, FileApprovalStore
 from app.tools.base import Tool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 from tests.support import make_runner
 from app.llm.base import LLMClient

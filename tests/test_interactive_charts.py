@@ -5,7 +5,7 @@ import pytest
 from app.analytics.chart_specs import ChartSpecStore
 from app.analytics.datasets import AnalyticsDatasetStore
 from app.tools.database.chart import CreateChartTool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 
