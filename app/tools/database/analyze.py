@@ -1,6 +1,5 @@
 """Restricted Python analysis over one bounded runtime-managed dataset."""
 
-from pathlib import Path
 from typing import Any
 
 from app.analytics.datasets import AnalyticsDatasetStore
