@@ -14,7 +14,7 @@ from app.environment.python import PythonExecutor
 from app.environment.workspace import Workspace
 from app.artifacts.store import WorkspaceArtifactStore
 from app.memory.writing import MemoryCandidate, MemoryCategory, MemoryPolicy
-from app.memory.models import MemoryType
+from app.memory.records import MemoryType
 from app.security import EnvironmentCredentialProvider, SecretReference, SecurityPolicy, SecuritySubject
 from app.security.approvals import safe_argument_summary
 from app.skills.registry import SkillRegistry

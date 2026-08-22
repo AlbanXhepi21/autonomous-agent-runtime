@@ -16,8 +16,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from time import perf_counter
 
-from app.environment.models import PythonExecutionResult
-from app.environment.policy import PythonExecutionPolicy, PythonExecutionPolicyError
+from app.environment.contracts import PythonExecutionResult
+from app.environment.policies import PythonExecutionPolicy, PythonExecutionPolicyError
 from app.environment.workspace import Workspace, WorkspaceError
 
 DEFAULT_PYTHON_IMPORTS = frozenset({"math", "statistics", "json", "datetime", "collections"})

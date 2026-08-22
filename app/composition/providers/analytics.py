@@ -4,7 +4,7 @@ from app.analytics import AnalyticsDatabase, PostgreSQLInspector
 from app.analytics.chart_specs import ChartSpecStore
 from app.analytics.datasets import AnalyticsDatasetStore
 from app.analytics.metrics import MetricRegistry
-from app.analytics.policy import AnalyticsSchemaPolicy
+from app.analytics.allowlist import AnalyticsSchemaPolicy
 from app.analytics.sql import AnalyticsSQLExecutor, PostgreSQLQueryValidator
 from app.analytics.sql.limits import AnalyticsQueryLimits
 from app.composition.lifecycle import provider

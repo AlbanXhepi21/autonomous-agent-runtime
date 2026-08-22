@@ -10,7 +10,7 @@ from app.agent.runner import AgentRunner
 from app.agent.state import Observation, TaskSummary
 from app.agent.summarization import SummaryPolicy, TaskSummarizer
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 from tests.support import ScriptedLLM, make_runner as build_runner

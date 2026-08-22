@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from app.artifacts.models import Artifact
+from app.artifacts.contracts import Artifact
 from app.environment.workspace import Workspace, WorkspaceError
 from app.security.credentials import contains_secret_material
 

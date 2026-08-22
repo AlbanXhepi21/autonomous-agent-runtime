@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db.models import AgentRunRecord, ConversationRecord, MessageRecord
+from app.db.records import AgentRunRecord, ConversationRecord, MessageRecord
 from app.db.session import Database
 
 DEFAULT_CONVERSATION_TITLE = "New conversation"

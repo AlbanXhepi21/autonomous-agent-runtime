@@ -19,7 +19,7 @@ from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.registry import ToolRegistry
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.skills.registry import SkillRegistry
 from app.core.limits import RuntimeLimits
 

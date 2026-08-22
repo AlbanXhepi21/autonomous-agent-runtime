@@ -3,9 +3,9 @@
 from typing import Protocol
 
 from app.agent.state import AgentState
-from app.evals.models import EvalCase, EvaluatorResult
+from app.evals.contracts import EvalCase, EvaluatorResult
 from app.observability import RunTrace, TraceEventType
-from app.tools.models import ToolResult
+from app.tools.contracts import ToolResult
 from app.evals.trajectory import Trajectory
 
 

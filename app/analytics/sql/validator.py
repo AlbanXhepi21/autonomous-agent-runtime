@@ -5,8 +5,8 @@ from collections.abc import Iterable
 import sqlglot
 from sqlglot import exp
 
-from app.analytics.policy import AnalyticsSchemaPolicy
-from app.analytics.sql.models import SQLValidationResult
+from app.analytics.allowlist import AnalyticsSchemaPolicy
+from app.analytics.sql.contracts import SQLValidationResult
 
 
 _PROHIBITED_NODES = (

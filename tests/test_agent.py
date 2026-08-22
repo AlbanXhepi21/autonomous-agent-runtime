@@ -5,13 +5,13 @@ import logging
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.agent.policy import tool_action_fingerprint
+from app.agent.fingerprints import tool_action_fingerprint
 from app.agent.runner import AgentRunner
 from app.agent.state import AgentState, StopReason
 from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.memory import (
     InMemoryMemoryStore,
     MemoryManager,

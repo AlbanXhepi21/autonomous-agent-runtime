@@ -7,8 +7,8 @@ import signal
 from collections.abc import Sequence
 from time import perf_counter
 
-from app.environment.models import CommandResult
-from app.environment.policy import CommandPolicy, CommandPolicyError
+from app.environment.contracts import CommandResult
+from app.environment.policies import CommandPolicy, CommandPolicyError
 from app.environment.workspace import Workspace, WorkspaceError
 
 

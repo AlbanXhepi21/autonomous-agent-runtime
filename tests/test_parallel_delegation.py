@@ -21,7 +21,7 @@ from app.core.limits import RuntimeLimits
 from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository
 from app.artifacts.store import WorkspaceArtifactStore
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.commands import RunCommandTool

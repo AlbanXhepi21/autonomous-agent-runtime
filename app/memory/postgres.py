@@ -6,10 +6,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app.db.models import MemoryRecord
+from app.db.records import MemoryRecord
 from app.db.session import Database
-from app.memory.base import MemoryStore
-from app.memory.models import Memory, MemoryType
+from app.memory.store import MemoryStore
+from app.memory.records import Memory, MemoryType
 
 
 class PostgresMemoryStore(MemoryStore):

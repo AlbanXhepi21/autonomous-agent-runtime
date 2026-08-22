@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 
 from app.analytics.datasets import AnalyticsDatasetStore
-from app.analytics.models import DatabaseSchemaSummary, DatabaseTable
-from app.analytics.policy import AnalyticsSchemaPolicy
-from app.analytics.sql.models import SQLColumn, SQLQueryResult
+from app.analytics.contracts import DatabaseSchemaSummary, DatabaseTable
+from app.analytics.allowlist import AnalyticsSchemaPolicy
+from app.analytics.sql.contracts import SQLColumn, SQLQueryResult
 from app.analytics.sql.validator import PostgreSQLQueryValidator
 from app.artifacts.store import WorkspaceArtifactStore
 from app.environment.python import PythonExecutor

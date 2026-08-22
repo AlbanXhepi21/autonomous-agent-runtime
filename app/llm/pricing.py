@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 import re
 
-from app.llm.base import LLMUsage
+from app.llm.contracts import LLMUsage
 
 MILLION_TOKENS = Decimal("1000000")
 LONG_CONTEXT_INPUT_THRESHOLD = 272_000

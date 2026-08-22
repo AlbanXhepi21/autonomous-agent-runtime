@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.llm.base import LLMUsage
+from app.llm.contracts import LLMUsage
 from app.llm.pricing import (
     InvalidTokenUsageError,
     OPENAI_MODEL_PRICES,

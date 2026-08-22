@@ -16,7 +16,7 @@ from app.tools.base import Tool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 from tests.support import make_runner
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 
 
 class CounterTool(Tool):

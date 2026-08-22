@@ -3,7 +3,7 @@
 from typing import Any
 
 from pydantic import BaseModel, Field
-from app.security.models import ContentTrust
+from app.security.contracts import ContentTrust
 
 
 class ToolResult(BaseModel):

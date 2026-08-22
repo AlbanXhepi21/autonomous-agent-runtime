@@ -7,10 +7,10 @@ from app.agent.state import AgentState, Observation
 from app.agent.delegation import DelegationContext, ParallelDelegationResult, SubagentResult
 from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
-from app.memory.models import Memory
+from app.memory.records import Memory
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
-from app.tools.models import ToolResult
+from app.tools.contracts import ToolResult
 from app.security import ContentTrust, UntrustedContent
 
 

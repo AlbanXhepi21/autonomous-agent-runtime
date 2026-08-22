@@ -1,5 +1,5 @@
 from app.analytics.metrics import MetricRegistry
-from app.tools.database.metrics import DescribeMetricTool, ListMetricsTool
+from app.tools.database.metric_tools import DescribeMetricTool, ListMetricsTool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 import pytest

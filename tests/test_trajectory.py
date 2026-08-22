@@ -2,7 +2,7 @@
 
 from app.agent.state import AgentState, RunStatus, StopReason
 from app.evals.evaluators import DelegationEfficiencyEvaluator, DuplicateActionEvaluator, ExcessiveIterationEvaluator, FailureRecoveryEvaluator, SecurityBehaviorEvaluator, StopEfficiencyEvaluator, ToolCallEfficiencyEvaluator
-from app.evals.models import EvalCase
+from app.evals.contracts import EvalCase
 from app.evals.trajectory import Trajectory
 from app.observability import RunTrace, TraceEvent, TraceEventType
 

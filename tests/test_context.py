@@ -5,10 +5,10 @@ import json
 from app.agent.context import ContextBuilder
 from app.agent.state import AgentState, Observation, TaskSummary
 from app.core.limits import RuntimeLimits
-from app.memory.models import Memory, MemoryType
+from app.memory.records import Memory, MemoryType
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
-from app.tools.models import ToolResult
+from app.tools.contracts import ToolResult
 from app.tools.registry import ToolRegistry
 
 

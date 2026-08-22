@@ -4,8 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.api.dependencies import require_developer_mode
 from app.composition import get_memory_store
-from app.memory.base import MemoryStore
-from app.memory.models import Memory, MemoryType
+from app.memory.store import MemoryStore
+from app.memory.records import Memory, MemoryType
 from app.security.credentials import contains_secret_material
 
 router = APIRouter(prefix="/api/v1/memory", tags=["memory-inspector"])

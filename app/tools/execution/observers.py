@@ -27,7 +27,7 @@ from app.tools.execution.redaction import (
     database_table_names,
     query_quality_metadata,
 )
-from app.tools.models import ToolResult
+from app.tools.contracts import ToolResult
 
 Fields = dict[str, Any]
 

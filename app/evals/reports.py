@@ -1,6 +1,6 @@
 """Terminal and JSON-friendly aggregation for evaluation suites."""
 
-from app.evals.models import SuiteReport
+from app.evals.contracts import SuiteReport
 
 
 def format_report(report: SuiteReport) -> str:

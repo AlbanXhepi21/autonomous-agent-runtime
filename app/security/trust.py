@@ -4,7 +4,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from app.security.models import ContentTrust, UntrustedContent
+from app.security.contracts import ContentTrust, UntrustedContent
 
 _INDICATORS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ignore_previous_instructions", re.compile(r"ignore (?:all )?(?:previous|prior) instructions", re.I)),

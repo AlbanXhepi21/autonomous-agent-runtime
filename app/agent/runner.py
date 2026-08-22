@@ -16,7 +16,7 @@ from app.agent.delegation import (
 )
 from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
-from app.agent.policy import delegation_fingerprint, tool_action_fingerprint
+from app.agent.fingerprints import delegation_fingerprint, tool_action_fingerprint
 from app.agent.prompt import SYSTEM_PROMPT
 from app.agent.state import AgentState, Observation, RunStatus, StopReason
 from app.agent.steps.memory_step import MemoryStep
@@ -30,7 +30,7 @@ from app.core.exceptions import UnknownAgentError, UnknownSkillError
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from pydantic import ValidationError
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.llm.pricing import PricingRegistry, estimate_cost
 from app.reliability import RetryPolicy, classify_llm_failure
 from app.reliability.retry import Sleep, default_sleep
@@ -41,9 +41,9 @@ from app.security import Capability, PolicyDecision, PolicyResult, SecurityActio
 from app.security.approvals import ApprovalCheckpoint, ApprovalRequest, ApprovalStore, action_fingerprint, safe_argument_summary
 from app.skills.registry import SkillRegistry
 from app.tools.execution import ToolExecutor
-from app.tools.models import ToolResult
+from app.tools.contracts import ToolResult
 from app.tools.registry import ToolRegistry
-from app.artifacts.models import Artifact
+from app.artifacts.contracts import Artifact
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder, TraceStatus
 
 

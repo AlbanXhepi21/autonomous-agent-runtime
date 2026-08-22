@@ -4,7 +4,7 @@ import pytest
 
 from app.contracts.actions import AgentAction
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.reliability import FailureCategory, RetryPolicy, RetryRule, RuntimeFailure, classify_llm_failure
 from app.security import SecurityPolicy

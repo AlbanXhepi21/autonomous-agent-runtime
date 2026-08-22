@@ -8,7 +8,7 @@ import sys
 
 from app.analytics import AnalyticsDatabase, PostgreSQLInspector
 from app.analytics.database import AnalyticsDatabaseError
-from app.analytics.policy import AnalyticsSchemaPolicy
+from app.analytics.allowlist import AnalyticsSchemaPolicy
 from app.config import Settings
 
 

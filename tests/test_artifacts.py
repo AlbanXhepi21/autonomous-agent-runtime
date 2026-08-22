@@ -11,7 +11,7 @@ from app.api.routes.artifacts import download_artifact
 from app.api.schemas.agent import AgentRunRequest
 from app.artifacts.store import WorkspaceArtifactStore
 from app.environment import Workspace
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.execution import ToolExecutor
 from app.tools.filesystem import WriteFileTool

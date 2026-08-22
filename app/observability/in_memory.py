@@ -3,7 +3,7 @@
 from collections import OrderedDict
 from threading import RLock
 
-from app.observability.models import RunTrace
+from app.observability.events import RunTrace
 
 
 class InMemoryTraceStore:
