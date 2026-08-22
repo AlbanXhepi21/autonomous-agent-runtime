@@ -28,19 +28,7 @@ from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.registry import ToolRegistry
-
-
-class ScriptedLLM(LLMClient):
-    def __init__(self, actions: list[AgentAction]) -> None:
-        self._actions = actions
-        self.contexts: list[dict[str, object]] = []
-        self.calls = 0
-
-    async def choose_action(self, *, system_prompt: str, context: dict[str, object]) -> AgentAction:
-        self.contexts.append(context)
-        action = self._actions[min(self.calls, len(self._actions) - 1)]
-        self.calls += 1
-        return action
+from tests.support import ScriptedLLM
 
 
 def registries() -> tuple[ToolRegistry, SkillRegistry, AgentRegistry]:

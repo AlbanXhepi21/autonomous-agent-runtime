@@ -13,23 +13,7 @@ from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-
-
-class ScriptedLLM(LLMClient):
-    """Return a known action sequence and retain contexts for assertions."""
-
-    def __init__(self, actions: list[AgentAction]) -> None:
-        self._actions = actions
-        self.contexts: list[dict[str, Any]] = []
-        self._next_action = 0
-
-    async def choose_action(
-        self, *, system_prompt: str, context: dict[str, Any]
-    ) -> AgentAction:
-        self.contexts.append(context)
-        action = self._actions[min(self._next_action, len(self._actions) - 1)]
-        self._next_action += 1
-        return action
+from tests.support import ScriptedLLM
 
 
 class NeverFinishLLM(LLMClient):

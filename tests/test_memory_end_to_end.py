@@ -1,6 +1,6 @@
 """Deterministic end-to-end memory scenarios; no provider calls are made."""
 
-from typing import Any, Sequence
+from typing import Sequence
 
 import pytest
 
@@ -17,19 +17,7 @@ from app.memory import (
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-
-
-class ScriptedLLM(LLMClient):
-    def __init__(self, actions: list[AgentAction]) -> None:
-        self._actions = actions
-        self._index = 0
-        self.contexts: list[dict[str, Any]] = []
-
-    async def choose_action(self, *, system_prompt: str, context: dict[str, Any]) -> AgentAction:
-        self.contexts.append(context)
-        action = self._actions[min(self._index, len(self._actions) - 1)]
-        self._index += 1
-        return action
+from tests.support import ScriptedLLM
 
 
 class DurableDecisionExtractor:
