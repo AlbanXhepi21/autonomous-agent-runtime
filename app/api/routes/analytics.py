@@ -5,7 +5,7 @@ import asyncio
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.agent.runner import AgentRunner
+from app.runtime.runner import AgentRunner
 from app.composition import get_agent_runner, get_run_manager, get_conversation_store
 from app.orchestration.run_manager import AgentRunManager
 from app.api.schemas.analytics import CreateRunRequest, CreateRunResponse, PublicRunEventListResponse, RunMetricsResponse, RunResponse

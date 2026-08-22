@@ -1,6 +1,6 @@
 """Tests for the safety and capability-selection instructions."""
 
-from app.agent.prompt import SYSTEM_PROMPT
+from app.runtime.prompt import SYSTEM_PROMPT
 
 
 def test_system_prompt_establishes_agent_decision_boundaries() -> None:

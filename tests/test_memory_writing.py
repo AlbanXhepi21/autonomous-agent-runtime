@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.agent.state import AgentState
+from app.runtime.state import AgentState
 from app.memory import (
     InMemoryMemoryStore, MemoryCandidate, MemoryCategory, MemoryManager, MemoryType,
 )

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from app.agent.state import AgentState, RunStatus
+from app.runtime.state import AgentState, RunStatus
 from app.evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
                                  GroundTruthLoader, load_analytics_dataset)
 from app.observability import RunMetrics, RunTrace, TraceEvent, TraceEventType
@@ -63,6 +63,6 @@ def test_advanced_cases_and_guidance_remain_generic() -> None:
     cases = load_analytics_dataset(DATASET).cases
     advanced = [case for case in cases if case.suite == "advanced"]
     assert len(advanced) == 6
-    guidance = (ROOT / "app" / "skills" / "data_analysis" / "SKILL.md").read_text(encoding="utf-8").lower()
+    guidance = (ROOT / "app" / "resources" / "skills" / "data_analysis" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert all(term in guidance for term in ("contribution analysis", "funnel", "cohort", "iqr", "causal"))
     assert "delegate" not in guidance

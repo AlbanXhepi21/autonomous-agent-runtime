@@ -8,7 +8,7 @@ from time import perf_counter
 from typing import Callable
 
 from app.contracts.actions import AgentAction
-from app.agent.runner import AgentRunner
+from app.runtime.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.evals.evaluators import DEFAULT_EVALUATORS, Evaluator
 from app.evals.contracts import EvalCase, EvalDataset, EvalResult, SuiteReport

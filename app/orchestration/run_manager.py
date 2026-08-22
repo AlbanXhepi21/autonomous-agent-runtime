@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.agent.runner import AgentRunner
-from app.agent.state import AgentState, RunStatus
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, RunStatus
 from app.orchestration.views import PublicRunEvent, RunMetricsResponse, RunResponse
 from app.analytics.chart_specs import ChartSpecStore
 from app.analytics.charts import ChartSpec

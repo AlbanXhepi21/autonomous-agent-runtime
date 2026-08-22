@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from app.agent.delegation import (
+from app.runtime.delegation import (
     DelegationObservation,
     DelegationRequest,
     ParallelDelegationResult,

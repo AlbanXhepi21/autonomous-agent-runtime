@@ -8,15 +8,15 @@ import pytest
 from pydantic import ValidationError
 
 from app.contracts.specialists import AgentDefinition
-from app.agent.delegation import (
+from app.runtime.delegation import (
     ParallelDelegationResult,
     ParallelSubagentExecutor,
     SequentialSubagentExecutor,
     SubagentResult,
 )
 from app.contracts.actions import AgentAction
-from app.agent.registry import AgentRegistry
-from app.agent.runner import AgentRunner
+from app.runtime.registry import AgentRegistry
+from app.runtime.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository

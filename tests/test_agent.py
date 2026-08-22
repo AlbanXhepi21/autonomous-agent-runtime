@@ -5,9 +5,9 @@ import logging
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.agent.fingerprints import tool_action_fingerprint
-from app.agent.runner import AgentRunner
-from app.agent.state import AgentState, StopReason
+from app.runtime.fingerprints import tool_action_fingerprint
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, StopReason
 from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
 from app.core.limits import RuntimeLimits

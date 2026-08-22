@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-from app.agent.context import ContextBuilder
+from app.runtime.context import ContextBuilder
 from app.contracts.specialists import AgentDefinition
-from app.agent.state import AgentState
+from app.runtime.state import AgentState
 from app.core.logging import safe_error_message, safe_log_value
 from app.core.limits import RuntimeLimits
 from app.environment.commands import CommandExecutor

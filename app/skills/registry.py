@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from app.core.exceptions import SkillMetadataError, UnknownSkillError
 from app.skills.contracts import SkillMetadata
+from app.resources import resources_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +24,7 @@ class SkillRegistry:
     """Discover compact skill metadata and load instructions only on demand."""
 
     def __init__(self, skills_directory: Path | None = None) -> None:
-        self._skills_directory = skills_directory or Path(__file__).parent
+        self._skills_directory = skills_directory or resources_path("skills")
         self._skills = self._discover()
         self._loaded_instructions: dict[str, str] = {}
 

@@ -5,8 +5,8 @@ from typing import Any
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.agent.runner import AgentRunner
-from app.agent.state import StopReason
+from app.runtime.runner import AgentRunner
+from app.runtime.state import StopReason
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient
 from app.tools.base import Tool

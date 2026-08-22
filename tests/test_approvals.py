@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.agent.runner import AgentRunner
-from app.agent.state import AgentState, RunStatus
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, RunStatus
 from app.core.limits import RuntimeLimits
 from app.security import Capability, PermissionRule, PolicyDecision, SecurityPolicy
 from app.security.approvals import ApprovalConflictError, ApprovalRequest, ApprovalStatus, FileApprovalStore

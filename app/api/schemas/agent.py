@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from app.agent.state import RunStatus, StopReason
+from app.runtime.state import RunStatus, StopReason
 from app.artifacts.contracts import Artifact
 
 

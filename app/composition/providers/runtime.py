@@ -1,9 +1,9 @@
 """The agent runtime and the capability registries it is scoped to."""
 
-from app.agent.delegation import ParallelSubagentExecutor, SequentialSubagentExecutor
-from app.agent.registry import AgentRegistry
-from app.agent.runner import AgentRunner
-from app.agent.summarization import SummaryPolicy
+from app.runtime.delegation import ParallelSubagentExecutor, SequentialSubagentExecutor
+from app.runtime.registry import AgentRegistry
+from app.runtime.runner import AgentRunner
+from app.runtime.summarization import SummaryPolicy
 from app.composition.providers.artifacts import get_artifact_store
 from app.composition.providers.environment import (
     get_command_executor,

@@ -9,7 +9,7 @@ from typing import Callable, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.contracts.specialists import AgentDefinition
-from app.agent.registry import AgentRegistry
+from app.runtime.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message
 from app.llm.contracts import LLMClient
@@ -205,7 +205,7 @@ class SequentialSubagentExecutor:
         definition: AgentDefinition | None = None
         try:
             definition = self._agent_registry.load_agent(request.target_agent)
-            from app.agent.state import AgentState
+            from app.runtime.state import AgentState
 
             child_state = AgentState(goal=request.objective, agent_depth=1)
             log_event(
@@ -296,7 +296,7 @@ class SequentialSubagentExecutor:
     ) -> "AgentRunner":
         """Build a new autonomous runtime with only specialist-granted capabilities."""
 
-        from app.agent.runner import AgentRunner
+        from app.runtime.runner import AgentRunner
 
         limits = replace(
             self._parent_limits,
@@ -335,7 +335,7 @@ class SequentialSubagentExecutor:
     def _child_system_prompt(definition: AgentDefinition, request: DelegationRequest) -> str:
         """Compose base runtime guidance with just one specialist's instructions."""
 
-        from app.agent.prompt import SYSTEM_PROMPT
+        from app.runtime.prompt import SYSTEM_PROMPT
 
         context = request.context.background or "None supplied."
         constraints = request.context.constraints or "None supplied."
