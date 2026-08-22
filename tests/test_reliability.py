@@ -3,16 +3,15 @@
 import pytest
 
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.reliability import FailureCategory, RetryPolicy, RetryRule, RuntimeFailure, classify_llm_failure
 from app.security import SecurityPolicy
-from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
+from tests.support import make_runner
 
 
 class SequenceLLM(LLMClient):
@@ -47,7 +46,7 @@ async def test_timeout_retries_with_bounded_backoff_and_trace_attempts() -> None
     async def sleep(delay: float) -> None: sleeper.append(delay)
     recorder = TraceRecorder(InMemoryTraceStore())
     llm = SequenceLLM([TimeoutError("temporary"), AgentAction(action_type="finish", reasoning_summary="", final_answer="Done")])
-    runner = AgentRunner(llm, ToolRegistry(), SkillRegistry(), limits=RuntimeLimits(), trace_recorder=recorder, retry_sleep=sleep)
+    runner = make_runner(llm, limits=RuntimeLimits(), trace_recorder=recorder, retry_sleep=sleep)
     state = await runner.run("Retry")
     trace = recorder.get_trace(state.run_id)
     assert state.completed and sleeper == [0.05] and llm.calls == 2
@@ -59,10 +58,10 @@ async def test_timeout_retries_with_bounded_backoff_and_trace_attempts() -> None
 async def test_invalid_output_repair_is_bounded_and_permanent_error_exhausts() -> None:
     sleeps: list[float] = []
     async def sleep(delay: float) -> None: sleeps.append(delay)
-    repaired = AgentRunner(SequenceLLM([object(), AgentAction(action_type="finish", reasoning_summary="", final_answer="Done")]), ToolRegistry(), SkillRegistry(), retry_sleep=sleep)
+    repaired = make_runner(SequenceLLM([object(), AgentAction(action_type="finish", reasoning_summary="", final_answer="Done")]), retry_sleep=sleep)
     assert (await repaired.run("Repair")).completed and sleeps == [0]
 
-    exhausted = AgentRunner(SequenceLLM([TimeoutError("x"), TimeoutError("x"), TimeoutError("x")]), ToolRegistry(), SkillRegistry(), retry_sleep=sleep)
+    exhausted = make_runner(SequenceLLM([TimeoutError("x"), TimeoutError("x"), TimeoutError("x")]), retry_sleep=sleep)
     with pytest.raises(TimeoutError):
         await exhausted.run("Exhaust")
 

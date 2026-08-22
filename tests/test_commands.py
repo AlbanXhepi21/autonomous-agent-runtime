@@ -7,7 +7,6 @@ import pytest
 
 from app.agent.models import AgentAction
 from app.agent.registry import AgentRegistry
-from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository
@@ -22,6 +21,7 @@ from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.registry import ToolRegistry
+from tests.support import make_runner
 
 
 def command_registry(root: Path, *, timeout: float = 2, output: int = 1_024) -> ToolRegistry:
@@ -164,8 +164,8 @@ class CommandFailureThenFinishLLM(LLMClient):
 async def test_parent_run_continues_after_a_recoverable_command_failure(tmp_path: Path) -> None:
     tools = command_registry(tmp_path)
     llm = CommandFailureThenFinishLLM()
-    outcome = await AgentRunner(
-        llm, tools, SkillRegistry(), limits=RuntimeLimits(max_iterations=3),
+    outcome = await make_runner(
+        llm, tools, limits=RuntimeLimits(max_iterations=3),
     ).run("Verify command handling")
 
     assert outcome.final_answer == "Done."

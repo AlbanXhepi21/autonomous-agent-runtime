@@ -6,17 +6,15 @@ import pytest
 
 from app.agent.definition import AgentDefinition
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.security import (
     Capability, PermissionRule, PolicyDecision, SecurityAction, SecurityPolicy,
     SecuritySubject,
 )
-from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner
 
 
 class CounterTool(Tool):
@@ -138,8 +136,8 @@ async def test_agent_continues_after_security_denial() -> None:
     registry = ToolRegistry()
     registry.register(tool)
     policy = SecurityPolicy.primary().with_specialist(definition("research", []))
-    runner = AgentRunner(
-        ScriptedLLM(DENIED_THEN_FINISH), registry, SkillRegistry(), limits=RuntimeLimits(max_iterations=3),
+    runner = make_runner(
+        ScriptedLLM(DENIED_THEN_FINISH), registry, limits=RuntimeLimits(max_iterations=3),
         security_policy=policy, security_agent_name="research", security_agent_type="specialist",
     )
 

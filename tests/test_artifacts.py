@@ -6,19 +6,18 @@ import logging
 import pytest
 
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.api.routes.agent import run_agent
 from app.api.routes.artifacts import download_artifact
 from app.api.schemas.agent import AgentRunRequest
 from app.artifacts.store import WorkspaceArtifactStore
 from app.environment import Workspace
 from app.llm.base import LLMClient
-from app.skills.registry import SkillRegistry
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.executor import ToolExecutor
 from app.tools.filesystem import WriteFileTool
 from app.tools.registry import ToolRegistry
 from fastapi import HTTPException
+from tests.support import make_runner
 
 
 def artifact_tools(root: Path) -> tuple[ToolRegistry, WorkspaceArtifactStore]:
@@ -96,7 +95,7 @@ class ArtifactLLM(LLMClient):
 @pytest.mark.asyncio
 async def test_final_agent_response_includes_metadata_not_artifact_content(tmp_path: Path) -> None:
     tools, _ = artifact_tools(tmp_path)
-    runner = AgentRunner(ArtifactLLM(), tools, SkillRegistry())
+    runner = make_runner(ArtifactLLM(), tools)
     response = await run_agent(AgentRunRequest(goal="Create a report"), runner)
 
     assert response.final_answer == "Report created."

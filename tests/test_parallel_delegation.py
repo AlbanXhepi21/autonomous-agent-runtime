@@ -30,6 +30,7 @@ from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.registry import ToolRegistry
+from tests.support import make_runner as build_runner
 
 
 class ParentLLM(LLMClient):
@@ -163,7 +164,7 @@ def make_runner(
         llm_client_factory=factory,
         parent_limits=limits,
     )
-    return AgentRunner(
+    return build_runner(
         parent,
         tools,
         skills,

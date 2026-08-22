@@ -14,10 +14,9 @@ from app.memory import (
     InMemoryMemoryStore, MemoryCandidate, MemoryCategory, MemoryManager, MemoryRetriever,
     MemoryType, MemoryWritingPipeline,
 )
-from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner
 
 
 class DurableDecisionExtractor:
@@ -74,8 +73,8 @@ def runner(
     tools = ToolRegistry()
     tools.register(CalculatorTool())
     manager = MemoryManager(store)
-    return AgentRunner(
-        llm, tools, SkillRegistry(), limits=RuntimeLimits(max_iterations=8), memory_manager=manager,
+    return make_runner(
+        llm, tools, limits=RuntimeLimits(max_iterations=8), memory_manager=manager,
         memory_retriever=retriever if retriever is not None else MemoryRetriever(store),  # type: ignore[arg-type]
         memory_writer=writer, task_summarizer=summarizer,
         summary_policy=SummaryPolicy(trigger_observations=3, recent_observations=2),
