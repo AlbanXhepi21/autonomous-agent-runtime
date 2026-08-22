@@ -14,7 +14,7 @@ const chart = {
   source_query_ids: ["query_001"],
   created_at: "2026-01-01T00:00:00Z",
   kpis: [],
-  formatting: { currency: "$", show_legend: true },
+  formatting: { currency: "$", decimal_places: null, show_legend: true },
 };
 
 describe("ChartRenderer", () => {

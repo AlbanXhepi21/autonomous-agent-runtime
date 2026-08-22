@@ -30,7 +30,7 @@ describe("Workbench", () => {
     let handler: ((event: PublicRunEvent) => void) | undefined;
     let errorHandler: (() => void) | undefined;
     vi.mocked(analyticsApi.createRun).mockResolvedValue({ run_id: "run-1", conversation_id: "c-1", status: "running" });
-    vi.mocked(analyticsApi.getRun).mockResolvedValue({ run_id: "run-1", conversation_id: "c-1", status: "completed", created_at: "", started_at: "", finished_at: "", final_response: "## Finding\nRevenue declined.", error: null, metrics: null });
+    vi.mocked(analyticsApi.getRun).mockResolvedValue({ run_id: "run-1", conversation_id: "c-1", status: "completed", created_at: "", started_at: "", finished_at: "", final_response: "## Finding\nRevenue declined.", error: null, metrics: null, charts: [] });
     connect.mockImplementation((_id: string, onEvent: (event: PublicRunEvent) => void, onError: () => void) => { handler = onEvent; errorHandler = onError; return { close: vi.fn() } as unknown as EventSource; });
     render(<Workbench />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), { target: { value: "Analyze revenue" } });
@@ -55,8 +55,8 @@ describe("Workbench", () => {
   it("explains when a run is waiting for a protected-action approval", async () => {
     let handler: ((event: PublicRunEvent) => void) | undefined;
     vi.mocked(analyticsApi.createRun).mockResolvedValue({ run_id: "run-approval", conversation_id: "c-1", status: "running" });
-    vi.mocked(analyticsApi.getRun).mockResolvedValue({ run_id: "run-approval", conversation_id: "c-1", status: "waiting_for_approval", created_at: "", started_at: "", finished_at: "", final_response: null, error: null, metrics: null });
-    vi.mocked(approvalsApi.list).mockResolvedValue([{ id: "approval-1", run_id: "run-approval", agent_name: "primary", capability: "filesystem.write", tool_name: "write_file", resource: "report.md", argument_summary: {}, reason: "This sensitive action requires human approval.", status: "pending", created_at: "", expires_at: null }]);
+    vi.mocked(analyticsApi.getRun).mockResolvedValue({ run_id: "run-approval", conversation_id: "c-1", status: "waiting_for_approval", created_at: "", started_at: "", finished_at: "", final_response: null, error: null, metrics: null, charts: [] });
+    vi.mocked(approvalsApi.list).mockResolvedValue([{ id: "approval-1", run_id: "run-approval", agent_name: "primary", capability: "filesystem.write", tool_name: "write_file", resource: "report.md", argument_summary: {}, reason: "This sensitive action requires human approval.", status: "pending", created_at: "", expires_at: null, action_fingerprint: "fp", parent_run_id: null, policy_id: "security.filesystem_write", resolved_at: null }]);
     connect.mockImplementation((_id: string, onEvent: (event: PublicRunEvent) => void) => { handler = onEvent; return { close: vi.fn() } as unknown as EventSource; });
     render(<Workbench />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), { target: { value: "Create a report" } });
@@ -72,7 +72,7 @@ describe("Workbench", () => {
 
   it("loads and switches persisted conversations", async () => {
     vi.mocked(conversationsApi.list).mockResolvedValue({ items: [{ id: "old", title: "April revenue decline", created_at: "", updated_at: "" }], total: 1, limit: 30, offset: 0 });
-    vi.mocked(conversationsApi.get).mockResolvedValue({ id: "old", title: "April revenue decline", created_at: "", updated_at: "", messages: [{ id: "m1", role: "user", content: "Old question", created_at: "", run_id: null }, { id: "m2", role: "assistant", content: "Old answer", created_at: "", run_id: "run-old" }], messages_total: 2, messages_limit: 100, messages_offset: 0 });
+    vi.mocked(conversationsApi.get).mockResolvedValue({ id: "old", title: "April revenue decline", created_at: "", updated_at: "", messages: [{ id: "m1", role: "user", content: "Old question", created_at: "", run_id: null }, { id: "m2", role: "assistant", content: "Old answer", created_at: "", run_id: "run-old" }], messages_total: 2, messages_limit: 100, messages_offset: 0, runs: [] });
     render(<Workbench />);
     const item = await screen.findByRole("button", { name: "April revenue decline" });
     fireEvent.click(item);
