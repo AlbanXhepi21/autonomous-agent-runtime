@@ -1,6 +1,5 @@
 """DA1 coverage for safe metadata discovery boundaries."""
 
-from typing import Any
 
 import pytest
 
