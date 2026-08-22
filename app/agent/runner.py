@@ -19,6 +19,8 @@ from app.agent.registry import AgentRegistry
 from app.agent.policy import delegation_fingerprint, tool_action_fingerprint
 from app.agent.prompt import SYSTEM_PROMPT
 from app.agent.state import AgentState, Observation, RunStatus, StopReason, TaskSummary
+from app.agent.steps.memory_step import MemoryStep
+from app.agent.steps.summarization_step import SummarizationStep
 from app.agent.summarization import (
     DeterministicTaskSummarizer,
     SummaryPolicy,
@@ -93,6 +95,10 @@ class AgentRunner:
         self._logger = logging.getLogger(__name__)
         self._limits = limits or RuntimeLimits()
         self._summary_policy = summary_policy or SummaryPolicy()
+        self._summarization = SummarizationStep(
+            summarizer=task_summarizer or DeterministicTaskSummarizer(),
+            policy=self._summary_policy, trace_recorder=self._trace_recorder,
+        )
         self._context_builder = ContextBuilder(
             tool_registry, skill_registry, self._limits,
             recent_observations=self._summary_policy.recent_observations,
@@ -115,10 +121,10 @@ class AgentRunner:
         self._security_agent_type = security_agent_type
         self._parent_run_id = parent_run_id
         self._approval_store = approval_store
-        self._memory_manager = memory_manager
-        self._memory_retriever = memory_retriever
-        self._memory_writer = memory_writer
-        self._task_summarizer = task_summarizer or DeterministicTaskSummarizer()
+        self._memory = MemoryStep(
+            manager=memory_manager, retriever=memory_retriever, writer=memory_writer,
+            trace_recorder=self._trace_recorder,
+        )
 
     async def run(
         self,
@@ -157,17 +163,12 @@ class AgentRunner:
             max_agent_depth=self._limits.max_agent_depth,
             agent_depth=self._agent_depth,
         )
-        relevant_memories = await self._retrieve_relevant_memories(
+        relevant_memories = await self._memory.retrieve(
             goal, run_id=state.run_id, session_id=session_id
         )
 
         try:
-            if self._memory_manager is not None:
-                await self._memory_manager.add_working_memory(
-                    goal,
-                    run_id=state.run_id,
-                    metadata={"kind": "task_goal"},
-                )
+            await self._memory.record_goal(goal, run_id=state.run_id)
             while state.iteration_count < self._limits.max_iterations:
                 iteration = state.iteration_count + 1
                 log_event(
@@ -181,7 +182,7 @@ class AgentRunner:
                 )
                 context = self._context_builder.build(
                     state,
-                    working_memories=await self._working_memories(state.run_id),
+                    working_memories=await self._memory.working(state.run_id),
                     relevant_memories=relevant_memories,
                 )
                 log_event(
@@ -273,7 +274,7 @@ class AgentRunner:
                 )
                 state.iteration_count += 1
                 await self._apply_action(state, action)
-                await self._maybe_update_summary(state)
+                await self._summarization.update(state)
 
                 if state.status is RunStatus.WAITING_FOR_APPROVAL:
                     return await self._finish_run(state, started_at, session_id=session_id)
@@ -306,123 +307,7 @@ class AgentRunner:
                          "delegations": len(state.delegation_requests)})
             raise
         finally:
-            await self._clear_run_working_memory(state.run_id)
-
-    async def _retrieve_relevant_memories(
-        self, goal: str, *, run_id: str, session_id: str | None
-    ) -> list[Memory]:
-        """Retrieve once per run; a failure leaves the run usable with no history."""
-
-        if self._memory_retriever is None:
-            return []
-        log_event(self._logger, logging.INFO, "memory_retrieval_started", run_id=run_id)
-        memory_span = self._trace_recorder.start_span(run_id, TraceEventType.MEMORY_RETRIEVAL_STARTED, name="memory_retrieval")
-        started_at = perf_counter()
-        try:
-            result = await self._memory_retriever.retrieve(
-                MemoryRetrievalRequest(query=goal, session_id=session_id)
-            )
-        except Exception as error:
-            self._trace_recorder.finish_span(run_id, memory_span, TraceEventType.MEMORY_RETRIEVAL_FINISHED,
-                success=False, metadata={"returned_count": 0, "error_type": type(error).__name__})
-            log_event(
-                self._logger, logging.WARNING, "memory_retrieval_failed", run_id=run_id,
-                candidate_count=None, returned_count=0,
-                duration_ms=round((perf_counter() - started_at) * 1000),
-                error_type=type(error).__name__, error=safe_error_message(error),
-            )
-            return []
-        log_event(
-            self._logger, logging.INFO, "memory_retrieval_finished", run_id=run_id,
-            candidate_count=result.candidate_count, returned_count=len(result.memories),
-            duration_ms=round((perf_counter() - started_at) * 1000),
-        )
-        self._trace_recorder.finish_span(run_id, memory_span, TraceEventType.MEMORY_RETRIEVAL_FINISHED,
-            success=True, metadata={"candidate_count": result.candidate_count, "returned_count": len(result.memories)})
-        for memory in result.memories:
-            log_event(self._logger, logging.INFO, "untrusted_content_ingested", run_id=run_id,
-                      source_type="memory", source_identifier=str(memory.id))
-            for indicator in injection_indicators(memory.content):
-                log_event(self._logger, logging.WARNING, "prompt_injection_indicator_detected", run_id=run_id,
-                          source_type="memory", source_identifier=str(memory.id), matched_heuristic=indicator)
-        return result.memories
-
-    async def _working_memories(self, run_id: str) -> list[Memory]:
-        """Read explicit working memory without exposing store details to context."""
-
-        if self._memory_manager is None:
-            return []
-        return await self._memory_manager.get_memories(MemoryType.WORKING, run_id=run_id)
-
-    async def _maybe_update_summary(self, state: AgentState) -> None:
-        """Summarize only history moving out of the recent-observation window."""
-
-        observations = self._summary_policy.observations_to_summarize(
-            state.task_summary, state.observations
-        )
-        if not observations:
-            return
-        log_event(
-            self._logger, logging.INFO, "task_summary_started", run_id=state.run_id,
-            iteration=state.iteration_count, observations_summarized=len(observations),
-        )
-        summary_span = self._trace_recorder.start_span(state.run_id, TraceEventType.TASK_SUMMARY_STARTED,
-            name="task_summary", iteration=state.iteration_count,
-            metadata={"observations_summarized": len(observations)})
-        started_at = perf_counter()
-        current_summary = state.task_summary or TaskSummary(goal=state.goal)
-        try:
-            summary = await self._task_summarizer.summarize(current_summary, observations)
-        except Exception as error:
-            self._trace_recorder.finish_span(state.run_id, summary_span, TraceEventType.TASK_SUMMARY_FINISHED,
-                iteration=state.iteration_count, success=False, metadata={"error_type": type(error).__name__})
-            log_event(
-                self._logger, logging.WARNING, "task_summary_failed", run_id=state.run_id,
-                iteration=state.iteration_count, observations_summarized=len(observations),
-                duration_ms=round((perf_counter() - started_at) * 1000),
-                error_type=type(error).__name__, error=safe_error_message(error),
-            )
-            return
-        state.task_summary = summary.model_copy(
-            update={
-                "goal": state.goal,
-                "last_updated_iteration": state.iteration_count,
-                "summarized_observation_count": len(state.observations)
-                - self._summary_policy.recent_observations,
-            }
-        )
-        log_event(
-            self._logger, logging.INFO, "task_summary_updated", run_id=state.run_id,
-            iteration=state.iteration_count, observations_summarized=len(observations),
-            duration_ms=round((perf_counter() - started_at) * 1000),
-            summary_size=len(state.task_summary.model_dump_json()),
-        )
-        self._trace_recorder.finish_span(state.run_id, summary_span, TraceEventType.TASK_SUMMARY_FINISHED,
-            iteration=state.iteration_count, success=True, metadata={"observations_summarized": len(observations)})
-        log_event(
-            self._logger, logging.DEBUG, "task_summary_content", run_id=state.run_id,
-            iteration=state.iteration_count,
-            summary=safe_log_value(state.task_summary.model_dump()),
-        )
-
-    async def _clear_run_working_memory(self, run_id: str) -> None:
-        """Best-effort cleanup that must not change the agent run result."""
-
-        if self._memory_manager is None:
-            return
-        try:
-            await self._memory_manager.clear_working_memory(run_id)
-        except Exception as error:
-            log_event(
-                self._logger,
-                logging.WARNING,
-                "working_memory_cleanup_failed",
-                run_id=run_id,
-                error_type=type(error).__name__,
-                error=safe_error_message(error),
-            )
-            self._trace_recorder.record(state.run_id, TraceEventType.SKILL_LOADED, iteration=state.iteration_count,
-                success=True, metadata={"skill": skill_name})
+            await self._memory.clear(state.run_id)
 
     async def _apply_action(self, state: AgentState, action: AgentAction) -> None:
         """Apply one model-selected action to the current runtime state."""
@@ -1082,8 +967,7 @@ class AgentRunner:
     ) -> AgentState:
         """Log the terminal summary for a normal or runtime-limited run."""
 
-        if self._memory_writer is not None:
-            await self._memory_writer.capture_completed_run(state, session_id=session_id)
+        await self._memory.capture(state, session_id=session_id)
         log_event(
             self._logger,
             logging.INFO,
