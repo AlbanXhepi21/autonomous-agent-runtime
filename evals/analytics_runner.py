@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from app.runtime.state import AgentState
-from app.evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
+from evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
                                  GroundTruthLoader, load_analytics_dataset)
 from app.observability import RunTrace
 

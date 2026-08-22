@@ -39,7 +39,7 @@ include = ["app*"]
 # Non-Python assets are discovered at runtime by the skill and agent registries,
 # so they must ship with the package rather than being pruned as data files.
 [tool.setuptools.package-data]
-"app" = ["resources/**/*.md", "resources/**/*.json", "evals/datasets/*.json"]
+"app" = ["resources/**/*.md", "resources/**/*.json"]
 
 [tool.pytest.ini_options]
 markers = [

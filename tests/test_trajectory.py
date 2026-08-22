@@ -1,9 +1,9 @@
 """Trace-derived V7.3 trajectory quality coverage."""
 
 from app.runtime.state import AgentState, RunStatus, StopReason
-from app.evals.evaluators import DelegationEfficiencyEvaluator, DuplicateActionEvaluator, ExcessiveIterationEvaluator, FailureRecoveryEvaluator, SecurityBehaviorEvaluator, StopEfficiencyEvaluator, ToolCallEfficiencyEvaluator
-from app.evals.contracts import EvalCase
-from app.evals.trajectory import Trajectory
+from evals.evaluators import DelegationEfficiencyEvaluator, DuplicateActionEvaluator, ExcessiveIterationEvaluator, FailureRecoveryEvaluator, SecurityBehaviorEvaluator, StopEfficiencyEvaluator, ToolCallEfficiencyEvaluator
+from evals.contracts import EvalCase
+from evals.trajectory import Trajectory
 from app.observability import RunTrace, TraceEvent, TraceEventType
 
 

@@ -3,10 +3,10 @@
 from typing import Protocol
 
 from app.runtime.state import AgentState
-from app.evals.contracts import EvalCase, EvaluatorResult
+from evals.contracts import EvalCase, EvaluatorResult
 from app.observability import RunTrace, TraceEventType
 from app.tools.contracts import ToolResult
-from app.evals.trajectory import Trajectory
+from evals.trajectory import Trajectory
 
 
 class Evaluator(Protocol):
