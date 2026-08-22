@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 
 
 class LLMUsage(BaseModel):

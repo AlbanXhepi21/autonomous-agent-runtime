@@ -14,7 +14,7 @@ from app.agent.delegation import (
     ParallelSubagentExecutor,
     SubagentResult,
 )
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
 from app.agent.policy import delegation_fingerprint, tool_action_fingerprint
 from app.agent.prompt import SYSTEM_PROMPT

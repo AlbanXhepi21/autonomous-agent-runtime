@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.policy import tool_action_fingerprint
 from app.agent.runner import AgentRunner
 from app.agent.state import AgentState, StopReason

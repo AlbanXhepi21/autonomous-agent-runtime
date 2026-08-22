@@ -7,7 +7,7 @@ import pytest
 
 from app.agent.registry import AgentRegistry
 from app.agent.delegation import DelegationContext, DelegationRequest, SequentialSubagentExecutor
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.environment import CommandExecutor, PythonExecutor, Workspace, WorkspaceLimits
 from app.environment.repository import Repository
 from app.artifacts.store import WorkspaceArtifactStore

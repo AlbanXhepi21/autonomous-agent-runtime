@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.agent.delegation import (
     DelegationContext,
     DelegationMemory,
@@ -17,7 +17,7 @@ from app.agent.delegation import (
     SequentialSubagentExecutor,
     SubagentResult,
 )
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
 from app.agent.runner import AgentRunner
 from app.agent.state import AgentState, Observation

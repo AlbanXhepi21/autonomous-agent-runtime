@@ -3,7 +3,7 @@
 
 import pytest
 
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.analytics.models import DatabaseColumn, DatabaseSchemaSummary, DatabaseTable, ForeignKeyRelationship, TableDescription
 from app.config import Settings
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder

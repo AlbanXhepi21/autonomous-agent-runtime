@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.api.routes.agent import run_agent
 from app.api.routes.artifacts import download_artifact
 from app.api.schemas.agent import AgentRunRequest

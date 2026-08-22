@@ -1,6 +1,6 @@
 """V6.3 deterministic action-risk classification coverage."""
 
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.security import (
     Capability, PermissionRule, PolicyDecision, RiskCategory, RiskClassifier,
     RiskLevel, SecurityAction, SecurityEnvironment, SecurityPolicy, SecurityResource,

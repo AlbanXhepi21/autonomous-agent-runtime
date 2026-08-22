@@ -10,7 +10,7 @@ one place rather than at every construction site.
 
 from typing import Any
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.runner import AgentRunner
 from app.llm.base import LLMClient
 from app.skills.registry import SkillRegistry
