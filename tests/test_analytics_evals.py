@@ -3,14 +3,14 @@
 from pathlib import Path
 
 from app.runtime.state import AgentState, RunStatus
-from app.evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
+from evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
                                  GroundTruthLoader, load_analytics_dataset)
 from app.observability import RunMetrics, RunTrace, TraceEvent, TraceEventType
 from app.tools.execution.redaction import query_quality_metadata
 
 
 ROOT = Path(__file__).parents[1]
-DATASET = ROOT / "app" / "evals" / "datasets" / "analytics_cases.json"
+DATASET = ROOT / "evals" / "datasets" / "analytics_cases.json"
 GROUND_TRUTH = ROOT.parents[0] / "DataGenerator" / "generator" / "ground_truth" / "scenarios.json"
 
 

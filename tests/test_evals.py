@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.evals.contracts import EvalCase, EvalDataset
-from app.evals.runner import EvalRunner, load_dataset, load_datasets
-from app.evals.reports import format_report
+from evals.contracts import EvalCase, EvalDataset
+from evals.runner import EvalRunner, load_dataset, load_datasets
+from evals.reports import format_report
 
 
-DATASETS = Path(__file__).parents[1] / "app" / "evals" / "datasets"
+DATASETS = Path(__file__).parents[1] / "evals" / "datasets"
 
 
 def case(**updates: object) -> EvalCase:
