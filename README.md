@@ -12,10 +12,10 @@ Next.js Workbench → FastAPI → Agent Runtime / Conversation History / Public 
 
 The workbench provides chat history, SSE run progress, public trace inspection, validated
 analytical displays, registered reports/artifacts, a read-only schema explorer, and a
-developer-only memory inspector. Set `WORKBENCH_DEVELOPER_MODE=true` on the backend and
-`NEXT_PUBLIC_DEVELOPER_MODE=true` in the frontend to expose developer panels; the backend
-remains authoritative. Start the API with `uvicorn app.main:app --reload` and the frontend
-with `npm run dev` from `frontend/`. For development use `./scripts/run_api_dev.sh` rather
+developer-only memory inspector. Set `WORKBENCH_DEVELOPER_MODE=true` on the backend to expose developer panels. The
+Workbench reads that switch from `GET /api/v1/config`, and the endpoints behind it
+enforce it independently, so there is no client-side flag. Start the API with `uvicorn app.main:create_app --factory --reload` from `backend/`,
+and the frontend with `npm run dev` from `frontend/`. For development use `./scripts/run_api_dev.sh` rather
 than a broad `uvicorn --reload` command: it watches only backend source under `app/`, keeping generated workspace payloads
 so an analytics run cannot trigger a reload while it is finishing. Configure `DATABASE_URL` for runtime persistence and
 `ANALYTICS_DATABASE_URL` for the separate read-only analytics source.
@@ -25,9 +25,14 @@ the UI1 API, subscribes to the public SSE stream, and safely renders the complet
 Markdown response. Conversations, messages, and run summaries are persisted in the runtime database;
 live trace events remain process-local and expire on a server restart.
 
-Run the backend from the repository root in one terminal:
+The repository holds two peers: `backend/` (FastAPI and the agent runtime) and
+`frontend/` (the Next.js Workbench).
+
+Run the backend in one terminal:
 
 ```bash
+cd backend
+python -m venv .venv && .venv/bin/pip install -e '.[dev]'
 ./scripts/run_api_dev.sh
 ```
 
@@ -746,7 +751,7 @@ Windows:
 ### 3. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e '.[dev]'
 ```
 
 ### 4. Configure environment variables
@@ -771,6 +776,8 @@ Never commit `.env` or API keys to Git.
 ### 5. Start the API
 
 ```bash
+cd backend
+python -m venv .venv && .venv/bin/pip install -e '.[dev]'
 ./scripts/run_api_dev.sh
 ```
 

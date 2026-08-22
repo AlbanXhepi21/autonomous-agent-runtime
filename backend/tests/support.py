@@ -19,7 +19,9 @@ from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
 
 #: Resolved here so tests can move between directories without recounting parents.
-REPO_ROOT = Path(__file__).resolve().parent.parent
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+#: The backend and the Workbench are siblings; cross-boundary checks need both.
+REPO_ROOT = BACKEND_ROOT.parent
 
 
 class ScriptedLLM(LLMClient):

@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "gen:api": "cd .. && .venv/bin/python -m scripts.dump_openapi && cd frontend && openapi-typescript openapi.json -o src/types/api.generated.ts",
+    "gen:api": "cd ../backend && .venv/bin/python -m scripts.dump_openapi && cd ../frontend && openapi-typescript openapi.json -o src/types/api.generated.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
