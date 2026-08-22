@@ -22,6 +22,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.registry import ToolRegistry
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
+from tests.support import logged_event
 
 
 def filesystem_registry(root: Path, limits: WorkspaceLimits | None = None) -> ToolRegistry:
@@ -140,13 +141,13 @@ async def test_filesystem_operations_are_logged_without_file_content(
         "write_file", {"path": "safe.txt", "content": "DO-NOT-LOG-CONTENT"}, run_id="run-1", iteration=2
     )
 
-    event = next(record.event_fields for record in caplog.records if record.getMessage() == "filesystem_operation_finished")
+    event = logged_event(caplog.records, "filesystem_operation_finished")
     assert result.success
     assert event["run_id"] == "run-1"
     assert event["tool"] == "write_file"
     assert event["relative_path"] == "safe.txt"
     assert "DO-NOT-LOG-CONTENT" not in str(event)
-    argument_event = next(record.event_fields for record in caplog.records if record.getMessage() == "tool_execution_arguments")
+    argument_event = logged_event(caplog.records, "tool_execution_arguments")
     assert "DO-NOT-LOG-CONTENT" not in str(argument_event)
 
 

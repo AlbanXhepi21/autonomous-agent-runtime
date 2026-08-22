@@ -19,6 +19,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.registry import ToolRegistry
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
+from tests.support import logged_event
 
 
 def python_registry(root: Path, *, timeout: float = 1, code_limit: int = 1_024, output: int = 1_024) -> ToolRegistry:
@@ -121,7 +122,7 @@ async def test_python_execution_logging_and_specialist_capabilities(
     result = await ToolExecutor(tools).execute("python_exec", {"code": "print(1)"}, run_id="run", iteration=2)
     registry = AgentRegistry(tool_registry=tools, skill_registry=SkillRegistry())
 
-    event = next(record.event_fields for record in caplog.records if record.getMessage() == "python_execution_finished")
+    event = logged_event(caplog.records, "python_execution_finished")
     assert result.output["success"] is True
     assert event["run_id"] == "run" and event["code_bytes"] == len("print(1)".encode())
     assert "python_exec" not in registry.get_metadata("data_analyst").allowed_tools

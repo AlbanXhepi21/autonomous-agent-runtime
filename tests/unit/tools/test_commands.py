@@ -21,7 +21,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.registry import ToolRegistry
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
-from tests.support import make_runner
+from tests.support import logged_event, make_runner
 
 
 def command_registry(root: Path, *, timeout: float = 2, output: int = 1_024) -> ToolRegistry:
@@ -137,7 +137,7 @@ async def test_command_events_and_specialist_capability_restriction(
     registry = AgentRegistry(tool_registry=tools, skill_registry=SkillRegistry())
 
     assert result.output["success"] is False
-    event = next(record.event_fields for record in caplog.records if record.getMessage() == "command_execution_denied")
+    event = logged_event(caplog.records, "command_execution_denied")
     assert event["run_id"] == "run" and event["command"] == "echo"
     assert "run_command" in registry.get_metadata("software_engineer").allowed_tools
     assert "run_command" not in registry.get_metadata("research").allowed_tools
