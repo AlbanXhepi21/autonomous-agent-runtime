@@ -19,14 +19,19 @@ from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 
-def setup_tool(tmp_path: Path) -> tuple[AnalyticsDatasetStore, AnalyzeDatasetTool, WorkspaceArtifactStore]:
+# A first pandas and matplotlib import in a fresh environment spends around four
+# seconds compiling bytecode, so work that should succeed needs room for that.
+# The timeout path is exercised separately and wants the opposite.
+WORK_TIMEOUT_SECONDS = 15
+TIMEOUT_PATH_SECONDS = 2
+
+
+def setup_tool(
+    tmp_path: Path, timeout_seconds: float = WORK_TIMEOUT_SECONDS
+) -> tuple[AnalyticsDatasetStore, AnalyzeDatasetTool, WorkspaceArtifactStore]:
     workspace = Workspace(tmp_path)
     datasets = AnalyticsDatasetStore(max_rows=10, max_bytes=2_000)
-    # The first pandas and matplotlib import in a fresh environment spends a few
-    # seconds compiling bytecode, so a tight bound here fails once on any cold
-    # runner and passes forever after. Wide enough to survive that, tight enough
-    # to still catch a hang.
-    executor = PythonExecutor(workspace, allowed_imports=("pandas", "numpy", "matplotlib"), timeout_seconds=15)
+    executor = PythonExecutor(workspace, allowed_imports=("pandas", "numpy", "matplotlib"), timeout_seconds=timeout_seconds)
     artifacts = WorkspaceArtifactStore(workspace, max_artifact_bytes=65_536)
     return datasets, AnalyzeDatasetTool(datasets, executor, artifacts), artifacts
 
@@ -95,7 +100,7 @@ async def test_dataset_is_bounded_and_python_cannot_read_secrets_or_import_netwo
 
 @pytest.mark.asyncio
 async def test_analytics_python_timeout_is_safe(tmp_path: Path) -> None:
-    datasets, tool, _ = setup_tool(tmp_path)
+    datasets, tool, _ = setup_tool(tmp_path, timeout_seconds=TIMEOUT_PATH_SECONDS)
     ref = datasets.register(run_id="r", query_id="query_001", columns=[{"name": "x"}], rows=[[1]])
     assert ref is not None
     registry = ToolRegistry(); registry.register(tool)
