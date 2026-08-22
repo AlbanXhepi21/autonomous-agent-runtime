@@ -15,7 +15,7 @@ from app.environment.workspace import Workspace
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.tools.database.analyze import AnalyzeDatasetTool
 from app.tools.database.query import QueryDatabaseTool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 

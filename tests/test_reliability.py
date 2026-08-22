@@ -9,7 +9,7 @@ from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.reliability import FailureCategory, RetryPolicy, RetryRule, RuntimeFailure, classify_llm_failure
 from app.security import SecurityPolicy
 from app.tools.base import Tool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 from tests.support import make_runner
 

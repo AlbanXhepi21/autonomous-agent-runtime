@@ -7,7 +7,7 @@ import pytest
 
 from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 from app.core.logging import PrettyEventFormatter, safe_error_message, safe_log_value
 

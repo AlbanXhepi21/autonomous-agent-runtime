@@ -40,7 +40,7 @@ from app.security import Capability, PolicyDecision, PolicyResult, SecurityActio
 from app.security.approvals import ApprovalCheckpoint, ApprovalRequest, ApprovalStore, action_fingerprint, safe_argument_summary
 from app.security import injection_indicators
 from app.skills.registry import SkillRegistry
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
 from app.artifacts.models import Artifact

@@ -6,7 +6,7 @@ import pytest
 
 from app.security import Capability, SecurityPolicy, SecuritySubject
 from app.tools.base import Tool
-from app.tools.executor import ToolExecutor
+from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 
 
