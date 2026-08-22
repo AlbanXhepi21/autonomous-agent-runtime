@@ -95,12 +95,9 @@ def get_command_executor(
     """Build the argv-only command boundary using runtime-owned configuration."""
 
     settings = settings or get_settings()
-    allowlist = tuple(
-        command.strip() for command in settings.command_allowlist.split(",") if command.strip()
-    )
     return CommandExecutor(
         workspace,
-        allowed_commands=allowlist,
+        allowed_commands=settings.command_allowlist_items,
         timeout_seconds=settings.command_timeout_seconds,
         max_output_bytes=settings.max_command_output_bytes,
     )
@@ -110,12 +107,9 @@ def get_python_executor(workspace: Workspace, settings: Settings | None = None) 
     """Build the restricted child-process Python executor from runtime settings."""
 
     settings = settings or get_settings()
-    allowed_imports = tuple(
-        module.strip() for module in settings.python_exec_allowed_imports.split(",") if module.strip()
-    )
     return PythonExecutor(
         workspace,
-        allowed_imports=allowed_imports,
+        allowed_imports=settings.python_exec_allowed_import_items,
         timeout_seconds=settings.python_exec_timeout_seconds,
         max_code_bytes=settings.max_python_code_bytes,
         max_output_bytes=settings.max_python_output_bytes,

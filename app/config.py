@@ -6,6 +6,12 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _comma_separated(value: str) -> tuple[str, ...]:
+    """Split a comma-separated setting, dropping surrounding and empty entries."""
+
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 class Settings(BaseSettings):
     """Runtime settings loaded from environment variables."""
 
@@ -21,7 +27,7 @@ class Settings(BaseSettings):
     max_delegations_per_run: int = Field(default=8, ge=1)
     max_subagent_iterations: int = Field(default=6, ge=1)
     max_agent_depth: int = Field(default=1, ge=0)
-    agent_workspace_root: str = "./workspace"
+    agent_workspace_root: str = "./var"
     max_file_read_bytes: int = Field(default=65_536, ge=1)
     max_file_write_bytes: int = Field(default=65_536, ge=1)
     max_list_files: int = Field(default=100, ge=1)
@@ -56,6 +62,24 @@ class Settings(BaseSettings):
     workbench_developer_mode: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def command_allowlist_items(self) -> tuple[str, ...]:
+        """Parse the comma-separated allowlist once, here, rather than at each call site."""
+
+        return _comma_separated(self.command_allowlist)
+
+    @property
+    def python_exec_allowed_import_items(self) -> tuple[str, ...]:
+        """Parse the comma-separated import allowlist once, here."""
+
+        return _comma_separated(self.python_exec_allowed_imports)
+
+    @property
+    def frontend_origin_items(self) -> tuple[str, ...]:
+        """Parse the comma-separated trusted Workbench origins once, here."""
+
+        return _comma_separated(self.analytics_ui_frontend_origins)
 
     @model_validator(mode="after")
     def validate_postgres_configuration(self) -> "Settings":
