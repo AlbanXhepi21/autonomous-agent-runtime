@@ -7,8 +7,35 @@ vi.mock("@/lib/api/explorer", () => ({ explorerApi: { tables: vi.fn(), table: vi
 
 describe("DatabaseExplorer", () => {
   it("ignores malformed table entries and renders the backend table-detail contract", async () => {
-    vi.mocked(explorerApi.tables).mockResolvedValue({ schemas: ["public"], tables: [undefined, { name: "orders", schema: "public" }] as never[] });
-    vi.mocked(explorerApi.table).mockResolvedValue({ name: "orders", schema: "public", primary_key: ["id"], unique_constraints: [], columns: [{ name: "id", data_type: "uuid", nullable: false, primary_key: true, foreign_key_target: null }], foreign_keys: [{ source_table: "orders", source_schema: "public", source_column: "customer_id", target_table: "customers", target_schema: "public", target_column: "id" }] });
+    vi.mocked(explorerApi.tables).mockResolvedValue({
+      schemas: ["public"],
+      tables: [undefined, { name: "orders", schema: "public" }] as never[],
+    });
+    vi.mocked(explorerApi.table).mockResolvedValue({
+      name: "orders",
+      schema: "public",
+      primary_key: ["id"],
+      unique_constraints: [],
+      columns: [
+        {
+          name: "id",
+          data_type: "uuid",
+          nullable: false,
+          primary_key: true,
+          foreign_key_target: null,
+        },
+      ],
+      foreign_keys: [
+        {
+          source_table: "orders",
+          source_schema: "public",
+          source_column: "customer_id",
+          target_table: "customers",
+          target_schema: "public",
+          target_column: "id",
+        },
+      ],
+    });
     render(<DatabaseExplorer />);
     expect(await screen.findByRole("button", { name: "orders" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "orders" }));
