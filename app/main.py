@@ -31,7 +31,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Autonomous Agent", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.analytics_ui_frontend_origins.split(",") if origin.strip()],
+    allow_origins=list(settings.frontend_origin_items),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Last-Event-ID"],

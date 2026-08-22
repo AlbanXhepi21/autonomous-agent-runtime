@@ -30,6 +30,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Agent runtime output: artifacts, approvals, generated reports
+var/
+
 # Generated local benchmark reports
 reports/benchmark_*.json
 
