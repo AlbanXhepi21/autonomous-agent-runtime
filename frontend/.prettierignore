@@ -1,0 +1,7 @@
+# Generated from the API schema by `npm run gen:api`; never edit or reformat.
+src/types/api.generated.ts
+openapi.json
+
+.next/
+node_modules/
+package-lock.json

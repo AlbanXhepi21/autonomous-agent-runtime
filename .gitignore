@@ -17,6 +17,12 @@ vevn/
 env/
 ENV/
 
+# Frontend dependencies and build output
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+*.tsbuildinfo
+
 # Test and coverage output
 .pytest_cache/
 .coverage
@@ -24,8 +30,11 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Agent runtime output: artifacts, approvals, generated reports
+backend/var/
+
 # Generated local benchmark reports
-reports/benchmark_*.json
+backend/reports/benchmark_*.json
 
 # Environment variables
 .env

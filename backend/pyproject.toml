@@ -1,0 +1,63 @@
+[project]
+name = "autonomous-agent"
+version = "0.1.0"
+description = "Bounded autonomous agent harness with an analytics workbench"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "openai>=2.37.0",
+    "httpx>=0.27",
+    "SQLAlchemy>=2.0",
+    "greenlet>=3.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "sqlglot>=26.0",
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# Non-Python assets are discovered at runtime by the skill and agent registries,
+# so they must ship with the package rather than being pruned as data files.
+[tool.setuptools.package-data]
+"app" = ["resources/**/*.md", "resources/**/*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+    "postgres: tests requiring a PostgreSQL database with migrations applied",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# Long single-line calls are pervasive in the current dependency wiring and are
+# addressed by the composition/ split rather than by reformatting in place.
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true

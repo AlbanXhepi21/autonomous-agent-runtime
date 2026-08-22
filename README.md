@@ -1,5 +1,61 @@
 # Autonomous Agent Runtime
 
+## Data Analyst Workbench (UI2)
+
+### Workbench architecture (UI7)
+
+```
+Next.js Workbench → FastAPI → Agent Runtime / Conversation History / Public Trace
+                              ├─ Skills, V3 memory, SQL, bounded Python, artifacts
+                              └─ PostgreSQL analytics database (read-only)
+```
+
+The workbench provides chat history, SSE run progress, public trace inspection, validated
+analytical displays, registered reports/artifacts, a read-only schema explorer, and a
+developer-only memory inspector. Set `WORKBENCH_DEVELOPER_MODE=true` on the backend to expose developer panels. The
+Workbench reads that switch from `GET /api/v1/config`, and the endpoints behind it
+enforce it independently, so there is no client-side flag. Start the API with `uvicorn app.main:create_app --factory --reload` from `backend/`,
+and the frontend with `npm run dev` from `frontend/`. For development use `./scripts/run_api_dev.sh` rather
+than a broad `uvicorn --reload` command: it watches only backend source under `app/`, keeping generated workspace payloads
+so an analytics run cannot trigger a reload while it is finishing. Configure `DATABASE_URL` for runtime persistence and
+`ANALYTICS_DATABASE_URL` for the separate read-only analytics source.
+
+The internal Next.js workbench lives in `frontend/`. It starts an analyst run through
+the UI1 API, subscribes to the public SSE stream, and safely renders the completed
+Markdown response. Conversations, messages, and run summaries are persisted in the runtime database;
+live trace events remain process-local and expire on a server restart.
+
+The repository holds two peers: `backend/` (FastAPI and the agent runtime) and
+`frontend/` (the Next.js Workbench).
+
+Run the backend in one terminal:
+
+```bash
+cd backend
+python -m venv .venv && .venv/bin/pip install -e '.[dev]'
+./scripts/run_api_dev.sh
+```
+
+Then configure and run the frontend in another:
+
+```bash
+cd frontend
+cp .env.local.example .env.local
+npm install
+npm run dev
+```
+
+`NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:8000`; set it in
+`frontend/.env.local` if the API uses another origin. The backend's
+`ANALYTICS_UI_FRONTEND_ORIGINS` must include the Next.js origin (the default does).
+
+Frontend checks:
+
+```bash
+cd frontend
+npm run lint && npm run typecheck && npm test
+```
+
 ## DA7: Data Analyst evaluation suite
 
 `app/evals/datasets/analytics_cases.json` contains 26 public benchmark questions across analytics basics, sales, profitability, marketing, customers, operations, inventory, root cause, security, reporting, and advanced investigations. Private generator scenarios are deliberately not copied into this repository or supplied to an analyst run. The evaluator loads them only after a run has completed and compares the sanitized trace and final answer against observable tables, effects, root cause, artifacts, SQL quality, and security behavior.
@@ -695,7 +751,7 @@ Windows:
 ### 3. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e '.[dev]'
 ```
 
 ### 4. Configure environment variables
@@ -710,7 +766,7 @@ Configure the required values:
 
 ```env
 OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=your_model
+OPENAI_MODEL=gpt-5.4-mini
 MAX_AGENT_ITERATIONS=20
 LOG_LEVEL=INFO
 ```
@@ -720,7 +776,9 @@ Never commit `.env` or API keys to Git.
 ### 5. Start the API
 
 ```bash
-uvicorn app.main:app --reload
+cd backend
+python -m venv .venv && .venv/bin/pip install -e '.[dev]'
+./scripts/run_api_dev.sh
 ```
 
 The API will be available locally at:
@@ -893,9 +951,10 @@ are evaluated separately and aggregated for total system accounting.
 
 LLM decisions can return optional provider-neutral token usage. The trace derives
 typed run metrics for LLM, tool, memory, summary, delegation, and total duration.
-Pricing is supplied through the versioned `PricingRegistry`; unknown model pricing
-leaves estimated cost as `null`. Parent/child aggregation reports root wall-clock
-latency separately from summed child execution duration.
+Pricing is supplied through the versioned `PricingRegistry`. Supported GPT-5.4+
+models (including dated snapshots) are priced from the model returned by the API;
+unsupported models leave estimated cost as `null`. Parent/child aggregation reports
+root wall-clock latency separately from summed child execution duration.
 
 #### V7.5 — Typed reliability
 
