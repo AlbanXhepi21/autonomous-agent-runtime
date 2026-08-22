@@ -11,10 +11,9 @@ from app.agent.state import Observation, TaskSummary
 from app.agent.summarization import SummaryPolicy, TaskSummarizer
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient
-from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner as build_runner
 
 
 class FakeSummarizer(TaskSummarizer):
@@ -48,10 +47,9 @@ def make_runner(
 ) -> AgentRunner:
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    return AgentRunner(
+    return build_runner(
         llm,
         tools,
-        SkillRegistry(),
         limits=RuntimeLimits(max_iterations=10),
         task_summarizer=summarizer,
         summary_policy=policy,

@@ -19,10 +19,9 @@ from app.memory import (
     MemoryType,
 )
 from app.memory.writing import MemoryWritingPipeline
-from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner as build_runner
 
 
 class RepeatingToolLLM(LLMClient):
@@ -77,12 +76,7 @@ def tool_action(name: str = "calculator", **arguments: object) -> AgentAction:
 def make_runner(llm: LLMClient, limits: RuntimeLimits) -> AgentRunner:
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    return AgentRunner(
-        llm_client=llm,
-        tool_registry=tools,
-        skill_registry=SkillRegistry(),
-        limits=limits,
-    )
+    return build_runner(llm, tools, limits=limits)
 
 
 def logged_events(caplog: pytest.LogCaptureFixture, event: str) -> list[dict[str, object]]:
@@ -138,7 +132,7 @@ async def test_runner_exposes_explicit_working_memory_without_retaining_it_after
     )
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(llm, tools, SkillRegistry(), memory_manager=manager)
+    runner = build_runner(llm, tools, memory_manager=manager)
 
     state = await runner.run("Keep this run-local")
 
@@ -160,8 +154,8 @@ async def test_runner_retrieves_history_once_and_keeps_it_distinct_from_current_
     llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(
-        llm, tools, SkillRegistry(), memory_manager=manager, memory_retriever=MemoryRetriever(store)
+    runner = build_runner(
+        llm, tools, memory_manager=manager, memory_retriever=MemoryRetriever(store)
     )
 
     await runner.run("Find the billing API account requirement")
@@ -183,7 +177,7 @@ async def test_memory_retrieval_failure_falls_back_to_empty_history(caplog: pyte
     llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(llm, tools, SkillRegistry(), memory_retriever=FailingRetriever())  # type: ignore[arg-type]
+    runner = build_runner(llm, tools, memory_retriever=FailingRetriever())  # type: ignore[arg-type]
 
     await runner.run("Current goal is authoritative")
 
@@ -201,8 +195,8 @@ async def test_writer_extraction_failure_does_not_fail_a_completed_agent_run() -
     llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(
-        llm, tools, SkillRegistry(),
+    runner = build_runner(
+        llm, tools,
         memory_writer=MemoryWritingPipeline(MemoryManager(store), extractor=FailingExtractor()),  # type: ignore[arg-type]
     )
 
@@ -215,10 +209,9 @@ async def test_writer_extraction_failure_does_not_fail_a_completed_agent_run() -
 async def test_runner_stops_at_iteration_limit() -> None:
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(
-        llm_client=RepeatingToolLLM(),
-        tool_registry=tools,
-        skill_registry=SkillRegistry(),
+    runner = build_runner(
+        RepeatingToolLLM(),
+        tools,
         max_iterations=2,
     )
 
@@ -236,10 +229,9 @@ async def test_runner_continues_after_recoverable_tool_failure() -> None:
     llm = RecoveringLLM()
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(
-        llm_client=llm,
-        tool_registry=tools,
-        skill_registry=SkillRegistry(),
+    runner = build_runner(
+        llm,
+        tools,
         max_iterations=3,
     )
 

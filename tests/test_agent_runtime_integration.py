@@ -9,11 +9,10 @@ from app.agent.runner import AgentRunner
 from app.agent.state import StopReason
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient
-from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner as build_runner
 
 
 class NeverFinishLLM(LLMClient):
@@ -61,7 +60,7 @@ def make_runner(llm: LLMClient, limits: RuntimeLimits | None = None) -> AgentRun
     tools = ToolRegistry()
     tools.register(CalculatorTool())
     tools.register(FailingTool())
-    return AgentRunner(llm, tools, SkillRegistry(), limits=limits or RuntimeLimits())
+    return build_runner(llm, tools, limits=limits or RuntimeLimits())
 
 
 @pytest.mark.asyncio

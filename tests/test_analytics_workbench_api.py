@@ -9,14 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.api.dependencies import get_agent_runner, get_analytics_run_manager, get_conversation_store, get_trace_recorder
 from app.api.run_manager import AnalyticsRunManager
 from app.llm.base import LLMClient
 from app.api.routes.analytics import router
 from app.observability import InMemoryTraceStore, TraceRecorder
-from app.skills.registry import SkillRegistry
-from app.tools.registry import ToolRegistry
+from tests.support import make_runner
 
 
 class FinishLLM(LLMClient):
@@ -27,7 +25,7 @@ class FinishLLM(LLMClient):
 def _client() -> TestClient:
     recorder = TraceRecorder(InMemoryTraceStore())
     manager = AnalyticsRunManager(recorder, expose_sql=False, max_sql_chars=100)
-    runner = AgentRunner(FinishLLM(), ToolRegistry(), SkillRegistry(), trace_recorder=recorder)
+    runner = make_runner(FinishLLM(), trace_recorder=recorder)
     test_app = FastAPI()
     test_app.add_middleware(
         CORSMiddleware,

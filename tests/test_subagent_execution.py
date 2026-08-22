@@ -35,7 +35,7 @@ from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, Git
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.models import ToolResult
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner
 
 
 def capabilities() -> tuple[ToolRegistry, SkillRegistry, AgentRegistry]:
@@ -63,7 +63,7 @@ def make_parent(
 ) -> AgentRunner:
     tools, skills, agents = capabilities()
     limits = RuntimeLimits(max_iterations=5, max_tool_calls=4, max_recoverable_errors=3)
-    return AgentRunner(
+    return make_runner(
         parent_llm,
         tools,
         skills,

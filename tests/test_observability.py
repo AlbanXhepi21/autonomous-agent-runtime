@@ -3,13 +3,11 @@
 import pytest
 
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder, TraceStatus
-from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner
 
 
 @pytest.mark.asyncio
@@ -18,13 +16,13 @@ async def test_trace_records_sanitized_run_llm_tool_and_skill_events() -> None:
     recorder = TraceRecorder(store)
     tools = ToolRegistry()
     tools.register(CalculatorTool())
-    runner = AgentRunner(
+    runner = make_runner(
         ScriptedLLM([
             AgentAction(action_type="use_tool", reasoning_summary="private reasoning", tool_name="calculator",
                         tool_arguments={"expression": "1 + 1"}),
             AgentAction(action_type="finish", reasoning_summary="also private", final_answer="2"),
         ]),
-        tools, SkillRegistry(), limits=RuntimeLimits(max_iterations=3), trace_recorder=recorder,
+        tools, limits=RuntimeLimits(max_iterations=3), trace_recorder=recorder,
     )
 
     state = await runner.run("Calculate this with token=sk-secret-value-should-not-appear")

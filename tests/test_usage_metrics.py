@@ -3,13 +3,11 @@
 import pytest
 
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient, LLMDecision, LLMUsage
 from app.llm.pricing import ModelPricing, PricingRegistry, estimate_cost
 from app.observability import InMemoryTraceStore, RunMetrics, RunTrace, TraceEvent, TraceEventType, TraceRecorder, aggregate_run_metrics
-from app.skills.registry import SkillRegistry
-from app.tools.registry import ToolRegistry
+from tests.support import make_runner
 
 
 class UsageLLM(LLMClient):
@@ -34,7 +32,7 @@ def test_usage_cost_calculation_and_unknown_pricing() -> None:
 @pytest.mark.asyncio
 async def test_run_usage_metrics_and_missing_usage() -> None:
     recorder = TraceRecorder(InMemoryTraceStore())
-    runner = AgentRunner(UsageLLM(), ToolRegistry(), SkillRegistry(), limits=RuntimeLimits(), trace_recorder=recorder,
+    runner = make_runner(UsageLLM(), limits=RuntimeLimits(), trace_recorder=recorder,
                          pricing_registry=PricingRegistry({"test-model": ModelPricing(1, 2, 0.5)}))
     state = await runner.run("Finish")
     metrics = recorder.get_trace(state.run_id).metrics  # type: ignore[union-attr]
@@ -42,7 +40,7 @@ async def test_run_usage_metrics_and_missing_usage() -> None:
     assert metrics.estimated_cost == pytest.approx(0.0019)
     assert metrics.llm_duration_ms >= 0 and metrics.total_duration_ms is not None
 
-    plain = AgentRunner(UsageLLM(), ToolRegistry(), SkillRegistry(), limits=RuntimeLimits())
+    plain = make_runner(UsageLLM(), limits=RuntimeLimits())
     # Base compatibility path is replaced with a decision here to prove unknown pricing stays null.
     state = await plain.run("Finish")
     assert plain._trace_recorder.get_trace(state.run_id).metrics.estimated_cost is None

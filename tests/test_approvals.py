@@ -12,10 +12,10 @@ from app.agent.state import AgentState, RunStatus
 from app.core.limits import RuntimeLimits
 from app.security import Capability, PermissionRule, PolicyDecision, SecurityPolicy
 from app.security.approvals import ApprovalConflictError, ApprovalRequest, ApprovalStatus, FileApprovalStore
-from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
+from tests.support import make_runner
 
 
 class CounterTool(Tool):
@@ -46,7 +46,7 @@ def runner(tmp_path: Path) -> tuple[AgentRunner, CounterTool, FileApprovalStore]
     policy = SecurityPolicy([PermissionRule("approval.write", PolicyDecision.REQUIRE_APPROVAL, capability=Capability.FILESYSTEM_WRITE, agent_type="primary")])
     store = FileApprovalStore(tmp_path / "approvals")
     return (
-        AgentRunner(Actions(), registry, SkillRegistry(), limits=RuntimeLimits(max_iterations=4),
+        make_runner(Actions(), registry, limits=RuntimeLimits(max_iterations=4),
                     tool_executor=ToolExecutor(registry, security_policy=policy), security_policy=policy,
                     approval_store=store), tool, store,
     )
@@ -126,7 +126,7 @@ async def test_allowed_action_needs_no_approval_and_child_request_keeps_lineage(
     tool = CounterTool(); tool.calls = 0
     registry = ToolRegistry(); registry.register(tool)
     allowed = SecurityPolicy([PermissionRule("allow.write", PolicyDecision.ALLOW, capability=Capability.FILESYSTEM_WRITE)])
-    direct = AgentRunner(Actions(), registry, SkillRegistry(), limits=RuntimeLimits(max_iterations=4),
+    direct = make_runner(Actions(), registry, limits=RuntimeLimits(max_iterations=4),
                          tool_executor=ToolExecutor(registry, security_policy=allowed), security_policy=allowed,
                          approval_store=FileApprovalStore(tmp_path / "allowed"))
     assert (await direct.run("write")).completed
@@ -135,7 +135,7 @@ async def test_allowed_action_needs_no_approval_and_child_request_keeps_lineage(
 
     child_policy = SecurityPolicy([PermissionRule("approval.write", PolicyDecision.REQUIRE_APPROVAL, capability=Capability.FILESYSTEM_WRITE)])
     child_store = FileApprovalStore(tmp_path / "child")
-    child = AgentRunner(Actions(), registry, SkillRegistry(), limits=RuntimeLimits(max_iterations=4),
+    child = make_runner(Actions(), registry, limits=RuntimeLimits(max_iterations=4),
                         tool_executor=ToolExecutor(registry, security_policy=child_policy), security_policy=child_policy,
                         approval_store=child_store, security_agent_name="software_engineer",
                         security_agent_type="specialist", parent_run_id="parent-run", agent_depth=1)

@@ -5,7 +5,6 @@ from typing import Any
 import pytest
 
 from app.agent.models import AgentAction
-from app.agent.runner import AgentRunner
 from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient
@@ -13,6 +12,7 @@ from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.registry import ToolRegistry
+from tests.support import make_runner
 
 
 class ScriptedAnalyst(LLMClient):
@@ -49,7 +49,7 @@ async def test_analyst_can_iteratively_collect_evidence_with_stable_query_refere
     tools = ToolRegistry(); tools.register(QueryEvidenceTool())
     recorder, store = TraceRecorder(InMemoryTraceStore()), None
     # Keep a direct reference to the recorder's store through get_trace.
-    runner = AgentRunner(llm, tools, SkillRegistry(), limits=RuntimeLimits(max_iterations=5), trace_recorder=recorder)
+    runner = make_runner(llm, tools, limits=RuntimeLimits(max_iterations=5), trace_recorder=recorder)
     state = await runner.run("Which category contributed to revenue?")
 
     assert state.completed and "query_001, query_002" in (state.final_answer or "")

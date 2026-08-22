@@ -28,7 +28,7 @@ from app.tools.python_exec import PythonExecTool
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM
+from tests.support import ScriptedLLM, make_runner
 
 
 def registries() -> tuple[ToolRegistry, SkillRegistry, AgentRegistry]:
@@ -52,7 +52,7 @@ def registries() -> tuple[ToolRegistry, SkillRegistry, AgentRegistry]:
 
 def runner_for(llm: LLMClient) -> AgentRunner:
     tools, skills, agents = registries()
-    return AgentRunner(
+    return make_runner(
         llm, tools, skills, agent_registry=agents,
         limits=RuntimeLimits(max_iterations=3, max_recoverable_errors=3),
     )
