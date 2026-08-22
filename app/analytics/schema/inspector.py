@@ -7,8 +7,14 @@ from typing import TypeVar
 from sqlalchemy import inspect
 
 from app.analytics.connection import AnalyticsDatabase, AnalyticsDatabaseError
-from app.analytics.schema.contracts import DatabaseColumn, DatabaseSchemaSummary, DatabaseTable, ForeignKeyRelationship, TableDescription
 from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
+from app.analytics.schema.contracts import (
+    DatabaseColumn,
+    DatabaseSchemaSummary,
+    DatabaseTable,
+    ForeignKeyRelationship,
+    TableDescription,
+)
 
 T = TypeVar("T")
 

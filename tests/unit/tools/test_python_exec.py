@@ -6,19 +6,19 @@ from pathlib import Path
 
 import pytest
 
-from app.runtime.registry import AgentRegistry
+from app.artifacts.store import WorkspaceArtifactStore
 from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository
-from app.artifacts.store import WorkspaceArtifactStore
+from app.runtime.registry import AgentRegistry
 from app.skills.registry import SkillRegistry
+from app.tools.artifacts import RegisterArtifactTool
 from app.tools.calculator import CalculatorTool
 from app.tools.commands import RunCommandTool
 from app.tools.execution import ToolExecutor
 from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
-from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
-from app.tools.artifacts import RegisterArtifactTool
 from app.tools.registry import ToolRegistry
+from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 
 
 def python_registry(root: Path, *, timeout: float = 1, code_limit: int = 1_024, output: int = 1_024) -> ToolRegistry:

@@ -7,10 +7,9 @@ import pytest
 from pydantic import ValidationError
 
 from evals.contracts import EvalCase, EvalDataset
-from evals.runner import EvalRunner, load_dataset, load_datasets
 from evals.reports import format_report
+from evals.runner import EvalRunner, load_dataset, load_datasets
 from tests.support import REPO_ROOT
-
 
 DATASETS = REPO_ROOT / "evals" / "datasets"
 

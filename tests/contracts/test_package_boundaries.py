@@ -9,6 +9,7 @@ than documented.
 import ast
 from collections import defaultdict
 from pathlib import Path
+
 from tests.support import REPO_ROOT
 
 APP = REPO_ROOT / "app"

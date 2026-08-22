@@ -11,9 +11,9 @@ from pydantic import ValidationError
 from app.contracts.specialists import AgentDefinition, AgentMetadata
 from app.core.exceptions import AgentDefinitionError, UnknownAgentError
 from app.core.logging import log_event
+from app.resources import resources_path
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
-from app.resources import resources_path
 
 # Definitions are discovered independently from any particular test or embedded
 # runtime registry.  Keep validation strict for unknown names while allowing the

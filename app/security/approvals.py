@@ -12,8 +12,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.security.contracts import Capability, SecurityAction, SecuritySubject
 from app.core.logging import log_event
+from app.security.contracts import Capability, SecurityAction, SecuritySubject
 
 _logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 """Versioned OpenAI model pricing and deterministic USD cost calculation."""
 
+import re
 from dataclasses import dataclass
 from decimal import Decimal
-import re
 
 from app.llm.contracts import LLMUsage
 

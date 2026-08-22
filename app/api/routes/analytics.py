@@ -5,12 +5,18 @@ import asyncio
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.runtime.runner import AgentRunner
-from app.composition import get_agent_runner, get_run_manager, get_conversation_store
-from app.orchestration.run_manager import AgentRunManager
-from app.api.schemas.analytics import CreateRunRequest, CreateRunResponse, PublicRunEventListResponse, RunMetricsResponse, RunResponse
 from app.analytics.presentation.charts import ChartSpec
+from app.api.schemas.analytics import (
+    CreateRunRequest,
+    CreateRunResponse,
+    PublicRunEventListResponse,
+    RunMetricsResponse,
+    RunResponse,
+)
+from app.composition import get_agent_runner, get_conversation_store, get_run_manager
 from app.conversations.store import ConversationStore
+from app.orchestration.run_manager import AgentRunManager
+from app.runtime.runner import AgentRunner
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics-workbench"])
 

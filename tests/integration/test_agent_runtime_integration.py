@@ -5,14 +5,15 @@ from typing import Any
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.runtime.runner import AgentRunner
-from app.runtime.state import StopReason
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient
+from app.runtime.runner import AgentRunner
+from app.runtime.state import StopReason
 from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM, make_runner as build_runner
+from tests.support import ScriptedLLM
+from tests.support import make_runner as build_runner
 
 
 class NeverFinishLLM(LLMClient):

@@ -1,6 +1,7 @@
 """Safe HTTP representations for human approval gates."""
 
 from datetime import datetime
+
 from pydantic import BaseModel
 
 from app.security.approvals import ApprovalStatus

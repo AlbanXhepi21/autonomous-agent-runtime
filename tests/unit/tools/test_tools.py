@@ -5,11 +5,11 @@ from typing import Any
 
 import pytest
 
+from app.core.logging import PrettyEventFormatter, safe_error_message, safe_log_value
 from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
-from app.core.logging import PrettyEventFormatter, safe_error_message, safe_log_value
 
 
 def test_tool_registry_lookup() -> None:

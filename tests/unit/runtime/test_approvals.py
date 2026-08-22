@@ -7,16 +7,16 @@ from typing import Any
 import pytest
 
 from app.contracts.actions import AgentAction
+from app.core.limits import RuntimeLimits
+from app.llm.contracts import LLMClient
 from app.runtime.runner import AgentRunner
 from app.runtime.state import AgentState, RunStatus
-from app.core.limits import RuntimeLimits
 from app.security import Capability, PermissionRule, PolicyDecision, SecurityPolicy
 from app.security.approvals import ApprovalConflictError, ApprovalRequest, ApprovalStatus, FileApprovalStore
 from app.tools.base import Tool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
 from tests.support import make_runner
-from app.llm.contracts import LLMClient
 
 
 class CounterTool(Tool):

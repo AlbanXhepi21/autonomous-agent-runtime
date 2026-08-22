@@ -5,15 +5,20 @@ from typing import Sequence
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.runtime.runner import AgentRunner
-from app.runtime.state import AgentState, Observation, TaskSummary
-from app.runtime.summarization import SummaryPolicy, TaskSummarizer
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient
 from app.memory import (
-    InMemoryMemoryStore, MemoryCandidate, MemoryCategory, MemoryManager, MemoryRetriever,
-    MemoryType, MemoryWritingPipeline,
+    InMemoryMemoryStore,
+    MemoryCandidate,
+    MemoryCategory,
+    MemoryManager,
+    MemoryRetriever,
+    MemoryType,
+    MemoryWritingPipeline,
 )
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, Observation, TaskSummary
+from app.runtime.summarization import SummaryPolicy, TaskSummarizer
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 from tests.support import ScriptedLLM, make_runner

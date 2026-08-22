@@ -8,17 +8,17 @@ from time import perf_counter
 from typing import Callable
 
 from app.contracts.actions import AgentAction
-from app.runtime.runner import AgentRunner
 from app.core.limits import RuntimeLimits
-from evals.evaluators import DEFAULT_EVALUATORS, Evaluator
-from evals.contracts import EvalCase, EvalDataset, EvalResult, SuiteReport
-from evals.reports import format_report
-from evals.trajectory import Trajectory
 from app.llm.contracts import LLMClient
 from app.observability import InMemoryTraceStore, TraceRecorder, aggregate_run_metrics
+from app.runtime.runner import AgentRunner
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
+from evals.contracts import EvalCase, EvalDataset, EvalResult, SuiteReport
+from evals.evaluators import DEFAULT_EVALUATORS, Evaluator
+from evals.reports import format_report
+from evals.trajectory import Trajectory
 
 DATASET_DIRECTORY = Path(__file__).with_name("datasets")
 RunnerFactory = Callable[[EvalCase, TraceRecorder], AgentRunner]

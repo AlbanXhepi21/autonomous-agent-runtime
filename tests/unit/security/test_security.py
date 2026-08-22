@@ -4,11 +4,15 @@ from typing import Any
 
 import pytest
 
-from app.contracts.specialists import AgentDefinition
 from app.contracts.actions import AgentAction
+from app.contracts.specialists import AgentDefinition
 from app.core.limits import RuntimeLimits
 from app.security import (
-    Capability, PermissionRule, PolicyDecision, SecurityAction, SecurityPolicy,
+    Capability,
+    PermissionRule,
+    PolicyDecision,
+    SecurityAction,
+    SecurityPolicy,
     SecuritySubject,
 )
 from app.tools.base import Tool

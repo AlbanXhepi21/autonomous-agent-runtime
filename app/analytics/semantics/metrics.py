@@ -1,6 +1,7 @@
 """Runtime-owned, versioned business metric definitions (not database content)."""
 
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

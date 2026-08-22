@@ -7,34 +7,34 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.contracts.specialists import AgentDefinition
-from app.runtime.delegation import (
-    DelegationContext,
-    DelegationMemory,
-    DelegationRequest,
-    MAX_DELEGATION_BACKGROUND_LENGTH,
-    MAX_SUBAGENT_RESULT_LENGTH,
-    SequentialSubagentExecutor,
-    SubagentResult,
-)
+from app.artifacts.store import WorkspaceArtifactStore
 from app.contracts.actions import AgentAction
-from app.runtime.registry import AgentRegistry
-from app.runtime.runner import AgentRunner
-from app.runtime.state import AgentState, Observation
+from app.contracts.specialists import AgentDefinition
 from app.core.limits import RuntimeLimits
 from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository
-from app.artifacts.store import WorkspaceArtifactStore
 from app.llm.contracts import LLMClient
+from app.runtime.delegation import (
+    MAX_DELEGATION_BACKGROUND_LENGTH,
+    MAX_SUBAGENT_RESULT_LENGTH,
+    DelegationContext,
+    DelegationMemory,
+    DelegationRequest,
+    SequentialSubagentExecutor,
+    SubagentResult,
+)
+from app.runtime.registry import AgentRegistry
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, Observation
 from app.skills.registry import SkillRegistry
+from app.tools.artifacts import RegisterArtifactTool
 from app.tools.calculator import CalculatorTool
 from app.tools.commands import RunCommandTool
+from app.tools.contracts import ToolResult
 from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
-from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
-from app.tools.artifacts import RegisterArtifactTool
-from app.tools.contracts import ToolResult
 from app.tools.registry import ToolRegistry
+from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
 from tests.support import ScriptedLLM, make_runner
 
 

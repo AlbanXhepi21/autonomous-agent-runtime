@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from app.contracts.actions import AgentAction
-from app.runtime.runner import AgentRunner
 from app.llm.contracts import LLMClient
+from app.runtime.runner import AgentRunner
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
 

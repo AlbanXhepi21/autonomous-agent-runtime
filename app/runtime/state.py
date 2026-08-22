@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from app.artifacts.contracts import Artifact
 from app.runtime.delegation import (
     DelegationObservation,
     DelegationRequest,
@@ -12,7 +13,6 @@ from app.runtime.delegation import (
     SubagentResult,
 )
 from app.tools.contracts import ToolResult
-from app.artifacts.contracts import Artifact
 
 
 class Observation(BaseModel):

@@ -1,7 +1,7 @@
 """Canonical path policy shared by all workspace filesystem operations."""
 
-from pathlib import Path
 import ast
+from pathlib import Path
 
 
 class PythonExecutionPolicyError(ValueError):

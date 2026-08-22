@@ -1,6 +1,8 @@
 from typing import Any
+
 from app.analytics.semantics.metrics import MetricRegistry
 from app.tools.base import Tool, ToolInputError
+
 
 class ListMetricsTool(Tool):
  def __init__(self, registry: MetricRegistry): self._registry=registry

@@ -6,12 +6,12 @@ import filtering alone cannot provide complete operating-system isolation.
 """
 
 import asyncio
+import json
 import os
 import shutil
 import signal
 import sys
 import tempfile
-import json
 from collections.abc import Sequence
 from pathlib import Path
 from time import perf_counter

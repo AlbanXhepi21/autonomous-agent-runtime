@@ -6,8 +6,8 @@ import pytest
 
 from app.llm.contracts import LLMUsage
 from app.llm.pricing import (
-    InvalidTokenUsageError,
     OPENAI_MODEL_PRICES,
+    InvalidTokenUsageError,
     UnsupportedOpenAIModelError,
     calculate_openai_cost,
     normalize_openai_model,

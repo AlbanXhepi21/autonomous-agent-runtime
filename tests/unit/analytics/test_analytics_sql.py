@@ -1,19 +1,19 @@
 """DA2 AST validation, limits, security, and trace coverage."""
 
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from contextlib import asynccontextmanager
 from uuid import uuid4
 
 import pytest
 
-from app.contracts.specialists import AgentDefinition
-from app.analytics.schema.contracts import DatabaseSchemaSummary, DatabaseTable
 from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
+from app.analytics.schema.contracts import DatabaseSchemaSummary, DatabaseTable
+from app.analytics.sql.contracts import SQLColumn, SQLQueryResult
 from app.analytics.sql.executor import AnalyticsQueryError, AnalyticsSQLExecutor, _serialize_value
 from app.analytics.sql.limits import AnalyticsQueryLimits
-from app.analytics.sql.contracts import SQLColumn, SQLQueryResult
 from app.analytics.sql.validator import PostgreSQLQueryValidator
+from app.contracts.specialists import AgentDefinition
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.security import Capability, PolicyDecision, SecurityAction, SecurityPolicy, SecuritySubject
 from app.tools.database.query import QueryDatabaseTool

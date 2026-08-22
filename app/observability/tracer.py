@@ -4,7 +4,15 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
-from app.observability.events import RunMetrics, RunTrace, TraceEvent, TraceEventType, TraceSpan, TraceStatus, sanitize_trace_metadata
+from app.observability.events import (
+    RunMetrics,
+    RunTrace,
+    TraceEvent,
+    TraceEventType,
+    TraceSpan,
+    TraceStatus,
+    sanitize_trace_metadata,
+)
 from app.observability.store import TraceStore
 
 
