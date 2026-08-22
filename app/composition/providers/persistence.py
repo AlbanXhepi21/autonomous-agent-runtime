@@ -3,10 +3,10 @@
 from app.composition.lifecycle import provider
 from app.composition.providers.settings import get_settings
 from app.conversations.store import ConversationStore, PostgresConversationStore
-from app.memory.store import MemoryStore
 from app.memory.in_memory import InMemoryMemoryStore
 from app.memory.manager import MemoryManager
 from app.memory.retrieval import MemoryRetriever
+from app.memory.store import MemoryStore
 from app.memory.writing import MemoryWritingPipeline
 
 

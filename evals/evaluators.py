@@ -2,10 +2,10 @@
 
 from typing import Protocol
 
-from app.runtime.state import AgentState
-from evals.contracts import EvalCase, EvaluatorResult
 from app.observability import RunTrace, TraceEventType
+from app.runtime.state import AgentState
 from app.tools.contracts import ToolResult
+from evals.contracts import EvalCase, EvaluatorResult
 from evals.trajectory import Trajectory
 
 

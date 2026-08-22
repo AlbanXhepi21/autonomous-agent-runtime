@@ -1,10 +1,18 @@
 """Deterministic authorization policy for normalized agent actions."""
 
-from dataclasses import dataclass
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from app.contracts.specialists import AgentDefinition
-from app.security.contracts import Capability, PolicyDecision, PolicyResult, RiskAssessment, RiskLevel, SecurityAction, SecuritySubject
+from app.security.contracts import (
+    Capability,
+    PolicyDecision,
+    PolicyResult,
+    RiskAssessment,
+    RiskLevel,
+    SecurityAction,
+    SecuritySubject,
+)
 from app.security.permissions import capabilities_for_tools
 from app.security.risk import RiskClassifier
 

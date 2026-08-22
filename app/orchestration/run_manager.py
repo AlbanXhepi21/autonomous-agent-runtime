@@ -9,14 +9,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.runtime.runner import AgentRunner
-from app.runtime.state import AgentState, RunStatus
-from app.orchestration.views import PublicRunEvent, RunMetricsResponse, RunResponse
 from app.analytics.presentation.chart_store import ChartSpecStore
 from app.analytics.presentation.charts import ChartSpec
-from app.core.logging import safe_error_message
 from app.conversations.store import ConversationStore
+from app.core.logging import safe_error_message
 from app.observability import TraceEvent, TraceEventType, TraceRecorder
+from app.orchestration.views import PublicRunEvent, RunMetricsResponse, RunResponse
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, RunStatus
 
 
 def _now() -> datetime:

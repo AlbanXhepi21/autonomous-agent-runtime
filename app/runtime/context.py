@@ -3,15 +3,15 @@
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-from app.runtime.state import AgentState, Observation
-from app.runtime.delegation import DelegationContext, ParallelDelegationResult, SubagentResult
-from app.runtime.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.memory.records import Memory
-from app.skills.registry import SkillRegistry
-from app.tools.registry import ToolRegistry
-from app.tools.contracts import ToolResult
+from app.runtime.delegation import DelegationContext, ParallelDelegationResult, SubagentResult
+from app.runtime.registry import AgentRegistry
+from app.runtime.state import AgentState, Observation
 from app.security import ContentTrust, UntrustedContent
+from app.skills.registry import SkillRegistry
+from app.tools.contracts import ToolResult
+from app.tools.registry import ToolRegistry
 
 
 class ObservationSelector(Protocol):

@@ -6,7 +6,15 @@ from app.contracts.actions import AgentAction
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient, LLMDecision, LLMUsage
 from app.llm.pricing import ModelPricing, PricingRegistry, estimate_cost
-from app.observability import InMemoryTraceStore, RunMetrics, RunTrace, TraceEvent, TraceEventType, TraceRecorder, aggregate_run_metrics
+from app.observability import (
+    InMemoryTraceStore,
+    RunMetrics,
+    RunTrace,
+    TraceEvent,
+    TraceEventType,
+    TraceRecorder,
+    aggregate_run_metrics,
+)
 from tests.support import make_runner
 
 

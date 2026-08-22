@@ -8,7 +8,6 @@ from sqlglot import exp
 from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
 from app.analytics.sql.contracts import SQLValidationResult
 
-
 _PROHIBITED_NODES = (
     exp.Insert, exp.Update, exp.Delete, exp.Merge, exp.Drop, exp.Alter, exp.TruncateTable,
     exp.Create, exp.Grant, exp.Revoke, exp.Command, exp.Copy, exp.Lock, exp.Into,

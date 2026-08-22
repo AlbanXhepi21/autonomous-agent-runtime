@@ -4,12 +4,9 @@ import logging
 
 import pytest
 
-from app.contracts.actions import AgentAction
-from app.runtime.fingerprints import tool_action_fingerprint
-from app.runtime.runner import AgentRunner
-from app.runtime.state import AgentState, StopReason
 from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
+from app.contracts.actions import AgentAction
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient
 from app.memory import (
@@ -19,9 +16,13 @@ from app.memory import (
     MemoryType,
 )
 from app.memory.writing import MemoryWritingPipeline
+from app.runtime.fingerprints import tool_action_fingerprint
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState, StopReason
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-from tests.support import ScriptedLLM, make_runner as build_runner
+from tests.support import ScriptedLLM
+from tests.support import make_runner as build_runner
 
 
 class RepeatingToolLLM(LLMClient):

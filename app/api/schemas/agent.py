@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel, Field
 
-from app.runtime.state import RunStatus, StopReason
 from app.artifacts.contracts import Artifact
+from app.runtime.state import RunStatus, StopReason
 
 
 class AgentRunRequest(BaseModel):

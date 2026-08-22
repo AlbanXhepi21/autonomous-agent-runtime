@@ -15,8 +15,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.runtime.state import AgentState
 from app.observability import RunTrace, TraceEventType
+from app.runtime.state import AgentState
 
 
 class GroundTruthScenario(BaseModel):

@@ -1,8 +1,10 @@
+import pytest
+
 from app.analytics.semantics.metrics import MetricRegistry
 from app.tools.database.metric_tools import DescribeMetricTool, ListMetricsTool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
-import pytest
+
 
 def test_registry_has_required_versioned_metrics_and_edge_case_caveats():
  r=MetricRegistry(); names={x.name for x in r.list_metrics()}

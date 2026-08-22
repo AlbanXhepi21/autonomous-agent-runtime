@@ -2,8 +2,16 @@
 
 from app.contracts.specialists import AgentDefinition
 from app.security import (
-    Capability, PermissionRule, PolicyDecision, RiskCategory, RiskClassifier,
-    RiskLevel, SecurityAction, SecurityEnvironment, SecurityPolicy, SecurityResource,
+    Capability,
+    PermissionRule,
+    PolicyDecision,
+    RiskCategory,
+    RiskClassifier,
+    RiskLevel,
+    SecurityAction,
+    SecurityEnvironment,
+    SecurityPolicy,
+    SecurityResource,
     SecuritySubject,
 )
 

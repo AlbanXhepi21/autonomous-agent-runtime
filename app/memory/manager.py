@@ -5,8 +5,8 @@ from typing import Any
 from uuid import UUID
 
 from app.core.logging import log_event, safe_log_value
-from app.memory.store import MemoryStore
 from app.memory.records import Memory, MemoryType
+from app.memory.store import MemoryStore
 
 
 class MemoryManager:

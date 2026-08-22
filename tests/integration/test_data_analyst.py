@@ -5,10 +5,10 @@ from typing import Any
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.runtime.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
+from app.runtime.registry import AgentRegistry
 from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.registry import ToolRegistry

@@ -10,10 +10,14 @@ import argparse
 import json
 from pathlib import Path
 
-from app.runtime.state import AgentState
-from evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
-                                 GroundTruthLoader, load_analytics_dataset)
 from app.observability import RunTrace
+from app.runtime.state import AgentState
+from evals.analytics import (
+    AnalyticsBenchmarkSummary,
+    DeterministicAnalyticsEvaluator,
+    GroundTruthLoader,
+    load_analytics_dataset,
+)
 
 
 def evaluate_recordings(*, dataset_path: Path, ground_truth_path: Path, recordings: list[dict[str, object]]) -> AnalyticsBenchmarkSummary:

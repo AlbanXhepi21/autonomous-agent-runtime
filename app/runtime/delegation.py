@@ -1,7 +1,7 @@
 """Typed contracts and sequential execution for specialist-agent delegation."""
 
-import logging
 import asyncio
+import logging
 from dataclasses import replace
 from time import perf_counter
 from typing import Callable, Literal, Protocol
@@ -9,17 +9,17 @@ from typing import Callable, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.contracts.specialists import AgentDefinition
-from app.runtime.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message
 from app.llm.contracts import LLMClient
 from app.llm.pricing import PricingRegistry
+from app.observability import TraceRecorder
+from app.runtime.registry import AgentRegistry
 from app.security import ContentTrust, SecurityPolicy
 from app.security.approvals import ApprovalStore
 from app.skills.registry import SkillRegistry
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
-from app.observability import TraceRecorder
 
 MAX_DELEGATION_OBJECTIVE_LENGTH = 2_000
 MAX_DELEGATION_BACKGROUND_LENGTH = 2_000

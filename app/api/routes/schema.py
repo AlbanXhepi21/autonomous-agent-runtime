@@ -2,13 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.analytics import PostgreSQLInspector
-from app.analytics.schema.inspector import UnknownAnalyticsTableError
 from app.analytics.schema.contracts import (
     DatabaseSchemaSummary,
     DatabaseTable,
     ForeignKeyRelationship,
     TableDescription,
 )
+from app.analytics.schema.inspector import UnknownAnalyticsTableError
 from app.composition import get_analytics_inspector
 
 router = APIRouter(prefix="/api/v1/schema", tags=["schema-explorer"])

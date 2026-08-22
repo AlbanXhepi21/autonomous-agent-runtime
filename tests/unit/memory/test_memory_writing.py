@@ -2,11 +2,15 @@
 
 import pytest
 
-from app.runtime.state import AgentState
 from app.memory import (
-    InMemoryMemoryStore, MemoryCandidate, MemoryCategory, MemoryManager, MemoryType,
+    InMemoryMemoryStore,
+    MemoryCandidate,
+    MemoryCategory,
+    MemoryManager,
+    MemoryType,
 )
 from app.memory.writing import MemoryWritingPipeline
+from app.runtime.state import AgentState
 
 
 class StaticExtractor:

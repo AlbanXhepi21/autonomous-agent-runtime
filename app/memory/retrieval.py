@@ -7,8 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.memory.store import MemoryStore
 from app.memory.records import Memory, MemoryType
+from app.memory.store import MemoryStore
 
 MAX_RETRIEVED_MEMORIES = 5
 _TOKEN_PATTERN = re.compile(r"[a-z0-9_]+")

@@ -1,13 +1,14 @@
 """External human decision endpoints for persisted approval requests."""
 
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.runtime.runner import AgentRunner
-from app.composition import get_agent_runner, get_run_manager, get_approval_store
-from app.orchestration.run_manager import AgentRunManager
 from app.api.schemas.approvals import ApprovalResponse
+from app.composition import get_agent_runner, get_approval_store, get_run_manager
 from app.core.logging import log_event
+from app.orchestration.run_manager import AgentRunManager
+from app.runtime.runner import AgentRunner
 from app.security.approvals import ApprovalConflictError, ApprovalStatus, ApprovalStore
 
 router = APIRouter(tags=["approvals"])

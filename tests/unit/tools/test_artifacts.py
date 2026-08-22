@@ -1,22 +1,22 @@
 """Tests for explicit artifact registration, metadata, and run isolation."""
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 
-from app.contracts.actions import AgentAction
 from app.api.routes.agent import run_agent
 from app.api.routes.artifacts import download_artifact
 from app.api.schemas.agent import AgentRunRequest
 from app.artifacts.store import WorkspaceArtifactStore
+from app.contracts.actions import AgentAction
 from app.environment import Workspace
 from app.llm.contracts import LLMClient
 from app.tools.artifacts import RegisterArtifactTool
 from app.tools.execution import ToolExecutor
 from app.tools.filesystem import WriteFileTool
 from app.tools.registry import ToolRegistry
-from fastapi import HTTPException
 from tests.support import make_runner
 
 

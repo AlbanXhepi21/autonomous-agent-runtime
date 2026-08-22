@@ -8,8 +8,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.db.records import MemoryRecord
 from app.db.session import Database
-from app.memory.store import MemoryStore
 from app.memory.records import Memory, MemoryType
+from app.memory.store import MemoryStore
 
 
 class PostgresMemoryStore(MemoryStore):

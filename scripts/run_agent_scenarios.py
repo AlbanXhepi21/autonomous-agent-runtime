@@ -10,7 +10,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Sequence
 
-
 AGENT_ENDPOINT_PATH = "/agent/run"
 DEFAULT_BASE_URL = "http://localhost:8000"
 

@@ -1,6 +1,6 @@
 """Semantic tool-to-capability normalization owned by the runtime."""
 
-from collections.abc import Mapping, Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from app.security.contracts import Capability, SecurityResource

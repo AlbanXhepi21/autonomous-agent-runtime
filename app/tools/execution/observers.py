@@ -21,13 +21,13 @@ from typing import Any
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.observability import TraceEventType, TraceRecorder
 from app.tools.base import Tool
+from app.tools.contracts import ToolResult
 from app.tools.execution.redaction import (
     code_bytes,
     command_args_summary,
     database_table_names,
     query_quality_metadata,
 )
-from app.tools.contracts import ToolResult
 
 Fields = dict[str, Any]
 
