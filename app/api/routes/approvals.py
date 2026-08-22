@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.agent.runner import AgentRunner
+from app.runtime.runner import AgentRunner
 from app.composition import get_agent_runner, get_run_manager, get_approval_store
 from app.orchestration.run_manager import AgentRunManager
 from app.api.schemas.approvals import ApprovalResponse

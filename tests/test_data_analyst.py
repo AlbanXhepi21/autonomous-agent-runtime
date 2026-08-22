@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from app.contracts.actions import AgentAction
-from app.agent.registry import AgentRegistry
+from app.runtime.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.llm.contracts import LLMClient
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder

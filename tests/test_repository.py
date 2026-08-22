@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.registry import AgentRegistry
+from app.runtime.registry import AgentRegistry
 from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository
 from app.artifacts.store import WorkspaceArtifactStore

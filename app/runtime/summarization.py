@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
-from app.agent.state import Observation, TaskSummary
+from app.runtime.state import Observation, TaskSummary
 
 
 class TaskSummarizer(Protocol):

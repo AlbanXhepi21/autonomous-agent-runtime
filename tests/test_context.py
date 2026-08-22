@@ -2,8 +2,8 @@
 
 import json
 
-from app.agent.context import ContextBuilder
-from app.agent.state import AgentState, Observation, TaskSummary
+from app.runtime.context import ContextBuilder
+from app.runtime.state import AgentState, Observation, TaskSummary
 from app.core.limits import RuntimeLimits
 from app.memory.records import Memory, MemoryType
 from app.skills.registry import SkillRegistry
@@ -165,7 +165,7 @@ def test_context_exposes_current_and_remaining_runtime_limits() -> None:
 
 
 def test_context_module_is_independent_of_fastapi_and_openai_sdk() -> None:
-    import app.agent.context as context_module
+    import app.runtime.context as context_module
 
     source = open(context_module.__file__, encoding="utf-8").read()
 

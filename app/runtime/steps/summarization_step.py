@@ -7,8 +7,8 @@ leaves the run going with its existing summary rather than ending it.
 import logging
 from time import perf_counter
 
-from app.agent.state import AgentState, TaskSummary
-from app.agent.summarization import SummaryPolicy, TaskSummarizer
+from app.runtime.state import AgentState, TaskSummary
+from app.runtime.summarization import SummaryPolicy, TaskSummarizer
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from app.observability import TraceEventType, TraceRecorder
 

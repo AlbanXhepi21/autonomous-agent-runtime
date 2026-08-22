@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.context import ContextBuilder
-from app.agent.registry import AgentRegistry
-from app.agent.state import AgentState
+from app.runtime.context import ContextBuilder
+from app.runtime.registry import AgentRegistry
+from app.runtime.state import AgentState
 from app.core.exceptions import AgentDefinitionError, UnknownAgentError
 from app.core.limits import RuntimeLimits
 from app.environment import CommandExecutor, PythonExecutor, Workspace

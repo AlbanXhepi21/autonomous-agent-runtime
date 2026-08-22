@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.context import ContextBuilder
-from app.agent.delegation import DelegationContext, DelegationMemory
+from app.runtime.context import ContextBuilder
+from app.runtime.delegation import DelegationContext, DelegationMemory
 from app.contracts.specialists import AgentDefinition
-from app.agent.state import AgentState, Observation
+from app.runtime.state import AgentState, Observation
 from app.core.limits import RuntimeLimits
 from app.environment.workspace import Workspace
 from app.memory.records import Memory, MemoryType

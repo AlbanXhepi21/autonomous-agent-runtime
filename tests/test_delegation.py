@@ -7,12 +7,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.agent.context import ContextBuilder
-from app.agent.delegation import DelegationObservation, DelegationRequest
+from app.runtime.context import ContextBuilder
+from app.runtime.delegation import DelegationObservation, DelegationRequest
 from app.contracts.actions import AgentAction
-from app.agent.registry import AgentRegistry
-from app.agent.runner import AgentRunner
-from app.agent.state import AgentState
+from app.runtime.registry import AgentRegistry
+from app.runtime.runner import AgentRunner
+from app.runtime.state import AgentState
 from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
 from app.core.limits import RuntimeLimits

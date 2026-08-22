@@ -4,8 +4,8 @@ import asyncio
 import logging
 from time import perf_counter
 
-from app.agent.context import ContextBuilder
-from app.agent.delegation import (
+from app.runtime.context import ContextBuilder
+from app.runtime.delegation import (
     DelegationContext,
     DelegationExecutor,
     DelegationObservation,
@@ -15,13 +15,13 @@ from app.agent.delegation import (
     SubagentResult,
 )
 from app.contracts.actions import AgentAction
-from app.agent.registry import AgentRegistry
-from app.agent.fingerprints import delegation_fingerprint, tool_action_fingerprint
-from app.agent.prompt import SYSTEM_PROMPT
-from app.agent.state import AgentState, Observation, RunStatus, StopReason
-from app.agent.steps.memory_step import MemoryStep
-from app.agent.steps.summarization_step import SummarizationStep
-from app.agent.summarization import (
+from app.runtime.registry import AgentRegistry
+from app.runtime.fingerprints import delegation_fingerprint, tool_action_fingerprint
+from app.runtime.prompt import SYSTEM_PROMPT
+from app.runtime.state import AgentState, Observation, RunStatus, StopReason
+from app.runtime.steps.memory_step import MemoryStep
+from app.runtime.steps.summarization_step import SummarizationStep
+from app.runtime.summarization import (
     DeterministicTaskSummarizer,
     SummaryPolicy,
     TaskSummarizer,

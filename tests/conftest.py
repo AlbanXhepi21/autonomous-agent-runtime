@@ -9,7 +9,7 @@ from collections.abc import Callable
 
 import pytest
 
-from app.agent.runner import AgentRunner
+from app.runtime.runner import AgentRunner
 from tests.support import ScriptedLLM, make_runner
 
 

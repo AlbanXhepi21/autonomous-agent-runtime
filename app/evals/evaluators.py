@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from app.agent.state import AgentState
+from app.runtime.state import AgentState
 from app.evals.contracts import EvalCase, EvaluatorResult
 from app.observability import RunTrace, TraceEventType
 from app.tools.contracts import ToolResult

@@ -144,7 +144,7 @@ def test_safe_error_message_redacts_common_secret_patterns() -> None:
 
 def test_pretty_formatter_uses_short_run_id_and_omits_null_fields() -> None:
     record = logging.LogRecord(
-        "app.agent.runner",
+        "app.runtime.runner",
         logging.INFO,
         __file__,
         1,

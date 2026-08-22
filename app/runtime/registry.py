@@ -13,6 +13,7 @@ from app.core.exceptions import AgentDefinitionError, UnknownAgentError
 from app.core.logging import log_event
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
+from app.resources import resources_path
 
 # Definitions are discovered independently from any particular test or embedded
 # runtime registry.  Keep validation strict for unknown names while allowing the
@@ -48,7 +49,7 @@ class AgentRegistry:
         tool_registry: ToolRegistry | None = None,
         skill_registry: SkillRegistry | None = None,
     ) -> None:
-        self._agents_directory = agents_directory or Path(__file__).parent.parent / "agents"
+        self._agents_directory = agents_directory or resources_path("specialists")
         self._tool_registry = tool_registry
         self._skill_registry = skill_registry
         self._logger = logging.getLogger(__name__)
