@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "frontend" / "openapi.json"
+DEFAULT_OUTPUT = Path(__file__).resolve().parents[2] / "frontend" / "openapi.json"
 
 
 def main() -> int:

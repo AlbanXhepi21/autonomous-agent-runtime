@@ -31,10 +31,10 @@ htmlcov/
 .ruff_cache/
 
 # Agent runtime output: artifacts, approvals, generated reports
-var/
+backend/var/
 
 # Generated local benchmark reports
-reports/benchmark_*.json
+backend/reports/benchmark_*.json
 
 # Environment variables
 .env

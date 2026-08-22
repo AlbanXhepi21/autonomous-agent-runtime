@@ -50,10 +50,10 @@ available in the current context.
 
 ### Project Files
 
-- `.env`: local credentials and runtime values. This file is ignored and must not be committed.
-- `.env.example`: safe example of the required environment variables.
+- `backend/.env`: local credentials and runtime values. This file is ignored and must not be committed.
+- `backend/.env.example`: safe example of the required environment variables.
 - `.gitignore`: excludes credentials, virtual environments, caches, IDE files, and operating-system files.
-- `requirements.txt`: runtime and test dependencies.
+- `backend/pyproject.toml`: runtime and development dependencies, plus lint, type and test configuration.
 - `README.md`: short project introduction and setup commands.
 - `ARCHITECTURE.md`: this architecture and file guide.
 

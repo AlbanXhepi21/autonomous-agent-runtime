@@ -13,14 +13,14 @@ from evals.analytics import (
     GroundTruthLoader,
     load_analytics_dataset,
 )
-from tests.support import REPO_ROOT
+from tests.support import BACKEND_ROOT
 
-ROOT = REPO_ROOT
+ROOT = BACKEND_ROOT
 DATASET = ROOT / "evals" / "datasets" / "analytics_cases.json"
 # Ground truth lives in the sibling data-generator repository, which is not part
 # of this one. Cases that compare against it are skipped when it is not checked
 # out beside this repository rather than failing a clone that has only this.
-GROUND_TRUTH = ROOT.parents[0] / "DataGenerator" / "generator" / "ground_truth" / "scenarios.json"
+GROUND_TRUTH = ROOT.parents[1] / "DataGenerator" / "generator" / "ground_truth" / "scenarios.json"
 needs_ground_truth = pytest.mark.skipif(
     not GROUND_TRUTH.exists(), reason=f"ground truth not present at {GROUND_TRUTH}"
 )
