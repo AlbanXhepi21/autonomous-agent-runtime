@@ -2,16 +2,25 @@
 
 from pathlib import Path
 
+import pytest
+
 from app.runtime.state import AgentState, RunStatus
 from evals.analytics import (AnalyticsBenchmarkSummary, DeterministicAnalyticsEvaluator,
                                  GroundTruthLoader, load_analytics_dataset)
 from app.observability import RunMetrics, RunTrace, TraceEvent, TraceEventType
 from app.tools.execution.redaction import query_quality_metadata
+from tests.support import REPO_ROOT
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = REPO_ROOT
 DATASET = ROOT / "evals" / "datasets" / "analytics_cases.json"
+# Ground truth lives in the sibling data-generator repository, which is not part
+# of this one. Cases that compare against it are skipped when it is not checked
+# out beside this repository rather than failing a clone that has only this.
 GROUND_TRUTH = ROOT.parents[0] / "DataGenerator" / "generator" / "ground_truth" / "scenarios.json"
+needs_ground_truth = pytest.mark.skipif(
+    not GROUND_TRUTH.exists(), reason=f"ground truth not present at {GROUND_TRUTH}"
+)
 
 
 def state(answer: str) -> AgentState:
@@ -28,6 +37,7 @@ def trace(*tables: str, artifact_type: str | None = None) -> RunTrace:
                     events=events, metrics=RunMetrics(iterations=3, database_query_count=1, total_duration_ms=9))
 
 
+@needs_ground_truth
 def test_ground_truth_is_loaded_only_by_evaluator_and_cases_are_opaque() -> None:
     scenarios = GroundTruthLoader.load(GROUND_TRUTH)
     dataset = load_analytics_dataset(DATASET)
@@ -40,6 +50,7 @@ def test_ground_truth_is_loaded_only_by_evaluator_and_cases_are_opaque() -> None
     assert all("DataGenerator" not in source.read_text(encoding="utf-8") for source in runtime_sources if "evals" not in source.parts)
 
 
+@needs_ground_truth
 def test_root_cause_uses_evidence_not_exact_case_wording() -> None:
     scenarios = GroundTruthLoader.load(GROUND_TRUTH)
     case = next(item for item in load_analytics_dataset(DATASET).cases if item.id == "root_cause.mobile_checkout")

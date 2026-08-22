@@ -8,6 +8,7 @@ exposes the same helpers as fixtures for tests that prefer injection.
 one place rather than at every construction site.
 """
 
+from pathlib import Path
 from typing import Any
 
 from app.contracts.actions import AgentAction
@@ -15,6 +16,9 @@ from app.runtime.runner import AgentRunner
 from app.llm.contracts import LLMClient
 from app.skills.registry import SkillRegistry
 from app.tools.registry import ToolRegistry
+
+#: Resolved here so tests can move between directories without recounting parents.
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class ScriptedLLM(LLMClient):
