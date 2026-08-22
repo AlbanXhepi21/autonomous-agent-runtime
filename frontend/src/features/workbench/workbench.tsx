@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { ChatComposer } from "@/components/chat-composer";
-import { SafeMarkdown } from "@/components/markdown";
+import { ChatComposer } from "@/components/ui/chat-composer";
+import { SafeMarkdown } from "@/components/ui/markdown";
 import { conversationsApi } from "@/lib/api/conversations";
-import { RunAnalysis } from "./run-analysis";
-import { ArtifactPanel } from "@/components/artifact-panel";
-import { DatabaseExplorer } from "@/components/database-explorer";
-import { MemoryInspector } from "@/components/memory-inspector";
-import { ApprovalCard } from "@/components/approval-card";
-import { RunChartPreview } from "@/components/run-chart-preview";
-import { ChartRenderer } from "@/components/chart-renderer";
+import { RunAnalysis } from "@/features/workbench/components/run-analysis";
+import { ArtifactPanel } from "@/features/workbench/components/artifact-panel";
+import { DatabaseExplorer } from "@/features/workbench/components/database-explorer";
+import { MemoryInspector } from "@/features/workbench/components/memory-inspector";
+import { ApprovalCard } from "@/features/workbench/components/approval-card";
+import { RunChartPreview } from "@/features/workbench/components/run-chart-preview";
+import { ChartRenderer } from "@/features/workbench/components/chart-renderer";
 import { useAgentRun } from "./hooks/use-agent-run";
 import { useApprovals } from "./hooks/use-approvals";
 import { useConversations } from "./hooks/use-conversations";

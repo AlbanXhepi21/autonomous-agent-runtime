@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { explorerApi, type DatabaseTable, type TableDescription } from "@/lib/api/explorer";
+import { schemaApi, type DatabaseTable, type TableDescription } from "@/lib/api/schema";
 
 function isDatabaseTable(value: unknown): value is DatabaseTable {
   return Boolean(
@@ -19,7 +19,7 @@ export function DatabaseExplorer() {
   const [error, setError] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
-    void explorerApi
+    void schemaApi
       .tables()
       .then((result) =>
         setTables(Array.isArray(result?.tables) ? result.tables.filter(isDatabaseTable) : []),
@@ -36,7 +36,7 @@ export function DatabaseExplorer() {
     }
     setLoading(name);
     try {
-      setSelected(await explorerApi.table(name));
+      setSelected(await schemaApi.table(name));
       setError(null);
     } catch {
       setError("Table details are unavailable.");
