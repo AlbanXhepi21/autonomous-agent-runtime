@@ -12,7 +12,7 @@ from app.analytics.chart_specs import ChartSpecStore
 from app.analytics.charts import ChartSpec
 from app.core.logging import safe_error_message
 from app.conversations.store import ConversationStore
-from app.observability import TraceEvent, TraceEventType, TraceRecorder, TraceStatus
+from app.observability import TraceEvent, TraceEventType, TraceRecorder
 
 
 def _now() -> datetime:
