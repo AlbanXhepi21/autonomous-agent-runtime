@@ -18,7 +18,7 @@ from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
 from app.agent.policy import delegation_fingerprint, tool_action_fingerprint
 from app.agent.prompt import SYSTEM_PROMPT
-from app.agent.state import AgentState, Observation, RunStatus, StopReason, TaskSummary
+from app.agent.state import AgentState, Observation, RunStatus, StopReason
 from app.agent.steps.memory_step import MemoryStep
 from app.agent.steps.summarization_step import SummarizationStep
 from app.agent.summarization import (
@@ -35,12 +35,10 @@ from app.llm.pricing import PricingRegistry, estimate_cost
 from app.reliability import RetryPolicy, classify_llm_failure
 from app.reliability.retry import Sleep, default_sleep
 from app.memory.manager import MemoryManager
-from app.memory.models import Memory, MemoryType
-from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetriever
+from app.memory.retrieval import MemoryRetriever
 from app.memory.writing import MemoryWritingPipeline
 from app.security import Capability, PolicyDecision, PolicyResult, SecurityAction, SecurityPolicy, SecurityResource, SecuritySubject
 from app.security.approvals import ApprovalCheckpoint, ApprovalRequest, ApprovalStore, action_fingerprint, safe_argument_summary
-from app.security import injection_indicators
 from app.skills.registry import SkillRegistry
 from app.tools.execution import ToolExecutor
 from app.tools.models import ToolResult
