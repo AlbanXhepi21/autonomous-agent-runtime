@@ -95,6 +95,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Config */
+        get: operations["get_config_api_v1_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -1112,6 +1129,18 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * WorkbenchConfigResponse
+         * @description Server-owned switches the Workbench reflects in what it offers.
+         *
+         *     Advertising a capability is not the same as granting it: the endpoints
+         *     behind developer mode enforce it independently, so this only decides
+         *     whether the Workbench offers a control the server would honour.
+         */
+        WorkbenchConfigResponse: {
+            /** Developer Mode */
+            developer_mode: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -1278,6 +1307,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_config_api_v1_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkbenchConfigResponse"];
                 };
             };
         };
