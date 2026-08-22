@@ -15,12 +15,12 @@ DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "frontend" / "openapi.
 
 
 def main() -> int:
-    from app.main import app
+    from app.main import create_app
 
     output = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUTPUT
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n")
-    schemas = len(app.openapi().get("components", {}).get("schemas", {}))
+    output.write_text(json.dumps(create_app().openapi(), indent=2, sort_keys=True) + "\n")
+    schemas = len(create_app().openapi().get("components", {}).get("schemas", {}))
     print(f"Wrote {output} ({schemas} schemas)")
     return 0
 

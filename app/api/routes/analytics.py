@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.agent.runner import AgentRunner
-from app.api.dependencies import get_agent_runner, get_analytics_run_manager, get_conversation_store
-from app.api.run_manager import AnalyticsRunManager
+from app.composition import get_agent_runner, get_run_manager, get_conversation_store
+from app.orchestration.run_manager import AgentRunManager
 from app.api.schemas.analytics import CreateRunRequest, CreateRunResponse, PublicRunEventListResponse, RunMetricsResponse, RunResponse
 from app.analytics.charts import ChartSpec
 from app.conversations.store import ConversationStore
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["analytics-workbench"])
 
 @router.post("/runs", response_model=CreateRunResponse, status_code=202)
 async def create_run(request: CreateRunRequest, runner: AgentRunner = Depends(get_agent_runner),
-                     manager: AnalyticsRunManager = Depends(get_analytics_run_manager)) -> CreateRunResponse:
+                     manager: AgentRunManager = Depends(get_run_manager)) -> CreateRunResponse:
     try:
         run = await manager.create(request.message, request.conversation_id, runner)
     except (LookupError, ValueError):
@@ -26,7 +26,7 @@ async def create_run(request: CreateRunRequest, runner: AgentRunner = Depends(ge
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)
-async def get_run(run_id: str, manager: AnalyticsRunManager = Depends(get_analytics_run_manager), store: ConversationStore = Depends(get_conversation_store)) -> RunResponse:
+async def get_run(run_id: str, manager: AgentRunManager = Depends(get_run_manager), store: ConversationStore = Depends(get_conversation_store)) -> RunResponse:
     run = manager.get(run_id)
     if run is not None: return manager.response(run)
     persisted = await store.get_run(run_id)
@@ -41,7 +41,7 @@ async def get_run(run_id: str, manager: AnalyticsRunManager = Depends(get_analyt
 
 @router.get("/runs/{run_id}/events")
 async def stream_events(run_id: str, request: Request, last_event_id: str | None = Header(default=None),
-                        manager: AnalyticsRunManager = Depends(get_analytics_run_manager), store: ConversationStore = Depends(get_conversation_store)) -> StreamingResponse:
+                        manager: AgentRunManager = Depends(get_run_manager), store: ConversationStore = Depends(get_conversation_store)) -> StreamingResponse:
     run = manager.get(run_id)
     if run is None:
         if await store.get_run(run_id) is not None:
@@ -69,7 +69,7 @@ async def stream_events(run_id: str, request: Request, last_event_id: str | None
 
 
 @router.get("/runs/{run_id}/events/history", response_model=PublicRunEventListResponse)
-async def get_event_history(run_id: str, manager: AnalyticsRunManager = Depends(get_analytics_run_manager)) -> PublicRunEventListResponse:
+async def get_event_history(run_id: str, manager: AgentRunManager = Depends(get_run_manager)) -> PublicRunEventListResponse:
     """Return the same safe public event projection used by SSE for an in-process run."""
     run = manager.get(run_id)
     if run is None:

@@ -4,8 +4,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.agent.runner import AgentRunner
-from app.api.dependencies import get_agent_runner, get_analytics_run_manager, get_approval_store
-from app.api.run_manager import AnalyticsRunManager
+from app.composition import get_agent_runner, get_run_manager, get_approval_store
+from app.orchestration.run_manager import AgentRunManager
 from app.api.schemas.approvals import ApprovalResponse
 from app.core.logging import log_event
 from app.security.approvals import ApprovalConflictError, ApprovalStatus, ApprovalStore
@@ -31,7 +31,7 @@ async def list_approvals(run_id: str, store: ApprovalStore = Depends(get_approva
 
 
 @router.post("/approvals/{approval_id}/approve", response_model=ApprovalResponse)
-async def approve(approval_id: str, store: ApprovalStore = Depends(get_approval_store), runner: AgentRunner = Depends(get_agent_runner), manager: AnalyticsRunManager = Depends(get_analytics_run_manager)) -> ApprovalResponse:
+async def approve(approval_id: str, store: ApprovalStore = Depends(get_approval_store), runner: AgentRunner = Depends(get_agent_runner), manager: AgentRunManager = Depends(get_run_manager)) -> ApprovalResponse:
     try:
         request = await store.resolve(approval_id, ApprovalStatus.APPROVED)
     except KeyError: raise HTTPException(404, "Approval request not found.")
@@ -43,7 +43,7 @@ async def approve(approval_id: str, store: ApprovalStore = Depends(get_approval_
 
 
 @router.post("/approvals/{approval_id}/reject", response_model=ApprovalResponse)
-async def reject(approval_id: str, store: ApprovalStore = Depends(get_approval_store), runner: AgentRunner = Depends(get_agent_runner), manager: AnalyticsRunManager = Depends(get_analytics_run_manager)) -> ApprovalResponse:
+async def reject(approval_id: str, store: ApprovalStore = Depends(get_approval_store), runner: AgentRunner = Depends(get_agent_runner), manager: AgentRunManager = Depends(get_run_manager)) -> ApprovalResponse:
     try:
         request = await store.resolve(approval_id, ApprovalStatus.REJECTED)
     except KeyError: raise HTTPException(404, "Approval request not found.")

@@ -10,7 +10,7 @@ fail on either kind of drift.
 import re
 from pathlib import Path
 
-from app.api.run_manager import _PUBLIC_EVENT_TYPES
+from app.orchestration.run_manager import _PUBLIC_EVENT_TYPES
 
 EVENTS_TS = Path(__file__).resolve().parent.parent / "frontend" / "lib" / "api" / "events.ts"
 

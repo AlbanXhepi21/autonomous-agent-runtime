@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app.artifacts.store import ArtifactStore
-from app.api.dependencies import get_artifact_store
+from app.composition import get_artifact_store
 from app.core.logging import log_event
 
 router = APIRouter(prefix="/artifacts", tags=["artifacts"])

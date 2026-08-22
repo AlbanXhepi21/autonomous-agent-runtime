@@ -2,7 +2,8 @@
 from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
-from app.api.dependencies import get_memory_store, require_developer_mode
+from app.api.dependencies import require_developer_mode
+from app.composition import get_memory_store
 from app.memory.base import MemoryStore
 from app.memory.models import Memory, MemoryType
 from app.security.credentials import contains_secret_material
