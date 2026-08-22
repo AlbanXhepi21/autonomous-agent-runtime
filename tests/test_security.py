@@ -16,6 +16,7 @@ from app.skills.registry import SkillRegistry
 from app.tools.base import Tool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
+from tests.support import ScriptedLLM
 
 
 class CounterTool(Tool):
@@ -125,15 +126,10 @@ async def test_model_arguments_cannot_forge_subagent_identity() -> None:
     assert tool.calls == 0
 
 
-class ScriptedLLM:
-    def __init__(self) -> None:
-        self._actions = [
-            AgentAction(action_type="use_tool", reasoning_summary="try", tool_name="write_file", tool_arguments={"path": "x"}),
-            AgentAction(action_type="finish", reasoning_summary="continue", final_answer="used fallback"),
-        ]
-
-    async def choose_action(self, **_: Any) -> AgentAction:
-        return self._actions.pop(0)
+DENIED_THEN_FINISH = [
+    AgentAction(action_type="use_tool", reasoning_summary="try", tool_name="write_file", tool_arguments={"path": "x"}),
+    AgentAction(action_type="finish", reasoning_summary="continue", final_answer="used fallback"),
+]
 
 
 @pytest.mark.asyncio
@@ -143,7 +139,7 @@ async def test_agent_continues_after_security_denial() -> None:
     registry.register(tool)
     policy = SecurityPolicy.primary().with_specialist(definition("research", []))
     runner = AgentRunner(
-        ScriptedLLM(), registry, SkillRegistry(), limits=RuntimeLimits(max_iterations=3),
+        ScriptedLLM(DENIED_THEN_FINISH), registry, SkillRegistry(), limits=RuntimeLimits(max_iterations=3),
         security_policy=policy, security_agent_name="research", security_agent_type="specialist",
     )
 

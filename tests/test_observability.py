@@ -5,22 +5,11 @@ import pytest
 from app.agent.models import AgentAction
 from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder, TraceStatus
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
-
-
-class ScriptedLLM(LLMClient):
-    def __init__(self, actions: list[AgentAction]) -> None:
-        self._actions = actions
-        self._index = 0
-
-    async def choose_action(self, *, system_prompt: str, context: dict[str, object]) -> AgentAction:
-        action = self._actions[self._index]
-        self._index += 1
-        return action
+from tests.support import ScriptedLLM
 
 
 @pytest.mark.asyncio
