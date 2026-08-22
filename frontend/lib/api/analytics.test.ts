@@ -1,5 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import { analyticsApi } from "./analytics";
+import { PUBLIC_RUN_EVENT_TYPES } from "./events";
+
+describe("run event stream", () => {
+  it("subscribes to every public event type the server can project", () => {
+    const listeners: string[] = [];
+    class FakeEventSource {
+      onerror: (() => void) | null = null;
+      addEventListener(type: string) { listeners.push(type); }
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    analyticsApi.connect("run-1", () => {}, () => {});
+
+    // A type the server projects but the stream never registers is delivered in
+    // replayed history and dropped live, so the trace differs after a refresh.
+    expect([...listeners].sort()).toEqual([...PUBLIC_RUN_EVENT_TYPES].sort());
+    vi.unstubAllGlobals();
+  });
+});
 
 describe("analytics API", () => {
   it("uses the configured backend URL to create a run", async () => {
