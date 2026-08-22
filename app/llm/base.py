@@ -30,7 +30,7 @@ class LLMDecision(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    action: Any
+    action: AgentAction
     usage: LLMUsage | None = None
     model: str | None = Field(default=None, max_length=256)
     provider: str | None = Field(default=None, max_length=128)
@@ -39,6 +39,12 @@ class LLMDecision(BaseModel):
 
 class LLMClient(ABC):
     """An LLM provider that can choose the agent's next action."""
+
+    @property
+    def model(self) -> str | None:
+        """The model identifier to attribute a decision to, when one applies."""
+
+        return None
 
     @abstractmethod
     async def choose_action(
@@ -50,6 +56,14 @@ class LLMClient(ABC):
         """Produce a validated action from the current agent context."""
 
     async def choose_decision(self, *, system_prompt: str, context: dict[str, Any]) -> LLMDecision:
-        """Optional richer path; existing deterministic clients need only implement choose_action."""
+        """Return the action with provider metadata attached.
 
-        return LLMDecision(action=await self.choose_action(system_prompt=system_prompt, context=context))
+        The runtime calls only this method. Providers that carry token usage
+        override it; the rest implement choose_action and inherit this.
+        """
+
+        return LLMDecision(
+            action=await self.choose_action(system_prompt=system_prompt, context=context),
+            model=self.model,
+            provider=type(self).__name__,
+        )

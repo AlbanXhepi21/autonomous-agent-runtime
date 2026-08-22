@@ -212,7 +212,7 @@ async def test_runner_stops_at_iteration_limit() -> None:
     runner = build_runner(
         RepeatingToolLLM(),
         tools,
-        max_iterations=2,
+        limits=RuntimeLimits(max_iterations=2),
     )
 
     state = await runner.run("Calculate one plus one")
@@ -232,7 +232,7 @@ async def test_runner_continues_after_recoverable_tool_failure() -> None:
     runner = build_runner(
         llm,
         tools,
-        max_iterations=3,
+        limits=RuntimeLimits(max_iterations=3),
     )
 
     state = await runner.run("Recover from an invalid tool request")

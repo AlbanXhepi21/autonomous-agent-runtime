@@ -166,11 +166,16 @@ async def test_runtime_safely_rejects_a_validation_bypassing_malformed_delegatio
 
     state = await runner_for(llm).run("Check a malformed request")
 
+    # LLMDecision validates the action, so a payload that bypassed AgentAction's
+    # own validation is rejected at the provider boundary and retried, rather
+    # than reaching the delegation guard. Either way no delegation is fabricated;
+    # the boundary check covers every action type, not only delegate.
     assert state.completed
     assert state.delegation_requests == []
-    outcome = state.observations[0].content
-    assert isinstance(outcome, DelegationObservation)
-    assert outcome.status == "invalid"
+    assert not any(
+        isinstance(observation.content, DelegationObservation)
+        for observation in state.observations
+    )
 
 
 @pytest.mark.asyncio
