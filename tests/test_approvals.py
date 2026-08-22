@@ -16,6 +16,7 @@ from app.tools.base import Tool
 from app.tools.executor import ToolExecutor
 from app.tools.registry import ToolRegistry
 from tests.support import make_runner
+from app.llm.base import LLMClient
 
 
 class CounterTool(Tool):
@@ -31,7 +32,7 @@ class CounterTool(Tool):
         self.calls += 1; return "written"
 
 
-class Actions:
+class Actions(LLMClient):
     def __init__(self) -> None:
         self.actions = [
             AgentAction(action_type="use_tool", reasoning_summary="write", tool_name="write_file", tool_arguments={"path": "config/app.yaml", "content": "value"}),

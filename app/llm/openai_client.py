@@ -16,6 +16,10 @@ class OpenAIClient(LLMClient):
         self._client = AsyncOpenAI(api_key=api_key)
         self._model = model
 
+    @property
+    def model(self) -> str:
+        return self._model
+
     async def choose_action(
         self,
         *,

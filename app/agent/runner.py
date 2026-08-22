@@ -29,7 +29,6 @@ from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
 from pydantic import ValidationError
 from app.llm.base import LLMClient
-from app.llm.base import LLMDecision
 from app.llm.pricing import PricingRegistry, estimate_cost
 from app.reliability import RetryPolicy, classify_llm_failure
 from app.reliability.retry import Sleep, default_sleep
@@ -38,8 +37,8 @@ from app.memory.models import Memory, MemoryType
 from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetriever
 from app.memory.writing import MemoryWritingPipeline
 from app.security import Capability, PolicyDecision, PolicyResult, SecurityAction, SecurityPolicy, SecurityResource, SecuritySubject
-from app.security.approvals import ApprovalCheckpoint, ApprovalRequest, ApprovalStatus, ApprovalStore, action_fingerprint, safe_argument_summary
-from app.security import ContentTrust, injection_indicators
+from app.security.approvals import ApprovalCheckpoint, ApprovalRequest, ApprovalStore, action_fingerprint, safe_argument_summary
+from app.security import injection_indicators
 from app.skills.registry import SkillRegistry
 from app.tools.executor import ToolExecutor
 from app.tools.models import ToolResult
@@ -56,7 +55,6 @@ class AgentRunner:
         llm_client: LLMClient,
         tool_registry: ToolRegistry,
         skill_registry: SkillRegistry,
-        max_iterations: int | None = None,
         tool_executor: ToolExecutor | None = None,
         limits: RuntimeLimits | None = None,
         memory_manager: MemoryManager | None = None,
@@ -93,11 +91,7 @@ class AgentRunner:
         )
         self._skill_registry = skill_registry
         self._logger = logging.getLogger(__name__)
-        if limits is not None and max_iterations is not None:
-            raise ValueError("Provide either limits or max_iterations, not both.")
-        self._limits = limits or (
-            RuntimeLimits() if max_iterations is None else RuntimeLimits(max_iterations=max_iterations)
-        )
+        self._limits = limits or RuntimeLimits()
         self._summary_policy = summary_policy or SummaryPolicy()
         self._context_builder = ContextBuilder(
             tool_registry, skill_registry, self._limits,
@@ -213,18 +207,14 @@ class AgentRunner:
                 while True:
                     llm_span = self._trace_recorder.start_span(
                         state.run_id, TraceEventType.LLM_REQUEST_STARTED, name="llm_request", iteration=iteration,
-                        metadata={"provider": type(self._llm_client).__name__, "model": getattr(self._llm_client, "_model", None), "attempt": attempt},
+                        metadata={"provider": type(self._llm_client).__name__, "model": self._llm_client.model, "attempt": attempt},
                     )
                     try:
-                        choose_decision = getattr(self._llm_client, "choose_decision", None)
-                        decision = await (
-                            choose_decision(system_prompt=self._system_prompt, context=context)
-                            if callable(choose_decision)
-                            else self._llm_client.choose_action(system_prompt=self._system_prompt, context=context)
+                        # LLMDecision validates action as an AgentAction, so a provider
+                        # returning anything else fails here as invalid model output.
+                        decision = await self._llm_client.choose_decision(
+                            system_prompt=self._system_prompt, context=context
                         )
-                        candidate_action = decision.action if isinstance(decision, LLMDecision) else decision
-                        if not isinstance(candidate_action, AgentAction):
-                            raise ValueError("Provider did not return a valid agent action.")
                     except Exception as error:
                         failure = classify_llm_failure(error, run_id=state.run_id, iteration=iteration, attempt=attempt)
                         self._trace_recorder.finish_span(state.run_id, llm_span, TraceEventType.LLM_REQUEST_FAILED,
@@ -246,19 +236,17 @@ class AgentRunner:
                             metadata={"failure_category": failure.category.value, "source": failure.source, "attempt": attempt})
                         continue
                     break
-                llm_decision = decision if isinstance(decision, LLMDecision) else LLMDecision(
-                    action=decision, model=getattr(self._llm_client, "_model", None), provider=type(self._llm_client).__name__)
-                action = llm_decision.action
-                usage = llm_decision.usage
+                action = decision.action
+                usage = decision.usage
                 self._trace_recorder.finish_span(state.run_id, llm_span, TraceEventType.LLM_REQUEST_FINISHED,
                     iteration=iteration, success=True, metadata={
-                        "action_type": action.action_type, "provider": llm_decision.provider,
-                        "model": llm_decision.model, "input_tokens": usage.input_tokens if usage else None,
+                        "action_type": action.action_type, "provider": decision.provider,
+                        "model": decision.model, "input_tokens": usage.input_tokens if usage else None,
                         "output_tokens": usage.output_tokens if usage else None,
                         "cached_input_tokens": usage.cached_input_tokens if usage else None,
                         "cache_write_tokens": usage.cache_write_tokens if usage else None,
                         "reasoning_tokens": usage.reasoning_tokens if usage else None,
-                        "estimated_cost": estimate_cost(usage, self._pricing_registry.get(llm_decision.model), model=llm_decision.model),
+                        "estimated_cost": estimate_cost(usage, self._pricing_registry.get(decision.model), model=decision.model),
                     })
                 if attempt > 1:
                     self._trace_recorder.record(state.run_id, TraceEventType.RETRY_SUCCEEDED, iteration=iteration,
