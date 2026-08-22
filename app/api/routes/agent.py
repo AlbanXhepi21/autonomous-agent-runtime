@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from app.agent.runner import AgentRunner
-from app.api.dependencies import get_agent_runner
+from app.composition import get_agent_runner
 from app.api.schemas.agent import AgentRunRequest, AgentRunResponse, ToolOutcomeSummary
 from app.tools.models import ToolResult
 

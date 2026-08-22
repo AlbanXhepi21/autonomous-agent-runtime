@@ -1,10 +1,24 @@
 """Stable, frontend-facing contracts for the Data Analyst Workbench."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-from app.analytics.charts import ChartSpec
+from pydantic import BaseModel, Field
+from app.orchestration.views import (
+    PublicRunEvent,
+    PublicRunEventListResponse,
+    RunHistoryResponse,
+    RunMetricsResponse,
+    RunResponse,
+)
+
+# Re-exported so route modules name one source for request and response shapes.
+__all__ = [
+    "ConversationCreateRequest", "ConversationDetailResponse", "ConversationListResponse",
+    "ConversationResponse", "ConversationTitleRequest", "CreateRunRequest",
+    "CreateRunResponse", "MessageResponse", "PublicRunEvent",
+    "PublicRunEventListResponse", "RunHistoryResponse", "RunMetricsResponse", "RunResponse",
+]
 
 
 class CreateRunRequest(BaseModel):
@@ -54,55 +68,3 @@ class ConversationDetailResponse(ConversationResponse):
     messages_limit: int
     messages_offset: int
     runs: list["RunHistoryResponse"] = Field(default_factory=list)
-
-
-class RunMetricsResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    iterations: int = 0
-    tool_calls: int = 0
-    delegations: int = 0
-    total_duration_ms: int | None = None
-    database_query_count: int = 0
-    database_rows_returned: int = 0
-    database_rejected_query_count: int = 0
-    total_tokens: int | None = None
-    estimated_cost: float | None = None
-
-
-class RunHistoryResponse(BaseModel):
-    run_id: str
-    status: Literal["running", "completed", "failed", "waiting_for_approval"]
-    created_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    error: str | None = None
-    metrics: RunMetricsResponse | None = None
-    charts: list[ChartSpec] = Field(default_factory=list)
-
-
-class RunResponse(BaseModel):
-    run_id: str
-    conversation_id: str
-    status: Literal["running", "completed", "failed", "waiting_for_approval"]
-    created_at: datetime
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    final_response: str | None = None
-    error: str | None = None
-    metrics: RunMetricsResponse | None = None
-    charts: list[ChartSpec] = Field(default_factory=list)
-
-
-class PublicRunEvent(BaseModel):
-    """A deliberately small event envelope; never a serialized runtime object."""
-
-    id: str
-    run_id: str
-    type: str
-    timestamp: datetime
-    data: dict[str, Any] = Field(default_factory=dict)
-
-
-class PublicRunEventListResponse(BaseModel):
-    items: list[PublicRunEvent]

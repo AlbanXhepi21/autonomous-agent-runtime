@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.api.dependencies import get_conversation_store
+from app.composition import get_conversation_store
 from app.api.schemas.analytics import (ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, ConversationTitleRequest, MessageResponse, RunHistoryResponse, RunMetricsResponse)
 from app.analytics.charts import ChartSpec
 from app.conversations.store import ConversationStore

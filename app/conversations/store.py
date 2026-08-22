@@ -58,6 +58,11 @@ class ConversationStore:
 class PostgresConversationStore(ConversationStore):
     def __init__(self, database: Database) -> None: self._database = database
 
+    async def close(self) -> None:
+        """Release the connection pool this store owns, at application shutdown."""
+
+        await self._database.dispose()
+
     async def create_conversation(self, title: str = DEFAULT_CONVERSATION_TITLE) -> ConversationRecord:
         record = ConversationRecord(id=uuid4(), title=title, created_at=now(), updated_at=now())
         await self._commit(lambda session: session.add(record))

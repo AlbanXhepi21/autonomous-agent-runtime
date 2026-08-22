@@ -9,7 +9,7 @@ from app.analytics.models import (
     ForeignKeyRelationship,
     TableDescription,
 )
-from app.api.dependencies import get_analytics_inspector
+from app.composition import get_analytics_inspector
 
 router = APIRouter(prefix="/api/v1/schema", tags=["schema-explorer"])
 

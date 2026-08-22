@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from app.contracts.actions import AgentAction
-from app.api.dependencies import get_agent_runner, get_analytics_run_manager, get_conversation_store, get_trace_recorder
-from app.api.run_manager import AnalyticsRunManager
+from app.composition import get_agent_runner, get_run_manager, get_conversation_store, get_trace_recorder
+from app.orchestration.run_manager import AgentRunManager
 from app.llm.base import LLMClient
 from app.api.routes.analytics import router
 from app.observability import InMemoryTraceStore, TraceRecorder
@@ -24,7 +24,7 @@ class FinishLLM(LLMClient):
 
 def _client() -> TestClient:
     recorder = TraceRecorder(InMemoryTraceStore())
-    manager = AnalyticsRunManager(recorder, expose_sql=False, max_sql_chars=100)
+    manager = AgentRunManager(recorder, expose_sql=False, max_sql_chars=100)
     runner = make_runner(FinishLLM(), trace_recorder=recorder)
     test_app = FastAPI()
     test_app.add_middleware(
@@ -40,7 +40,7 @@ def _client() -> TestClient:
         async def get_assistant_message_for_run(self, run_id: str): return None
     test_app.dependency_overrides = {
         get_agent_runner: lambda: runner,
-        get_analytics_run_manager: lambda: manager,
+        get_run_manager: lambda: manager,
         get_trace_recorder: lambda: recorder,
         get_conversation_store: lambda: EmptyConversationStore(),
     }

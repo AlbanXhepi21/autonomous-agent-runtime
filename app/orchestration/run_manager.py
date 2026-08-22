@@ -1,4 +1,8 @@
-"""Process-local run coordinator and safe trace-to-workbench event projection."""
+"""Process-local run coordinator and safe trace-to-workbench event projection.
+
+Named for what it manages rather than for the Workbench that first needed it:
+every agent run goes through here, whatever interface requested it.
+"""
 
 import asyncio
 from dataclasses import dataclass, field
@@ -7,7 +11,7 @@ from uuid import uuid4
 
 from app.agent.runner import AgentRunner
 from app.agent.state import AgentState, RunStatus
-from app.api.schemas.analytics import PublicRunEvent, RunMetricsResponse, RunResponse
+from app.orchestration.views import PublicRunEvent, RunMetricsResponse, RunResponse
 from app.analytics.chart_specs import ChartSpecStore
 from app.analytics.charts import ChartSpec
 from app.core.logging import safe_error_message
@@ -34,7 +38,7 @@ class ManagedRun:
     task: asyncio.Task[None] | None = None
 
 
-class AnalyticsRunManager:
+class AgentRunManager:
     """Owns request lifecycle only; traces remain the source of streamed history."""
 
     def __init__(self, recorder: TraceRecorder, store: ConversationStore | None = None, chart_specs: ChartSpecStore | None = None, *, expose_sql: bool, max_sql_chars: int) -> None:

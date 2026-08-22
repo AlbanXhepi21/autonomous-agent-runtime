@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import get_trace_recorder
+from app.composition import get_trace_recorder
 from app.observability import RunTrace, TraceRecorder
 
 router = APIRouter(prefix="/runs", tags=["runs"])
