@@ -1,2 +1,2 @@
-export type ChartType = "line" | "bar" | "stacked_bar" | "area" | "pie" | "scatter" | "table" | "kpi";
-export interface ChartSpec { id: string; type: ChartType; title: string; description?: string | null; x_field?: string | null; y_fields: string[]; series: Array<{ field: string; label?: string | null }>; data: Array<Record<string, string | number | boolean | null>>; source_query_ids: string[]; created_at: string; kpis: Array<{ label: string; value: string; change?: string | null }>; formatting?: { currency?: string | null; decimal_places?: number | null; show_legend?: boolean }; run_id?: string; }
+/** Re-exported from the generated OpenAPI types; see types/api.ts. */
+export type { ChartSpec, ChartType } from "@/types/api";
