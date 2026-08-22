@@ -15,7 +15,7 @@ An observer contributes four things, all optional:
 
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from app.core.logging import log_event, safe_error_message, safe_log_value
