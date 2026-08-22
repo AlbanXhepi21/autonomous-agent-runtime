@@ -7,6 +7,7 @@ import pytest
 
 from app.config import Settings
 from app.memory import InMemoryMemoryStore, Memory, MemoryManager, MemoryType
+from tests.support import logged_event
 
 
 def test_postgres_backend_requires_a_database_url() -> None:
@@ -114,7 +115,7 @@ async def test_manager_creates_typed_memories_and_clears_only_run_working_memory
     assert [memory.id for memory in await manager.get_memories(MemoryType.WORKING)] != [working.id]
     assert (await manager.get_memories(MemoryType.EPISODIC))[0].id == episodic.id
     assert (await manager.get_memories(MemoryType.LONG_TERM))[0].id == durable.id
-    created = next(record.event_fields for record in caplog.records if record.getMessage() == "memory_created")
+    created = logged_event(caplog.records, "memory_created")
     assert created["run_id"] == "run-1"
     assert created["memory_id"] == str(working.id)
     assert created["memory_type"] is MemoryType.WORKING

@@ -28,7 +28,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.registry import ToolRegistry
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
-from tests.support import ScriptedLLM, make_runner
+from tests.support import logged_event, ScriptedLLM, make_runner
 
 
 def registries() -> tuple[ToolRegistry, SkillRegistry, AgentRegistry]:
@@ -143,7 +143,7 @@ async def test_unknown_specialist_cannot_bypass_registry_validation(
     assert state.delegation_requests == []
     assert isinstance(state.observations[0].content, DelegationObservation)
     assert state.observations[0].content.status == "invalid"
-    event = next(record.event_fields for record in caplog.records if record.getMessage() == "delegation_invalid")
+    event = logged_event(caplog.records, "delegation_invalid")
     assert event["target_agent"] == "not_registered"
     assert event["run_id"] == state.run_id
 
@@ -203,7 +203,7 @@ async def test_valid_delegation_is_requested_but_not_fabricated_or_executed(
     assert outcome.status == "unavailable"
     assert "child-agent execution is not available" in outcome.error
     assert not hasattr(outcome, "delegation_id")
-    event = next(record.event_fields for record in caplog.records if record.getMessage() == "delegation_requested")
+    event = logged_event(caplog.records, "delegation_requested")
     assert event["run_id"] == state.run_id
     assert event["iteration"] == 1
     assert event["target_agent"] == "research"

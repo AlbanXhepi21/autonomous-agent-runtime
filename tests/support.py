@@ -9,6 +9,7 @@ one place rather than at every construction site.
 """
 
 from pathlib import Path
+from collections.abc import Iterable
 from typing import Any
 
 from app.contracts.actions import AgentAction
@@ -66,3 +67,17 @@ def make_runner(
         skill_registry=skill_registry if skill_registry is not None else SkillRegistry(),
         **overrides,
     )
+
+
+def logged_event(records: "Iterable[Any]", event: str) -> dict[str, Any]:
+    """Return the fields of one logged event, naming it when it is absent.
+
+    Reading caplog with next() and no default turns a missing event into
+    StopIteration, and inside an async test into "coroutine raised
+    StopIteration", which says nothing about what was expected.
+    """
+
+    for record in records:
+        if record.getMessage() == event:
+            return record.event_fields
+    raise AssertionError(f"No {event!r} event was logged.")

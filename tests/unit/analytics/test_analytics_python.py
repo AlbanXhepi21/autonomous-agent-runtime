@@ -22,7 +22,11 @@ from app.tools.registry import ToolRegistry
 def setup_tool(tmp_path: Path) -> tuple[AnalyticsDatasetStore, AnalyzeDatasetTool, WorkspaceArtifactStore]:
     workspace = Workspace(tmp_path)
     datasets = AnalyticsDatasetStore(max_rows=10, max_bytes=2_000)
-    executor = PythonExecutor(workspace, allowed_imports=("pandas", "numpy", "matplotlib"), timeout_seconds=2)
+    # The first pandas and matplotlib import in a fresh environment spends a few
+    # seconds compiling bytecode, so a tight bound here fails once on any cold
+    # runner and passes forever after. Wide enough to survive that, tight enough
+    # to still catch a hang.
+    executor = PythonExecutor(workspace, allowed_imports=("pandas", "numpy", "matplotlib"), timeout_seconds=15)
     artifacts = WorkspaceArtifactStore(workspace, max_artifact_bytes=65_536)
     return datasets, AnalyzeDatasetTool(datasets, executor, artifacts), artifacts
 
