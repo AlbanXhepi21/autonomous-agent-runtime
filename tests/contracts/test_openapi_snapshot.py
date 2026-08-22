@@ -11,8 +11,9 @@ from pathlib import Path
 import pytest
 
 from app.main import create_app
+from tests.support import REPO_ROOT
 
-SNAPSHOT = Path(__file__).resolve().parent.parent / "frontend" / "openapi.json"
+SNAPSHOT = REPO_ROOT / "frontend" / "openapi.json"
 
 
 def test_committed_openapi_snapshot_matches_the_application() -> None:

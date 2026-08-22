@@ -9,9 +9,10 @@ from pydantic import ValidationError
 from evals.contracts import EvalCase, EvalDataset
 from evals.runner import EvalRunner, load_dataset, load_datasets
 from evals.reports import format_report
+from tests.support import REPO_ROOT
 
 
-DATASETS = Path(__file__).parents[1] / "evals" / "datasets"
+DATASETS = REPO_ROOT / "evals" / "datasets"
 
 
 def case(**updates: object) -> EvalCase:

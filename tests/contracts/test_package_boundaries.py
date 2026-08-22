@@ -9,8 +9,9 @@ than documented.
 import ast
 from collections import defaultdict
 from pathlib import Path
+from tests.support import REPO_ROOT
 
-APP = Path(__file__).resolve().parent.parent / "app"
+APP = REPO_ROOT / "app"
 
 # Packages that exist to be depended on, and so may not depend on the runtime.
 LEAF_PACKAGES = {"contracts", "core"}
