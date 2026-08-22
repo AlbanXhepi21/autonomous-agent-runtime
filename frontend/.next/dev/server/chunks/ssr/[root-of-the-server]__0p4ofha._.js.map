@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 10, "column": 0}, "map": {"version":3,"sources":["file:///Users/albanxhepi/Documents/ResearchAgent/autonomous-agent/frontend/app/page.tsx"],"sourcesContent":["import { Workbench } from \"@/features/workbench/workbench\";\n\nexport default function Home() { return <Workbench />; }\n"],"names":["Home","Workbench"],"mappings":";;;;;;;;;;;;AAEe,SAASA;IAAS,qBAAO,8OAACC;;;;;AAAc"}}]
-}

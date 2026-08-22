@@ -17,7 +17,12 @@ vevn/
 env/
 ENV/
 
+# Frontend dependencies and build output
 /frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+*.tsbuildinfo
+
 # Test and coverage output
 .pytest_cache/
 .coverage
