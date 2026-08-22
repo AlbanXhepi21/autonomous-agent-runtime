@@ -895,3 +895,35 @@ textarea {
 .table-detail-body .relationships li {
   color: var(--ink);
 }
+
+/* Route-level error and loading boundaries. */
+.boundary {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.boundary h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 21px;
+}
+.boundary p {
+  margin: 0;
+  font-size: 14px;
+}
+.boundary button {
+  margin-top: 6px;
+  border: 1px solid #b7d1da;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: #fff;
+  color: var(--accent-dark);
+  font-weight: 650;
+  cursor: pointer;
+}

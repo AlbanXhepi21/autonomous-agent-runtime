@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.orchestration.run_manager import _PUBLIC_EVENT_TYPES
 
-EVENTS_TS = Path(__file__).resolve().parent.parent / "frontend" / "lib" / "api" / "events.ts"
+EVENTS_TS = Path(__file__).resolve().parent.parent / "frontend" / "src" / "lib" / "api" / "events.ts"
 
 # Emitted directly by the projection rather than mapped from a trace event.
 SYNTHESISED = {"agent.started", "agent.completed"}

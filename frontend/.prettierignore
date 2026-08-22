@@ -1,5 +1,5 @@
 # Generated from the API schema by `npm run gen:api`; never edit or reformat.
-types/api.generated.ts
+src/types/api.generated.ts
 openapi.json
 
 .next/

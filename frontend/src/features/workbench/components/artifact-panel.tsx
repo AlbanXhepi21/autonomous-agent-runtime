@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { SafeMarkdown } from "@/components/markdown";
-import { explorerApi, type Artifact } from "@/lib/api/explorer";
+import { SafeMarkdown } from "@/components/ui/markdown";
+import { artifactsApi, type Artifact } from "@/lib/api/artifacts";
 
 export function ArtifactPanel({ runIds, refreshKey }: { runIds: string[]; refreshKey?: string }) {
   const [items, setItems] = useState<Artifact[]>([]);
@@ -10,14 +10,14 @@ export function ArtifactPanel({ runIds, refreshKey }: { runIds: string[]; refres
   const runKey = useMemo(() => runIds.join(","), [runIds]);
   useEffect(() => {
     const ids = runKey ? runKey.split(",") : [];
-    void Promise.all(ids.map((runId) => explorerApi.artifacts(runId)))
+    void Promise.all(ids.map((runId) => artifactsApi.list(runId)))
       .then((groups) => setItems(groups.flat()))
       .catch(() => setItems([]));
   }, [runKey, refreshKey]);
   const preview = async (artifact: Artifact) => {
     setSelected(artifact);
     if (!artifact.media_type.startsWith("image/"))
-      setContent((await explorerApi.preview(artifact.artifact_id)).content);
+      setContent((await artifactsApi.preview(artifact.artifact_id)).content);
   };
   return (
     <aside className="artifact-panel">
@@ -27,7 +27,7 @@ export function ArtifactPanel({ runIds, refreshKey }: { runIds: string[]; refres
         {items.map((artifact) => (
           <li key={artifact.artifact_id}>
             <button onClick={() => void preview(artifact)}>{artifact.name}</button>
-            <a href={explorerApi.downloadUrl(artifact.artifact_id)}>Download</a>
+            <a href={artifactsApi.downloadUrl(artifact.artifact_id)}>Download</a>
           </li>
         ))}
       </ul>
@@ -40,7 +40,7 @@ export function ArtifactPanel({ runIds, refreshKey }: { runIds: string[]; refres
           {selected.media_type.startsWith("image/") && (
             // Artifacts are served by the API, not the Next image optimiser.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={explorerApi.downloadUrl(selected.artifact_id)} alt={selected.name} />
+            <img src={artifactsApi.downloadUrl(selected.artifact_id)} alt={selected.name} />
           )}
         </section>
       )}

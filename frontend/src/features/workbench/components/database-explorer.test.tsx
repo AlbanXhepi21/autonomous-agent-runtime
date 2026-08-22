@@ -1,17 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DatabaseExplorer } from "./database-explorer";
-import { explorerApi } from "@/lib/api/explorer";
+import { schemaApi } from "@/lib/api/schema";
 
-vi.mock("@/lib/api/explorer", () => ({ explorerApi: { tables: vi.fn(), table: vi.fn() } }));
+vi.mock("@/lib/api/schema", () => ({ schemaApi: { tables: vi.fn(), table: vi.fn() } }));
 
 describe("DatabaseExplorer", () => {
   it("ignores malformed table entries and renders the backend table-detail contract", async () => {
-    vi.mocked(explorerApi.tables).mockResolvedValue({
+    vi.mocked(schemaApi.tables).mockResolvedValue({
       schemas: ["public"],
       tables: [undefined, { name: "orders", schema: "public" }] as never[],
     });
-    vi.mocked(explorerApi.table).mockResolvedValue({
+    vi.mocked(schemaApi.table).mockResolvedValue({
       name: "orders",
       schema: "public",
       primary_key: ["id"],

@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { explorerApi, type Artifact } from "@/lib/api/explorer";
+import { artifactsApi, type Artifact } from "@/lib/api/artifacts";
 
 export function RunChartPreview({ runId }: { runId: string }) {
   const [chart, setChart] = useState<Artifact | null>(null);
 
   useEffect(() => {
     let active = true;
-    void explorerApi
-      .artifacts(runId)
+    void artifactsApi
+      .list(runId)
       .then((items) => {
         if (active)
           setChart(
@@ -30,7 +30,7 @@ export function RunChartPreview({ runId }: { runId: string }) {
     <figure className="run-chart-preview">
       {/* eslint-disable-next-line @next/next/no-img-element -- charts are served
           by the API, not the Next image optimiser. */}
-      <img src={explorerApi.downloadUrl(chart.artifact_id)} alt={chart.name} />
+      <img src={artifactsApi.downloadUrl(chart.artifact_id)} alt={chart.name} />
       <figcaption>Generated chart: {chart.name}</figcaption>
     </figure>
   );
