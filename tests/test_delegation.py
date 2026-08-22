@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.agent.context import ContextBuilder
 from app.agent.delegation import DelegationObservation, DelegationRequest
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
 from app.agent.runner import AgentRunner
 from app.agent.state import AgentState

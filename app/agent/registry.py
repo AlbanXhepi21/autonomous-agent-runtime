@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.agent.definition import AgentDefinition, AgentMetadata
+from app.contracts.specialists import AgentDefinition, AgentMetadata
 from app.core.exceptions import AgentDefinitionError, UnknownAgentError
 from app.core.logging import log_event
 from app.skills.registry import SkillRegistry

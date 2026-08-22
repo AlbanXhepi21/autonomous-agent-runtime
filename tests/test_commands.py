@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.environment import CommandExecutor, PythonExecutor, Workspace

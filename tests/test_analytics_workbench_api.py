@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.api.dependencies import get_agent_runner, get_analytics_run_manager, get_conversation_store, get_trace_recorder
 from app.api.run_manager import AnalyticsRunManager
 from app.llm.base import LLMClient

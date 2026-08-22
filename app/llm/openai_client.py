@@ -5,7 +5,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.llm.base import LLMClient, LLMDecision, LLMUsage
 
 

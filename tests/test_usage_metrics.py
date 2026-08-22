@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.core.limits import RuntimeLimits
 from app.llm.base import LLMClient, LLMDecision, LLMUsage
 from app.llm.pricing import ModelPricing, PricingRegistry, estimate_cost

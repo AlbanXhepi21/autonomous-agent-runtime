@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.runner import AgentRunner
 from app.agent.state import StopReason
 from app.core.limits import RuntimeLimits

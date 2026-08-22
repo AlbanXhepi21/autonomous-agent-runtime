@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.analytics.models import DatabaseSchemaSummary, DatabaseTable
 from app.analytics.policy import AnalyticsSchemaPolicy
 from app.analytics.sql.executor import AnalyticsQueryError, AnalyticsSQLExecutor, _serialize_value

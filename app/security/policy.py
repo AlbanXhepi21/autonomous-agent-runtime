@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from collections.abc import Iterable
 
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.security.models import Capability, PolicyDecision, PolicyResult, RiskAssessment, RiskLevel, SecurityAction, SecuritySubject
 from app.security.permissions import capabilities_for_tools
 from app.security.risk import RiskClassifier

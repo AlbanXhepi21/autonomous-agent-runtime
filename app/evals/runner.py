@@ -7,7 +7,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Callable
 
-from app.agent.models import AgentAction
+from app.contracts.actions import AgentAction
 from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.evals.evaluators import DEFAULT_EVALUATORS, Evaluator

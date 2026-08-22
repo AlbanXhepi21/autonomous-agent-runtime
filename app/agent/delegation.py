@@ -8,7 +8,7 @@ from typing import Callable, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value

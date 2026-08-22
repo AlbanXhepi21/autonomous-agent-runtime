@@ -6,7 +6,7 @@ import pytest
 
 from app.agent.context import ContextBuilder
 from app.agent.delegation import DelegationContext, DelegationMemory
-from app.agent.definition import AgentDefinition
+from app.contracts.specialists import AgentDefinition
 from app.agent.state import AgentState, Observation
 from app.core.limits import RuntimeLimits
 from app.environment.workspace import Workspace

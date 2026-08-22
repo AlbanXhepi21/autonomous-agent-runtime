@@ -8,7 +8,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from app.agent.state import AgentState
+from app.contracts.runs import CompletedRun
 from app.core.logging import log_event, safe_error_message
 from app.memory.manager import MemoryManager
 from app.memory.models import Memory, MemoryType
@@ -41,14 +41,14 @@ class MemoryCandidate(BaseModel):
 class MemoryCandidateExtractor(Protocol):
     """Propose candidates only; implementations have no access to storage."""
 
-    async def extract(self, state: AgentState) -> Sequence[MemoryCandidate]:
+    async def extract(self, state: CompletedRun) -> Sequence[MemoryCandidate]:
         """Return potential future-useful memories from a completed run."""
 
 
 class DeterministicMemoryCandidateExtractor:
     """Extract only explicit task-summary decisions and clear durable outcomes."""
 
-    async def extract(self, state: AgentState) -> Sequence[MemoryCandidate]:
+    async def extract(self, state: CompletedRun) -> Sequence[MemoryCandidate]:
         if not state.completed:
             return []
         candidates: list[MemoryCandidate] = []
@@ -127,7 +127,7 @@ class MemoryWritingPipeline:
         self._policy = policy or MemoryPolicy()
         self._logger = logging.getLogger(__name__)
 
-    async def capture_completed_run(self, state: AgentState, *, session_id: str | None = None) -> None:
+    async def capture_completed_run(self, state: CompletedRun, *, session_id: str | None = None) -> None:
         """Best-effort curation; failure must never change a completed run result."""
 
         if not state.completed:
