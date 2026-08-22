@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.agent import router as agent_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.approvals import router as approval_router
+from app.api.routes.config import router as config_router
 from app.api.routes.artifacts import router as artifact_router
 from app.api.routes.conversations import router as conversations_router
 from app.api.routes.memory import router as memory_router
@@ -25,6 +26,7 @@ ROUTERS = (
     conversations_router,
     schema_router,
     memory_router,
+    config_router,
 )
 
 

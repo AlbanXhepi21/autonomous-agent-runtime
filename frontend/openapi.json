@@ -1974,6 +1974,21 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WorkbenchConfigResponse": {
+        "additionalProperties": false,
+        "description": "Server-owned switches the Workbench reflects in what it offers.\n\nAdvertising a capability is not the same as granting it: the endpoints\nbehind developer mode enforce it independently, so this only decides\nwhether the Workbench offers a control the server would honour.",
+        "properties": {
+          "developer_mode": {
+            "title": "Developer Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "developer_mode"
+        ],
+        "title": "WorkbenchConfigResponse",
+        "type": "object"
       }
     }
   },
@@ -2204,6 +2219,27 @@
         "summary": "Get Event History",
         "tags": [
           "analytics-workbench"
+        ]
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "operationId": "get_config_api_v1_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkbenchConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Config",
+        "tags": [
+          "config"
         ]
       }
     },

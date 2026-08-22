@@ -5,6 +5,7 @@ import { analyticsApi } from "@/lib/api/analytics";
 import { conversationsApi } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/client";
 import { approvalsApi } from "@/lib/api/approvals";
+import { configApi } from "@/lib/api/config";
 import type { PublicRunEvent } from "@/types/analytics";
 
 vi.mock("@/lib/api/analytics", () => ({
@@ -22,6 +23,7 @@ vi.mock("@/lib/api/conversations", () => ({
 vi.mock("@/lib/api/approvals", () => ({
   approvalsApi: { list: vi.fn(), approve: vi.fn(), reject: vi.fn() },
 }));
+vi.mock("@/lib/api/config", () => ({ configApi: { get: vi.fn() } }));
 
 describe("Workbench", () => {
   const connect = vi.mocked(analyticsApi.connect);
@@ -34,6 +36,17 @@ describe("Workbench", () => {
       offset: 0,
     });
     vi.mocked(approvalsApi.list).mockResolvedValue([]);
+    vi.mocked(configApi.get).mockResolvedValue({ developer_mode: false });
+  });
+
+  it("offers the memory inspector only when the server reports developer mode", async () => {
+    render(<Workbench />);
+    await waitFor(() => expect(configApi.get).toHaveBeenCalled());
+    expect(screen.queryByText(/memory/i)).not.toBeInTheDocument();
+
+    vi.mocked(configApi.get).mockResolvedValue({ developer_mode: true });
+    render(<Workbench />);
+    await waitFor(() => expect(screen.getAllByText(/memory/i).length).toBeGreaterThan(0));
   });
 
   it("submits a message and shows running status", async () => {

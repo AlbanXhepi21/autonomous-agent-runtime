@@ -14,9 +14,11 @@ import { ChartRenderer } from "@/features/workbench/components/chart-renderer";
 import { useAgentRun } from "./hooks/use-agent-run";
 import { useApprovals } from "./hooks/use-approvals";
 import { useConversations } from "./hooks/use-conversations";
+import { useWorkbenchConfig } from "./hooks/use-workbench-config";
 
 export function Workbench() {
   const conversations = useConversations();
+  const config = useWorkbenchConfig();
   const { load: loadConversations, setConversationId } = conversations;
 
   const approvals = useApprovals();
@@ -172,7 +174,7 @@ export function Workbench() {
             .join(",")}
         />
         <DatabaseExplorer />
-        {process.env.NEXT_PUBLIC_DEVELOPER_MODE === "true" && <MemoryInspector />}
+        {config.developer_mode && <MemoryInspector />}
       </aside>
       <section className="conversation">
         <header>

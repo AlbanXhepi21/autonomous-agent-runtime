@@ -40,6 +40,7 @@ export type ConversationList = Always<Schemas["ConversationListResponse"]>;
 export type ConversationDetail = Always<Schemas["ConversationDetailResponse"]>;
 
 export type Approval = Always<Schemas["ApprovalResponse"]>;
+export type WorkbenchConfig = Always<Schemas["WorkbenchConfigResponse"]>;
 
 /** The runtime's artifact record, as embedded in an agent run response. */
 export type Artifact = Always<Schemas["Artifact"]>;
