@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from app.analytics.database import AnalyticsDatabaseError
-from app.analytics.inspector import PostgreSQLInspector, UnknownAnalyticsTableError
+from app.analytics.connection import AnalyticsDatabaseError
+from app.analytics.schema.inspector import PostgreSQLInspector, UnknownAnalyticsTableError
 from app.tools.base import Tool, ToolExecutionError, ToolInputError
 
 

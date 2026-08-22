@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from app.analytics.datasets import AnalyticsDatasetStore
+from app.analytics.semantics.datasets import AnalyticsDatasetStore
 from app.artifacts.store import ArtifactStore
 from app.environment.python import PythonExecutor
 from app.tools.base import Tool, ToolExecutionError, ToolInputError

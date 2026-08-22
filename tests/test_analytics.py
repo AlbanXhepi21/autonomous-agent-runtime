@@ -4,7 +4,7 @@
 import pytest
 
 from app.contracts.specialists import AgentDefinition
-from app.analytics.contracts import DatabaseColumn, DatabaseSchemaSummary, DatabaseTable, ForeignKeyRelationship, TableDescription
+from app.analytics.schema.contracts import DatabaseColumn, DatabaseSchemaSummary, DatabaseTable, ForeignKeyRelationship, TableDescription
 from app.config import Settings
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.security import Capability, PolicyDecision, SecurityAction, SecurityPolicy, SecuritySubject
@@ -23,7 +23,7 @@ class Inspector:
 
     async def describe_table(self, name: str) -> TableDescription:
         if name != "orders":
-            from app.analytics.inspector import UnknownAnalyticsTableError
+            from app.analytics.schema.inspector import UnknownAnalyticsTableError
             raise UnknownAnalyticsTableError(f"Unknown table: {name}.")
         return self.orders
 

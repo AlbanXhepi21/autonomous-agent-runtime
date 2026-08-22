@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.analytics.charts import ChartSpec
+from app.analytics.presentation.charts import ChartSpec
 
 RunStatusLiteral = Literal["running", "completed", "failed", "waiting_for_approval"]
 

@@ -1,5 +1,5 @@
 from typing import Any
-from app.analytics.metrics import MetricRegistry
+from app.analytics.semantics.metrics import MetricRegistry
 from app.tools.base import Tool, ToolInputError
 
 class ListMetricsTool(Tool):

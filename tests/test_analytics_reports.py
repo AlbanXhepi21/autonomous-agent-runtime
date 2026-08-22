@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.analytics.datasets import AnalyticsDatasetStore
+from app.analytics.semantics.datasets import AnalyticsDatasetStore
 from app.artifacts.store import WorkspaceArtifactStore
 from app.environment.workspace import Workspace
 from app.tools.database.report import GenerateReportTool

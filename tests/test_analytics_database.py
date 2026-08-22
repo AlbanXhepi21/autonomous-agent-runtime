@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.analytics.database import AnalyticsDatabase
+from app.analytics.connection import AnalyticsDatabase
 
 
 class _Connection:

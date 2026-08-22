@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.composition import get_conversation_store
 from app.api.schemas.analytics import (ConversationCreateRequest, ConversationDetailResponse, ConversationListResponse, ConversationResponse, ConversationTitleRequest, MessageResponse, RunHistoryResponse, RunMetricsResponse)
-from app.analytics.charts import ChartSpec
+from app.analytics.presentation.charts import ChartSpec
 from app.conversations.store import ConversationStore
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])

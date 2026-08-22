@@ -9,7 +9,7 @@ from app.runtime.runner import AgentRunner
 from app.composition import get_agent_runner, get_run_manager, get_conversation_store
 from app.orchestration.run_manager import AgentRunManager
 from app.api.schemas.analytics import CreateRunRequest, CreateRunResponse, PublicRunEventListResponse, RunMetricsResponse, RunResponse
-from app.analytics.charts import ChartSpec
+from app.analytics.presentation.charts import ChartSpec
 from app.conversations.store import ConversationStore
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics-workbench"])

@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from app.analytics.database import AnalyticsDatabaseError
-from app.analytics.datasets import AnalyticsDatasetStore
-from app.analytics.inspector import PostgreSQLInspector
+from app.analytics.connection import AnalyticsDatabaseError
+from app.analytics.semantics.datasets import AnalyticsDatasetStore
+from app.analytics.schema.inspector import PostgreSQLInspector
 from app.analytics.sql import AnalyticsQueryError, AnalyticsSQLExecutor, PostgreSQLQueryValidator
 from app.tools.base import Tool, ToolExecutionError, ToolInputError
 
