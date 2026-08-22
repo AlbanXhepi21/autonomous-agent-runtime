@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from app.observability.models import RunMetrics, RunTrace, TraceEventType
+from app.observability.models import RunMetrics, RunTrace
 
 
 class SystemRunMetrics(BaseModel):

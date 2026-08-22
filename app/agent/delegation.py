@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.contracts.specialists import AgentDefinition
 from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
-from app.core.logging import log_event, safe_error_message, safe_log_value
+from app.core.logging import log_event, safe_error_message
 from app.llm.base import LLMClient
 from app.llm.pricing import PricingRegistry
 from app.security import ContentTrust, SecurityPolicy

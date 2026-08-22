@@ -1,7 +1,6 @@
 """Data Analyst Workbench HTTP and SSE endpoints."""
 
 import asyncio
-import json
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse

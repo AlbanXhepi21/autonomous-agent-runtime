@@ -1,7 +1,6 @@
 """Typed, evidence-linked analytical report contracts and Markdown rendering."""
 
 from enum import StrEnum
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
