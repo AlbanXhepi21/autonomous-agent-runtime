@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from app.core.exceptions import SkillMetadataError, UnknownSkillError
-from app.skills.models import SkillMetadata
+from app.skills.contracts import SkillMetadata
 
 
 @dataclass(frozen=True, slots=True)

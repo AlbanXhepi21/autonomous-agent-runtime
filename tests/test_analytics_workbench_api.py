@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.contracts.actions import AgentAction
 from app.composition import get_agent_runner, get_run_manager, get_conversation_store, get_trace_recorder
 from app.orchestration.run_manager import AgentRunManager
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.api.routes.analytics import router
 from app.observability import InMemoryTraceStore, TraceRecorder
 from tests.support import make_runner

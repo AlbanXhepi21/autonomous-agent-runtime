@@ -34,7 +34,7 @@ from app.security import (
 from app.tools.base import Tool, ToolExecutionError, ToolInputError
 from app.tools.execution.observers import ToolObserver, observers_for
 from app.tools.execution.redaction import safe_logged_arguments, safe_sql_for_trace
-from app.tools.models import ToolResult
+from app.tools.contracts import ToolResult
 from app.tools.registry import ToolRegistry
 
 

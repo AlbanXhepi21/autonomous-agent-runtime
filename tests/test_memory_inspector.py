@@ -2,7 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.routes.memory import _safe
-from app.memory.models import Memory, MemoryType
+from app.memory.records import Memory, MemoryType
 
 
 def test_memory_inspector_exposes_actual_provenance() -> None:

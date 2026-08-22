@@ -7,7 +7,7 @@ import pytest
 from app.contracts.actions import AgentAction
 from app.agent.registry import AgentRegistry
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder
 from app.skills.registry import SkillRegistry
 from app.tools.base import Tool

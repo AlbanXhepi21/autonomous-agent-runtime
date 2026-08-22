@@ -3,7 +3,7 @@
 from collections.abc import Mapping, Iterable
 from typing import Any
 
-from app.security.models import Capability, SecurityResource
+from app.security.contracts import Capability, SecurityResource
 
 _TOOL_CAPABILITIES = {
     "calculator": Capability.CALCULATOR_EVALUATE,

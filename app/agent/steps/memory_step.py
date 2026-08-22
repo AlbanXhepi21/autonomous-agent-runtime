@@ -11,7 +11,7 @@ from time import perf_counter
 from app.contracts.runs import CompletedRun
 from app.core.logging import log_event, safe_error_message
 from app.memory.manager import MemoryManager
-from app.memory.models import Memory, MemoryType
+from app.memory.records import Memory, MemoryType
 from app.memory.retrieval import MemoryRetrievalRequest, MemoryRetriever
 from app.memory.writing import MemoryWritingPipeline
 from app.observability import TraceEventType, TraceRecorder

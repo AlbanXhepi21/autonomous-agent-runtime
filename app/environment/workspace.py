@@ -6,8 +6,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from app.core.logging import log_event
-from app.environment.models import WorkspaceLimits
-from app.environment.policy import WorkspacePathPolicy
+from app.environment.contracts import WorkspaceLimits
+from app.environment.policies import WorkspacePathPolicy
 
 
 class WorkspaceError(ValueError):

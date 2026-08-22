@@ -11,10 +11,10 @@ from app.contracts.actions import AgentAction
 from app.agent.runner import AgentRunner
 from app.core.limits import RuntimeLimits
 from app.evals.evaluators import DEFAULT_EVALUATORS, Evaluator
-from app.evals.models import EvalCase, EvalDataset, EvalResult, SuiteReport
+from app.evals.contracts import EvalCase, EvalDataset, EvalResult, SuiteReport
 from app.evals.reports import format_report
 from app.evals.trajectory import Trajectory
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.observability import InMemoryTraceStore, TraceRecorder, aggregate_run_metrics
 from app.skills.registry import SkillRegistry
 from app.tools.calculator import CalculatorTool

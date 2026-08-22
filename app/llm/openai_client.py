@@ -6,7 +6,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.contracts.actions import AgentAction
-from app.llm.base import LLMClient, LLMDecision, LLMUsage
+from app.llm.contracts import LLMClient, LLMDecision, LLMUsage
 
 
 class OpenAIClient(LLMClient):

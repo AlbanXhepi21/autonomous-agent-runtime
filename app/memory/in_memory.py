@@ -4,8 +4,8 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import UUID
 
-from app.memory.base import MemoryStore
-from app.memory.models import Memory, MemoryType
+from app.memory.store import MemoryStore
+from app.memory.records import Memory, MemoryType
 
 
 class InMemoryMemoryStore(MemoryStore):

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from app.memory.models import Memory, MemoryType
+from app.memory.records import Memory, MemoryType
 
 
 class MemoryStore(ABC):

@@ -9,7 +9,7 @@ from app.agent.runner import AgentRunner
 from app.agent.state import AgentState, Observation, TaskSummary
 from app.agent.summarization import SummaryPolicy, TaskSummarizer
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.memory import (
     InMemoryMemoryStore, MemoryCandidate, MemoryCategory, MemoryManager, MemoryRetriever,
     MemoryType, MemoryWritingPipeline,

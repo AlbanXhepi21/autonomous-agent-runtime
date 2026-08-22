@@ -1,6 +1,6 @@
 """Deterministic semantic risk classification for normalized actions."""
 
-from app.security.models import (
+from app.security.contracts import (
     Capability, RiskAssessment, RiskCategory, RiskLevel, SecurityAction,
     SecurityEnvironment, SecuritySubject,
 )

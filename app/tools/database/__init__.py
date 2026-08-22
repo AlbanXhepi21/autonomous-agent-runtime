@@ -8,6 +8,6 @@ from app.tools.database.query import QueryDatabaseTool
 from app.tools.database.analyze import AnalyzeDatasetTool
 from app.tools.database.chart import CreateChartTool
 from app.tools.database.report import GenerateReportTool
-from app.tools.database.metrics import ListMetricsTool, DescribeMetricTool
+from app.tools.database.metric_tools import ListMetricsTool, DescribeMetricTool
 
 __all__ = ["AnalyzeDatasetTool", "CreateChartTool", "DescribeMetricTool", "DescribeTableTool", "GenerateReportTool", "GetTableRelationshipsTool", "ListMetricsTool", "ListTablesTool", "QueryDatabaseTool", "SearchSchemaTool"]

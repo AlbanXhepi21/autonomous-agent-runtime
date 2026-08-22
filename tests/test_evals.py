@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.evals.models import EvalCase, EvalDataset
+from app.evals.contracts import EvalCase, EvalDataset
 from app.evals.runner import EvalRunner, load_dataset, load_datasets
 from app.evals.reports import format_report
 

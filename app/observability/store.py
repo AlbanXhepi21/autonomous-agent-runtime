@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from app.observability.models import RunTrace
+from app.observability.events import RunTrace
 
 
 class TraceStore(Protocol):

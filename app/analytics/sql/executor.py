@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from app.analytics.database import AnalyticsDatabase, AnalyticsDatabaseError
 from app.analytics.sql.limits import AnalyticsQueryLimits
-from app.analytics.sql.models import SQLColumn, SQLQueryResult
+from app.analytics.sql.contracts import SQLColumn, SQLQueryResult
 
 
 class AnalyticsQueryError(RuntimeError):

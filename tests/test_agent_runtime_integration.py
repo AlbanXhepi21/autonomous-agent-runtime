@@ -8,7 +8,7 @@ from app.contracts.actions import AgentAction
 from app.agent.runner import AgentRunner
 from app.agent.state import StopReason
 from app.core.limits import RuntimeLimits
-from app.llm.base import LLMClient
+from app.llm.contracts import LLMClient
 from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry

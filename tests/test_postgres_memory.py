@@ -9,7 +9,7 @@ from pytest_asyncio import fixture
 pytest.importorskip("sqlalchemy")
 
 from app.db.session import Database
-from app.memory.models import Memory, MemoryType
+from app.memory.records import Memory, MemoryType
 from app.memory.postgres import PostgresMemoryStore
 
 pytestmark = pytest.mark.postgres

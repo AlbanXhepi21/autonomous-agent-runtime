@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.security.approvals import ApprovalStatus
-from app.security.models import Capability
+from app.security.contracts import Capability
 
 
 class ApprovalResponse(BaseModel):

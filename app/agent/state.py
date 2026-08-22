@@ -11,8 +11,8 @@ from app.agent.delegation import (
     ParallelDelegationResult,
     SubagentResult,
 )
-from app.tools.models import ToolResult
-from app.artifacts.models import Artifact
+from app.tools.contracts import ToolResult
+from app.artifacts.contracts import Artifact
 
 
 class Observation(BaseModel):

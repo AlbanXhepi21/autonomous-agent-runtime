@@ -1,6 +1,6 @@
 """Deterministic V7.2 runtime evaluation framework."""
 
-from app.evals.models import EvalCase, EvalDataset, EvalResult, EvaluatorResult, SuiteReport
+from app.evals.contracts import EvalCase, EvalDataset, EvalResult, EvaluatorResult, SuiteReport
 from app.evals.analytics import AnalyticsBenchmarkSummary, AnalyticsEvalCase, AnalyticsEvalDataset, GroundTruthLoader
 
 __all__ = ["EvalCase", "EvalDataset", "EvalResult", "EvalRunner", "EvaluatorResult", "SuiteReport", "load_dataset", "load_datasets",

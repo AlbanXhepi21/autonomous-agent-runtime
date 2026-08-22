@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
-from app.reliability.models import FailureCategory, RuntimeFailure
+from app.reliability.contracts import FailureCategory, RuntimeFailure
 
 
 @dataclass(frozen=True, slots=True)
