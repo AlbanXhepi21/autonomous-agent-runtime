@@ -2,8 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.analytics import PostgreSQLInspector
-from app.analytics.inspector import UnknownAnalyticsTableError
-from app.analytics.contracts import (
+from app.analytics.schema.inspector import UnknownAnalyticsTableError
+from app.analytics.schema.contracts import (
     DatabaseSchemaSummary,
     DatabaseTable,
     ForeignKeyRelationship,

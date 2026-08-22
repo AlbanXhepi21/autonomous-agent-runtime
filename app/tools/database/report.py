@@ -4,8 +4,8 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from app.analytics.datasets import AnalyticsDatasetStore
-from app.analytics.reports import AnalyticalReport, render_markdown
+from app.analytics.semantics.datasets import AnalyticsDatasetStore
+from app.analytics.presentation.reports import AnalyticalReport, render_markdown
 from app.artifacts.store import ArtifactStore
 from app.environment.workspace import Workspace
 from app.tools.base import Tool, ToolExecutionError, ToolInputError

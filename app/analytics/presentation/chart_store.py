@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.analytics.charts import ChartSpec
+from app.analytics.presentation.charts import ChartSpec
 
 
 class ChartSpecStore:

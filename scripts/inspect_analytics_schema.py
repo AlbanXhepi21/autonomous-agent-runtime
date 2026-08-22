@@ -1,14 +1,14 @@
 """Developer-only command for safe external analytics schema discovery.
 
-Run: python -m app.analytics.inspect [table_name]
+Run: python -m scripts.inspect_analytics_schema [table_name]
 """
 
 import asyncio
 import sys
 
 from app.analytics import AnalyticsDatabase, PostgreSQLInspector
-from app.analytics.database import AnalyticsDatabaseError
-from app.analytics.allowlist import AnalyticsSchemaPolicy
+from app.analytics.connection import AnalyticsDatabaseError
+from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
 from app.config import Settings
 
 

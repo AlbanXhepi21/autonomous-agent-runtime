@@ -5,7 +5,7 @@ from collections.abc import Iterable
 import sqlglot
 from sqlglot import exp
 
-from app.analytics.allowlist import AnalyticsSchemaPolicy
+from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
 from app.analytics.sql.contracts import SQLValidationResult
 
 

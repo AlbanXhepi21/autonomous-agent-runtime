@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.analytics.charts import ChartSpec
+from app.analytics.presentation.charts import ChartSpec
 
 
 def test_chart_spec_validates_bounded_data_and_fields() -> None:

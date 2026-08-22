@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from app.analytics.chart_specs import ChartSpecStore
-from app.analytics.charts import ChartSpec
-from app.analytics.datasets import AnalyticsDatasetStore
+from app.analytics.presentation.chart_store import ChartSpecStore
+from app.analytics.presentation.charts import ChartSpec
+from app.analytics.semantics.datasets import AnalyticsDatasetStore
 from app.tools.base import Tool, ToolInputError
 
 

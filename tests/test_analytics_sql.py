@@ -8,8 +8,8 @@ from uuid import uuid4
 import pytest
 
 from app.contracts.specialists import AgentDefinition
-from app.analytics.contracts import DatabaseSchemaSummary, DatabaseTable
-from app.analytics.allowlist import AnalyticsSchemaPolicy
+from app.analytics.schema.contracts import DatabaseSchemaSummary, DatabaseTable
+from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
 from app.analytics.sql.executor import AnalyticsQueryError, AnalyticsSQLExecutor, _serialize_value
 from app.analytics.sql.limits import AnalyticsQueryLimits
 from app.analytics.sql.contracts import SQLColumn, SQLQueryResult

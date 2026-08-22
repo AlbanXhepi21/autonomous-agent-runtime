@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from app.analytics.datasets import AnalyticsDatasetStore
-from app.analytics.contracts import DatabaseSchemaSummary, DatabaseTable
-from app.analytics.allowlist import AnalyticsSchemaPolicy
+from app.analytics.semantics.datasets import AnalyticsDatasetStore
+from app.analytics.schema.contracts import DatabaseSchemaSummary, DatabaseTable
+from app.analytics.schema.allowlist import AnalyticsSchemaPolicy
 from app.analytics.sql.contracts import SQLColumn, SQLQueryResult
 from app.analytics.sql.validator import PostgreSQLQueryValidator
 from app.artifacts.store import WorkspaceArtifactStore
