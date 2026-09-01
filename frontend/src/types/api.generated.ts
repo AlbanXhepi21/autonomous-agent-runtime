@@ -24,6 +24,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rerunnable Metrics
+         * @description Return the metrics a reader may recompute, and what each one accepts.
+         *
+         *     The Workbench builds its parameter controls from this, so a reader can only
+         *     choose groupings and filters the definitions already declare.
+         */
+        get: operations["list_rerunnable_metrics_api_v1_analytics_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/report-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Report Templates
+         * @description Return the document shapes a completed run can be published into.
+         */
+        get: operations["list_report_templates_api_v1_analytics_report_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/runs": {
         parameters: {
             query?: never;
@@ -89,6 +132,26 @@ export interface paths {
         get: operations["get_event_history_api_v1_analytics_runs__run_id__events_history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/runs/{run_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Report
+         * @description Assemble a completed run into documents. This never calls the model.
+         */
+        post: operations["publish_report_api_v1_analytics_runs__run_id__reports_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -440,6 +503,45 @@ export interface components {
             /** Tools Used */
             tools_used: string[];
         };
+        /**
+         * AnswerSource
+         * @description One piece of evidence an answer may cite, captured so it outlives its trace.
+         */
+        AnswerSource: {
+            /** Columns */
+            columns?: string[];
+            /** Dimensions */
+            dimensions?: string[];
+            /** Executed At */
+            executed_at?: string | null;
+            /** Filters */
+            filters?: string[];
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @default database_query
+             * @enum {string}
+             */
+            kind: "database_query" | "metric_rerun";
+            /** Label */
+            label: string;
+            /** Metric */
+            metric?: string | null;
+            /** Referenced Tables */
+            referenced_tables?: string[];
+            /** Row Count */
+            row_count?: number | null;
+            /** Run Id */
+            run_id: string;
+            /** Sql Fingerprint */
+            sql_fingerprint?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
         /** ApprovalResponse */
         ApprovalResponse: {
             /** Action Fingerprint */
@@ -493,6 +595,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Expires At */
+            expires_at?: string | null;
             /** Id */
             id: string;
             /** Media Type */
@@ -503,12 +607,22 @@ export interface components {
             };
             /** Name */
             name: string;
+            /** Output Format */
+            output_format?: string | null;
             /** Relative Path */
             relative_path: string;
             /** Run Id */
             run_id: string;
+            /** Sha256 */
+            sha256: string;
             /** Size */
             size: number;
+            /** @default ready */
+            status: components["schemas"]["ArtifactStatus"];
+            /** Template Id */
+            template_id?: string | null;
+            /** Template Version */
+            template_version?: string | null;
         };
         /** ArtifactMetadata */
         ArtifactMetadata: {
@@ -531,6 +645,17 @@ export interface components {
             /** Type */
             type: string;
         };
+        /**
+         * ArtifactStatus
+         * @description Where an artifact is in the write-then-record sequence.
+         *
+         *     A record is created before its bytes are in place and only becomes
+         *     ``READY`` once they are verified, so a crash between the two leaves a
+         *     ``PENDING`` row that retrieval refuses rather than a successful-looking
+         *     record pointing at a partial file.
+         * @enum {string}
+         */
+        ArtifactStatus: "pending" | "ready" | "failed" | "deleted";
         /**
          * Capability
          * @enum {string}
@@ -732,12 +857,32 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** KPIItem */
+        /**
+         * KPIItem
+         * @description One headline figure, and where in a query result it came from.
+         *
+         *     ``value`` is the string a reader sees. The provenance fields below say which
+         *     number that string was formatted from and which row of which query it was
+         *     read out of, so a published metric can be traced back to a cell rather than
+         *     to a sentence. They are optional because a run may state a headline without
+         *     them; nothing downstream derives them, and presentation never computes a
+         *     value that was not supplied here.
+         */
         KPIItem: {
             /** Change */
             change?: string | null;
             /** Label */
             label: string;
+            /** Raw Value */
+            raw_value?: number | string | null;
+            /** Row Selector */
+            row_selector?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Source Column */
+            source_column?: string | null;
+            /** Source Query Id */
+            source_query_id?: string | null;
             /** Value */
             value: string;
         };
@@ -767,6 +912,74 @@ export interface components {
             run_id?: string | null;
         };
         /**
+         * MetricFilter
+         * @description One comparison against a field the metric declares as filterable.
+         */
+        MetricFilter: {
+            /** Field */
+            field: string;
+            /**
+             * Operator
+             * @default eq
+             * @enum {string}
+             */
+            operator: "eq" | "ne" | "in" | "not_in" | "gt" | "gte" | "lt" | "lte";
+            /** Value */
+            value: string | number | boolean | (string | number | boolean)[];
+        };
+        /** MetricListResponse */
+        MetricListResponse: {
+            /** Items */
+            items: components["schemas"]["MetricSummaryResponse"][];
+        };
+        /**
+         * MetricParameters
+         * @description Everything a reader may change about one factual section of a report.
+         */
+        MetricParameters: {
+            /** Dimensions */
+            dimensions?: string[];
+            /** Filters */
+            filters?: components["schemas"]["MetricFilter"][];
+            /**
+             * Grain
+             * @default month
+             * @enum {string}
+             */
+            grain: "day" | "week" | "month" | "quarter" | "year";
+            /** Metric */
+            metric: string;
+            period: components["schemas"]["ReportPeriod"];
+        };
+        /**
+         * MetricSummaryResponse
+         * @description One metric a reader may recompute, and what it will accept.
+         */
+        MetricSummaryResponse: {
+            /** Caveats */
+            caveats: string[];
+            /** Description */
+            description: string;
+            /** Dimensions */
+            dimensions: string[];
+            /** Display Name */
+            display_name: string;
+            /** Filters */
+            filters: string[];
+            /** Format */
+            format: string;
+            /** Grains */
+            grains: string[];
+            /** Name */
+            name: string;
+            /** Required Tables */
+            required_tables: string[];
+            /** Unit */
+            unit: string;
+            /** Value Columns */
+            value_columns: string[];
+        };
+        /**
          * PublicRunEvent
          * @description A deliberately small event envelope; never a serialized runtime object.
          */
@@ -792,8 +1005,104 @@ export interface components {
             /** Items */
             items: components["schemas"]["PublicRunEvent"][];
         };
+        /**
+         * PublishReportRequest
+         * @description What a caller may choose when publishing. Never what a report says.
+         *
+         *     Rejecting unknown fields rather than ignoring them is the point: a request
+         *     carrying a figure would otherwise look accepted, and a caller could believe
+         *     it had put a number into a report. Every value in a published document comes
+         *     from a query the run executed.
+         */
+        PublishReportRequest: {
+            /** Formats */
+            formats: ("pdf" | "docx")[];
+            /** Metrics */
+            metrics?: components["schemas"]["MetricParameters"][];
+            /** Narrative */
+            narrative?: ("current" | "pinned_to_original_period" | "excluded_from_refreshed_report") | null;
+            /** Period */
+            period?: string | null;
+            /** Template */
+            template: string;
+            /** Title */
+            title?: string | null;
+        };
+        /** PublishReportResponse */
+        PublishReportResponse: {
+            /** Documents */
+            documents: components["schemas"]["PublishedDocumentResponse"][];
+            /**
+             * Narrative
+             * @default current
+             * @enum {string}
+             */
+            narrative: "current" | "pinned_to_original_period" | "excluded_from_refreshed_report";
+            /** Rerun Query Ids */
+            rerun_query_ids?: string[];
+            /** Run Id */
+            run_id: string;
+            /** Template */
+            template: string;
+        };
+        /** PublishedDocumentResponse */
+        PublishedDocumentResponse: {
+            /** Artifact Id */
+            artifact_id: string;
+            /** Media Type */
+            media_type: string;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+        };
+        /**
+         * ReportPeriod
+         * @description A half-open date range, ``start`` inclusive and ``end`` exclusive.
+         *
+         *     Half-open because a closed range over timestamps either drops the last day's
+         *     evening or double-counts a boundary, depending on how it is written, and
+         *     both mistakes are invisible in a published total.
+         */
+        ReportPeriod: {
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+        };
+        /** ReportTemplateListResponse */
+        ReportTemplateListResponse: {
+            /** Items */
+            items: components["schemas"]["ReportTemplateResponse"][];
+        };
+        /**
+         * ReportTemplateResponse
+         * @description One publishable document shape offered to the Workbench.
+         */
+        ReportTemplateResponse: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+            /** Period Granularity */
+            period_granularity: string;
+            /** Report Type */
+            report_type: string;
+            /** Sections */
+            sections: string[];
+            /** Title */
+            title: string;
+        };
         /** RunHistoryResponse */
         RunHistoryResponse: {
+            /** Caveats */
+            caveats?: string[];
             /** Charts */
             charts?: components["schemas"]["ChartSpec"][];
             /** Completed At */
@@ -808,6 +1117,8 @@ export interface components {
             metrics?: components["schemas"]["RunMetricsResponse"] | null;
             /** Run Id */
             run_id: string;
+            /** Sources */
+            sources?: components["schemas"]["AnswerSource"][];
             /** Started At */
             started_at?: string | null;
             /**
@@ -947,6 +1258,8 @@ export interface components {
         };
         /** RunResponse */
         RunResponse: {
+            /** Caveats */
+            caveats?: string[];
             /** Charts */
             charts?: components["schemas"]["ChartSpec"][];
             /** Conversation Id */
@@ -965,6 +1278,8 @@ export interface components {
             metrics?: components["schemas"]["RunMetricsResponse"] | null;
             /** Run Id */
             run_id: string;
+            /** Sources */
+            sources?: components["schemas"]["AnswerSource"][];
             /** Started At */
             started_at?: string | null;
             /**
@@ -1183,6 +1498,46 @@ export interface operations {
             };
         };
     };
+    list_rerunnable_metrics_api_v1_analytics_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricListResponse"];
+                };
+            };
+        };
+    };
+    list_report_templates_api_v1_analytics_report_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateListResponse"];
+                };
+            };
+        };
+    };
     create_run_api_v1_analytics_runs_post: {
         parameters: {
             query?: never;
@@ -1298,6 +1653,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicRunEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_report_api_v1_analytics_runs__run_id__reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishReportResponse"];
                 };
             };
             /** @description Validation Error */

@@ -1,6 +1,17 @@
 /** Re-exported from the generated OpenAPI types; see types/api.ts. */
 export type {
   AnalystRun,
+  AnswerSource,
+  DocumentFormat,
+  MetricFilter,
+  MetricParameters,
+  NarrativeStatus,
+  ReportPeriod,
+  RerunMetric,
+  PublishedDocument,
+  PublishReportRequest,
+  PublishReportResponse,
+  ReportTemplate,
   ChartSpec,
   CreateRunRequest,
   CreateRunResponse,

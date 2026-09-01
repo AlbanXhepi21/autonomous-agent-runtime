@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     python_exec_timeout_seconds: float = Field(default=10, gt=0)
     max_python_code_bytes: int = Field(default=16_384, ge=1)
     max_python_output_bytes: int = Field(default=16_384, ge=1)
-    max_artifact_bytes: int = Field(default=65_536, ge=1)
+    # A published report embeds rendered charts, so the bound has to admit a
+    # document rather than a text file. A single chart PNG already approaches
+    # the previous 64KB limit.
+    max_artifact_bytes: int = Field(default=10_485_760, ge=1)
     python_exec_allowed_imports: str = "math,statistics,json,datetime,collections"
     summary_trigger_observations: int = Field(default=8, ge=1)
     recent_observations: int = Field(default=5, ge=1)
@@ -54,6 +57,10 @@ class Settings(BaseSettings):
     analytics_python_max_dataset_bytes: int = Field(default=500_000, ge=1_024)
     analytics_python_timeout_seconds: float = Field(default=15, gt=0, le=60)
     memory_backend: Literal["in_memory", "postgres"] = "in_memory"
+    # `in_memory` keeps artifact records in the process that made them, which is
+    # enough for tests and single-process development but loses every download
+    # link at restart. `postgres` keeps the record beside the bytes instead.
+    artifact_backend: Literal["in_memory", "postgres"] = "in_memory"
     approval_ttl_seconds: int | None = Field(default=3600, ge=1)
     security_environment: Literal["unknown", "development", "staging", "production"] = "unknown"
     analytics_ui_frontend_origins: str = "http://localhost:3000"
@@ -83,8 +90,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_postgres_configuration(self) -> "Settings":
-        """Require an explicit URL only when PostgreSQL memory is selected."""
+        """Require an explicit URL only when a PostgreSQL backend is selected."""
 
         if self.memory_backend == "postgres" and not self.database_url:
             raise ValueError("DATABASE_URL is required when MEMORY_BACKEND=postgres")
+        if self.artifact_backend == "postgres" and not self.database_url:
+            raise ValueError("DATABASE_URL is required when ARTIFACT_BACKEND=postgres")
         return self

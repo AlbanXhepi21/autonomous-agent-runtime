@@ -31,6 +31,8 @@ function historyFrom(run: AnalystRun): RunHistory {
     error: run.error,
     metrics: run.metrics,
     charts: run.charts ?? [],
+    sources: run.sources ?? [],
+    caveats: run.caveats ?? [],
   };
 }
 
@@ -129,6 +131,8 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
             error: null,
             metrics: null,
             charts: [],
+            sources: [],
+            caveats: [],
           },
         }));
         stream.open(created.run_id, {

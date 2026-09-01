@@ -13,6 +13,8 @@ describe("RunAnalysis", () => {
           started_at: "",
           completed_at: "",
           charts: [],
+          sources: [],
+          caveats: [],
           error: null,
           metrics: {
             iterations: 3,

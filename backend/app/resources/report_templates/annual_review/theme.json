@@ -1,0 +1,33 @@
+{
+  "name": "default",
+  "palette": {
+    "ink": "#142033",
+    "muted": "#657188",
+    "accent": "#176b87",
+    "rule": "#e6eaf0",
+    "table_header": "#f2f8fa"
+  },
+  "fonts": {
+    "pdf_body": "Helvetica",
+    "pdf_bold": "Helvetica-Bold",
+    "docx_body": "Calibri",
+    "title_size": 21,
+    "heading_size": 13,
+    "body_size": 10,
+    "caption_size": 7.5
+  },
+  "spacing": {
+    "margin": 56,
+    "block_gap": 10,
+    "heading_gap": 7
+  },
+  "chart_palette": [
+    "#176b87",
+    "#3c9a79",
+    "#d1873b",
+    "#8064b5",
+    "#cc5b63"
+  ],
+  "table_style": "grid",
+  "metrics_style": "table"
+}

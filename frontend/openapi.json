@@ -124,6 +124,131 @@
         "title": "AgentRunResponse",
         "type": "object"
       },
+      "AnswerSource": {
+        "additionalProperties": false,
+        "description": "One piece of evidence an answer may cite, captured so it outlives its trace.",
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Columns",
+            "type": "array"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          },
+          "filters": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Filters",
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "database_query",
+            "enum": [
+              "database_query",
+              "metric_rerun"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "referenced_tables": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Referenced Tables",
+            "type": "array"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "run_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sql_fingerprint": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sql Fingerprint"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "label"
+        ],
+        "title": "AnswerSource",
+        "type": "object"
+      },
       "ApprovalResponse": {
         "properties": {
           "action_fingerprint": {
@@ -278,6 +403,18 @@
             "title": "Created At",
             "type": "string"
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "id": {
             "maxLength": 64,
             "minLength": 1,
@@ -301,6 +438,18 @@
             "title": "Name",
             "type": "string"
           },
+          "output_format": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Format"
+          },
           "relative_path": {
             "maxLength": 512,
             "minLength": 1,
@@ -313,10 +462,44 @@
             "title": "Run Id",
             "type": "string"
           },
+          "sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256",
+            "type": "string"
+          },
           "size": {
             "minimum": 0.0,
             "title": "Size",
             "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtifactStatus",
+            "default": "ready"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          },
+          "template_version": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Version"
           }
         },
         "required": [
@@ -326,6 +509,7 @@
           "artifact_type",
           "media_type",
           "size",
+          "sha256",
           "run_id",
           "created_at"
         ],
@@ -379,6 +563,17 @@
         ],
         "title": "ArtifactMetadata",
         "type": "object"
+      },
+      "ArtifactStatus": {
+        "description": "Where an artifact is in the write-then-record sequence.\n\nA record is created before its bytes are in place and only becomes\n``READY`` once they are verified, so a crash between the two leaves a\n``PENDING`` row that retrieval refuses rather than a successful-looking\nrecord pointing at a partial file.",
+        "enum": [
+          "pending",
+          "ready",
+          "failed",
+          "deleted"
+        ],
+        "title": "ArtifactStatus",
+        "type": "string"
       },
       "Capability": {
         "enum": [
@@ -927,6 +1122,7 @@
       },
       "KPIItem": {
         "additionalProperties": false,
+        "description": "One headline figure, and where in a query result it came from.\n\n``value`` is the string a reader sees. The provenance fields below say which\nnumber that string was formatted from and which row of which query it was\nread out of, so a published metric can be traced back to a cell rather than\nto a sentence. They are optional because a run may state a headline without\nthem; nothing downstream derives them, and presentation never computes a\nvalue that was not supplied here.",
         "properties": {
           "change": {
             "anyOf": [
@@ -945,6 +1141,70 @@
             "minLength": 1,
             "title": "Label",
             "type": "string"
+          },
+          "raw_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Value"
+          },
+          "row_selector": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Row Selector",
+            "type": "object"
+          },
+          "source_column": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Column"
+          },
+          "source_query_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Query Id"
           },
           "value": {
             "maxLength": 80,
@@ -1014,6 +1274,222 @@
         "title": "MessageResponse",
         "type": "object"
       },
+      "MetricFilter": {
+        "additionalProperties": false,
+        "description": "One comparison against a field the metric declares as filterable.",
+        "properties": {
+          "field": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Field",
+            "type": "string"
+          },
+          "operator": {
+            "default": "eq",
+            "enum": [
+              "eq",
+              "ne",
+              "in",
+              "not_in",
+              "gt",
+              "gte",
+              "lt",
+              "lte"
+            ],
+            "title": "Operator",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "field",
+          "value"
+        ],
+        "title": "MetricFilter",
+        "type": "object"
+      },
+      "MetricListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "MetricListResponse",
+        "type": "object"
+      },
+      "MetricParameters": {
+        "additionalProperties": false,
+        "description": "Everything a reader may change about one factual section of a report.",
+        "properties": {
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/MetricFilter"
+            },
+            "maxItems": 8,
+            "title": "Filters",
+            "type": "array"
+          },
+          "grain": {
+            "default": "month",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "quarter",
+              "year"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
+          "metric": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "period": {
+            "$ref": "#/components/schemas/ReportPeriod"
+          }
+        },
+        "required": [
+          "metric",
+          "period"
+        ],
+        "title": "MetricParameters",
+        "type": "object"
+      },
+      "MetricSummaryResponse": {
+        "description": "One metric a reader may recompute, and what it will accept.",
+        "properties": {
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Caveats",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "filters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Filters",
+            "type": "array"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "grains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Grains",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required_tables": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Tables",
+            "type": "array"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Value Columns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "description",
+          "unit",
+          "format",
+          "dimensions",
+          "filters",
+          "grains",
+          "value_columns",
+          "required_tables",
+          "caveats"
+        ],
+        "title": "MetricSummaryResponse",
+        "type": "object"
+      },
       "PublicRunEvent": {
         "description": "A deliberately small event envelope; never a serialized runtime object.",
         "properties": {
@@ -1065,8 +1541,245 @@
         "title": "PublicRunEventListResponse",
         "type": "object"
       },
+      "PublishReportRequest": {
+        "additionalProperties": false,
+        "description": "What a caller may choose when publishing. Never what a report says.\n\nRejecting unknown fields rather than ignoring them is the point: a request\ncarrying a figure would otherwise look accepted, and a caller could believe\nit had put a number into a report. Every value in a published document comes\nfrom a query the run executed.",
+        "properties": {
+          "formats": {
+            "items": {
+              "enum": [
+                "pdf",
+                "docx"
+              ],
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Formats",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricParameters"
+            },
+            "maxItems": 8,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "narrative": {
+            "anyOf": [
+              {
+                "enum": [
+                  "current",
+                  "pinned_to_original_period",
+                  "excluded_from_refreshed_report"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrative"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "template": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Template",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "template",
+          "formats"
+        ],
+        "title": "PublishReportRequest",
+        "type": "object"
+      },
+      "PublishReportResponse": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedDocumentResponse"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "narrative": {
+            "default": "current",
+            "enum": [
+              "current",
+              "pinned_to_original_period",
+              "excluded_from_refreshed_report"
+            ],
+            "title": "Narrative",
+            "type": "string"
+          },
+          "rerun_query_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rerun Query Ids",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "template",
+          "documents"
+        ],
+        "title": "PublishReportResponse",
+        "type": "object"
+      },
+      "PublishedDocumentResponse": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "name",
+          "media_type",
+          "size"
+        ],
+        "title": "PublishedDocumentResponse",
+        "type": "object"
+      },
+      "ReportPeriod": {
+        "additionalProperties": false,
+        "description": "A half-open date range, ``start`` inclusive and ``end`` exclusive.\n\nHalf-open because a closed range over timestamps either drops the last day's\nevening or double-counts a boundary, depending on how it is written, and\nboth mistakes are invisible in a published total.",
+        "properties": {
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "ReportPeriod",
+        "type": "object"
+      },
+      "ReportTemplateListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReportTemplateResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ReportTemplateListResponse",
+        "type": "object"
+      },
+      "ReportTemplateResponse": {
+        "description": "One publishable document shape offered to the Workbench.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "period_granularity": {
+            "title": "Period Granularity",
+            "type": "string"
+          },
+          "report_type": {
+            "title": "Report Type",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "description",
+          "report_type",
+          "period_granularity",
+          "sections"
+        ],
+        "title": "ReportTemplateResponse",
+        "type": "object"
+      },
       "RunHistoryResponse": {
         "properties": {
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Caveats",
+            "type": "array"
+          },
           "charts": {
             "items": {
               "$ref": "#/components/schemas/ChartSpec"
@@ -1115,6 +1828,13 @@
           "run_id": {
             "title": "Run Id",
             "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerSource"
+            },
+            "title": "Sources",
+            "type": "array"
           },
           "started_at": {
             "anyOf": [
@@ -1374,6 +2094,13 @@
       },
       "RunResponse": {
         "properties": {
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Caveats",
+            "type": "array"
+          },
           "charts": {
             "items": {
               "$ref": "#/components/schemas/ChartSpec"
@@ -1437,6 +2164,13 @@
           "run_id": {
             "title": "Run Id",
             "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerSource"
+            },
+            "title": "Sources",
+            "type": "array"
           },
           "started_at": {
             "anyOf": [
@@ -2040,6 +2774,50 @@
         ]
       }
     },
+    "/api/v1/analytics/metrics": {
+      "get": {
+        "description": "Return the metrics a reader may recompute, and what each one accepts.\n\nThe Workbench builds its parameter controls from this, so a reader can only\nchoose groupings and filters the definitions already declare.",
+        "operationId": "list_rerunnable_metrics_api_v1_analytics_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Rerunnable Metrics",
+        "tags": [
+          "analytics-workbench"
+        ]
+      }
+    },
+    "/api/v1/analytics/report-templates": {
+      "get": {
+        "description": "Return the document shapes a completed run can be published into.",
+        "operationId": "list_report_templates_api_v1_analytics_report_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportTemplateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Report Templates",
+        "tags": [
+          "analytics-workbench"
+        ]
+      }
+    },
     "/api/v1/analytics/runs": {
       "post": {
         "operationId": "create_run_api_v1_analytics_runs_post",
@@ -2217,6 +2995,59 @@
           }
         },
         "summary": "Get Event History",
+        "tags": [
+          "analytics-workbench"
+        ]
+      }
+    },
+    "/api/v1/analytics/runs/{run_id}/reports": {
+      "post": {
+        "description": "Assemble a completed run into documents. This never calls the model.",
+        "operationId": "publish_report_api_v1_analytics_runs__run_id__reports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Report",
         "tags": [
           "analytics-workbench"
         ]

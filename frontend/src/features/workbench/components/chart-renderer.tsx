@@ -180,7 +180,14 @@ function formatValue(value: unknown, chart: ChartSpec) {
   return chart.formatting?.currency ? `${chart.formatting.currency}${rendered}` : rendered;
 }
 
-export function ChartRenderer({ chart }: { chart: ChartSpec }) {
+export function ChartRenderer({
+  chart,
+  onExplore,
+}: {
+  chart: ChartSpec;
+  /** Offered by the transcript; omitted inside the panel so it cannot recurse. */
+  onExplore?: () => void;
+}) {
   const initialType: SwitchableType =
     chart.type === "area"
       ? "area"
@@ -202,7 +209,7 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       </div>
     );
   if (!chart.data.length) return <div className="display-empty">No chart data is available.</div>;
-  if (chart.type === "table") return <DataTable chart={chart} />;
+  if (chart.type === "table") return <DataTable chart={chart} onExplore={onExplore} />;
   if (!chart.x_field || !chart.y_fields.length)
     return <div className="display-empty">This chart specification is incomplete.</div>;
 
@@ -349,7 +356,14 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
           {chart.description && <p>{chart.description}</p>}
           <small>Based on {chart.source_query_ids.join(", ")}</small>
         </div>
-        <span className="interactive-badge">Interactive</span>
+        <div className="display-actions">
+          {onExplore && (
+            <button type="button" className="explore-display" onClick={onExplore}>
+              Explore
+            </button>
+          )}
+          <span className="interactive-badge">Interactive</span>
+        </div>
       </header>
       {supportsSwitching(chart.type) && (
         <div className="chart-controls" aria-label="Chart display options">
@@ -385,7 +399,15 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
   );
 }
 
-function DataTable({ chart, embedded = false }: { chart: ChartSpec; embedded?: boolean }) {
+function DataTable({
+  chart,
+  embedded = false,
+  onExplore,
+}: {
+  chart: ChartSpec;
+  embedded?: boolean;
+  onExplore?: () => void;
+}) {
   const columns = Object.keys(chart.data[0] ?? {});
   const content = (
     <div className="data-table-wrap">
@@ -418,6 +440,13 @@ function DataTable({ chart, embedded = false }: { chart: ChartSpec; embedded?: b
           <h3>{chart.title}</h3>
           <small>Based on {chart.source_query_ids.join(", ")}</small>
         </div>
+        {onExplore && (
+          <div className="display-actions">
+            <button type="button" className="explore-display" onClick={onExplore}>
+              Explore
+            </button>
+          </div>
+        )}
       </header>
       {content}
       <CsvDownload chart={chart} />

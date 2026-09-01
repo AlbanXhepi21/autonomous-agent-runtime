@@ -1,0 +1,59 @@
+{
+  "name": "executive_dashboard",
+  "version": "2",
+  "title": "Executive Dashboard",
+  "description": "A one-page landscape summary: headline cards, the principal charts and little else, with the full evidence kept behind it.",
+  "report_type": "executive",
+  "period_granularity": "custom",
+  "orientation": "landscape",
+  "formats": [
+    "pdf",
+    "docx"
+  ],
+  "blocks": [
+    {
+      "kind": "cover"
+    },
+    {
+      "kind": "metrics",
+      "heading": "Headline Metrics",
+      "required": true,
+      "limit": 6
+    },
+    {
+      "kind": "chart",
+      "heading": "Charts",
+      "required": true,
+      "limit": 4
+    },
+    {
+      "kind": "narrative",
+      "heading": "Executive Summary",
+      "required": false
+    },
+    {
+      "kind": "caveats",
+      "heading": "Limitations",
+      "required": true
+    },
+    {
+      "kind": "page_break"
+    },
+    {
+      "kind": "scope",
+      "heading": "Reporting Scope",
+      "required": true
+    },
+    {
+      "kind": "table",
+      "heading": "Supporting Tables",
+      "required": false,
+      "limit": 8
+    },
+    {
+      "kind": "evidence",
+      "heading": "Evidence Appendix",
+      "required": true
+    }
+  ]
+}

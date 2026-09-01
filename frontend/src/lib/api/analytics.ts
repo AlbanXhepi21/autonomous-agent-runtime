@@ -5,6 +5,10 @@ import type {
   CreateRunRequest,
   CreateRunResponse,
   PublicRunEvent,
+  PublishReportRequest,
+  PublishReportResponse,
+  ReportTemplate,
+  RerunMetric,
 } from "@/types/analytics";
 
 export const analyticsApi = {
@@ -14,6 +18,13 @@ export const analyticsApi = {
       body: JSON.stringify(payload),
     }),
   getRun: (runId: string) => request<AnalystRun>(`/api/v1/analytics/runs/${runId}`),
+  reportTemplates: () => request<{ items: ReportTemplate[] }>("/api/v1/analytics/report-templates"),
+  rerunMetrics: () => request<{ items: RerunMetric[] }>("/api/v1/analytics/metrics"),
+  publishReport: (runId: string, payload: PublishReportRequest) =>
+    request<PublishReportResponse>(`/api/v1/analytics/runs/${runId}/reports`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   getEvents: (runId: string) =>
     request<{ items: PublicRunEvent[] }>(`/api/v1/analytics/runs/${runId}/events/history`),
   streamUrl: (runId: string) => eventUrl(`/api/v1/analytics/runs/${runId}/events`),
