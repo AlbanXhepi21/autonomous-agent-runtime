@@ -100,5 +100,90 @@ def test_persisted_run_returns_its_durable_assistant_response_after_restart() ->
     assert response.json()["final_response"] == "Persisted answer."
 
 
+def test_persisted_citations_survive_the_trace_that_minted_them() -> None:
+    # "query_003" is numbered against a process-local trace, so a stored answer
+    # keeping only that reference would resolve to nothing here. The registry is
+    # written out in full, and this is the request that proves it.
+    with _client() as client:
+        created_at = datetime.now(timezone.utc)
+        store = SimpleNamespace(
+            get_run=lambda run_id: _value(SimpleNamespace(
+                id=run_id, conversation_id="conversation-1", status="completed",
+                created_at=created_at, started_at=created_at, completed_at=created_at,
+                metrics=None, error=None, chart_specs=None,
+                answer_sources=[{
+                    "id": "query_003", "kind": "database_query", "run_id": run_id,
+                    "label": "Revenue by category", "referenced_tables": ["orders", "order_items"],
+                    "row_count": 12, "truncated": False,
+                    "executed_at": created_at.isoformat(),
+                }],
+            )),
+            get_assistant_message_for_run=lambda run_id: _value(SimpleNamespace(content="Persisted answer.")),
+        )
+        client.app.dependency_overrides[get_conversation_store] = lambda: store
+
+        response = client.get("/api/v1/analytics/runs/persisted-run")
+
+    assert response.status_code == 200
+    source = response.json()["sources"][0]
+    assert source["id"] == "query_003"
+    assert source["label"] == "Revenue by category"
+    assert source["referenced_tables"] == ["orders", "order_items"]
+
+
+def test_an_answer_citing_nothing_reports_an_empty_registry() -> None:
+    with _client() as client:
+        created = client.post("/api/v1/analytics/runs", json={"message": "Why did revenue fall?", "conversation_id": "conv-1"})
+        run_id = created.json()["run_id"]
+        for _ in range(20):
+            response = client.get(f"/api/v1/analytics/runs/{run_id}")
+            if response.json()["status"] != "running":
+                break
+            time.sleep(0.01)
+
+    assert response.json()["sources"] == []
+
+
 async def _value(value: object) -> object:
     return value
+
+
+def test_persisted_caveats_are_returned_with_a_reloaded_run() -> None:
+    with _client() as client:
+        created_at = datetime.now(timezone.utc)
+        store = SimpleNamespace(
+            get_run=lambda run_id: _value(SimpleNamespace(
+                id=run_id, conversation_id="conversation-1", status="completed",
+                created_at=created_at, started_at=created_at, completed_at=created_at,
+                metrics=None, error=None, chart_specs=None, answer_sources=None,
+                answer_caveats=["August 2026 is a partial month."],
+            )),
+            get_assistant_message_for_run=lambda run_id: _value(SimpleNamespace(content="Persisted answer.")),
+        )
+        client.app.dependency_overrides[get_conversation_store] = lambda: store
+
+        response = client.get("/api/v1/analytics/runs/persisted-run")
+
+    assert response.status_code == 200
+    assert response.json()["caveats"] == ["August 2026 is a partial month."]
+
+
+def test_a_run_stored_before_caveats_existed_reports_an_empty_list() -> None:
+    """The column is null on older rows, and the attribute is absent on older readers."""
+
+    with _client() as client:
+        created_at = datetime.now(timezone.utc)
+        store = SimpleNamespace(
+            get_run=lambda run_id: _value(SimpleNamespace(
+                id=run_id, conversation_id="conversation-1", status="completed",
+                created_at=created_at, started_at=created_at, completed_at=created_at,
+                metrics=None, error=None, chart_specs=None, answer_sources=None,
+            )),
+            get_assistant_message_for_run=lambda run_id: _value(SimpleNamespace(content="Persisted answer.")),
+        )
+        client.app.dependency_overrides[get_conversation_store] = lambda: store
+
+        response = client.get("/api/v1/analytics/runs/persisted-run")
+
+    assert response.status_code == 200
+    assert response.json()["caveats"] == []

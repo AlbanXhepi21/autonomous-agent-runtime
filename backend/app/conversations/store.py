@@ -52,7 +52,7 @@ class ConversationStore:
     async def get_assistant_message_for_run(self, run_id: str) -> MessageRecord | None: raise NotImplementedError
     async def create_run(self, *, conversation_id: UUID | None, message: str, run_id: str) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]: raise NotImplementedError
     async def start_run(self, run_id: str, started_at: datetime) -> None: raise NotImplementedError
-    async def finish_run(self, *, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, error: str | None, assistant_content: str | None) -> None: raise NotImplementedError
+    async def finish_run(self, *, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, answer_sources: list[dict[str, object]] | None, answer_caveats: list[str] | None, error: str | None, assistant_content: str | None) -> None: raise NotImplementedError
 
 
 class PostgresConversationStore(ConversationStore):
@@ -146,7 +146,7 @@ class PostgresConversationStore(ConversationStore):
                 # conversation/message foreign-key targets.
                 session.add(user_message)
                 await session.flush()
-                run = AgentRunRecord(id=run_id, conversation_id=conversation.id, user_message_id=user_message.id, status="running", created_at=stamp, started_at=None, completed_at=None, metrics=None, chart_specs=None, error=None)
+                run = AgentRunRecord(id=run_id, conversation_id=conversation.id, user_message_id=user_message.id, status="running", created_at=stamp, started_at=None, completed_at=None, metrics=None, chart_specs=None, answer_sources=None, answer_caveats=None, error=None)
                 session.add(run)
             return conversation, user_message, run
 
@@ -156,12 +156,14 @@ class PostgresConversationStore(ConversationStore):
                 record = await session.get(AgentRunRecord, run_id)
                 if record: record.started_at = started_at
 
-    async def finish_run(self, *, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, error: str | None, assistant_content: str | None) -> None:
+    async def finish_run(self, *, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, answer_sources: list[dict[str, object]] | None, answer_caveats: list[str] | None, error: str | None, assistant_content: str | None) -> None:
         async with self._database.session() as session:
             async with session.begin():
                 run = await session.get(AgentRunRecord, run_id)
                 if run is None: return
-                run.status, run.completed_at, run.metrics, run.chart_specs, run.error = status, completed_at, metrics, chart_specs, error
+                run.status, run.completed_at, run.metrics, run.error = status, completed_at, metrics, error
+                run.chart_specs, run.answer_sources = chart_specs, answer_sources
+                run.answer_caveats = answer_caveats
                 conversation = await session.get(ConversationRecord, run.conversation_id)
                 if conversation: conversation.updated_at = completed_at
                 if status == "completed" and assistant_content:

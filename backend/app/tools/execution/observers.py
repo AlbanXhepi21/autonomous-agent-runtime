@@ -26,6 +26,7 @@ from app.tools.execution.redaction import (
     code_bytes,
     command_args_summary,
     database_table_names,
+    query_purpose,
     query_quality_metadata,
 )
 
@@ -237,12 +238,28 @@ def _schema_trace(
 # --------------------------------------------------------------------------- sql
 
 
+def _column_names(output: Mapping[str, Any]) -> list[str]:
+    """Name the columns a query returned, from the result the executor built."""
+
+    columns = output.get("columns")
+    if not isinstance(columns, list):
+        return []
+    return [
+        column["name"] for column in columns[:32]
+        if isinstance(column, Mapping) and isinstance(column.get("name"), str)
+    ]
+
+
 def _query_context(tool: Tool, arguments: Mapping[str, Any]) -> Fields:
     # A query is numbered even without a trace to number it against, so the tool
     # always receives an identifier to label its dataset with.
     return {
         "query_quality": query_quality_metadata(arguments.get("sql")),
         "query_id": "query_001",
+        # The model's own words for what it asked, kept because a citation chip
+        # reading "Revenue by category" is worth more than one reading
+        # "query_003". Never the SQL itself.
+        "query_purpose": query_purpose(arguments.get("purpose")),
     }
 
 
@@ -278,8 +295,12 @@ def _query_trace_finish(
     metadata = {
         "agent": fields.get("agent"), "operation": "query_database",
         "referenced_tables": output.get("referenced_tables", []),
+        # The result's shape, so an evidence appendix can state what a query
+        # returned without the model being asked to describe its own output.
+        "columns": _column_names(output),
         "row_count": output.get("row_count", 0), "truncated": output.get("truncated", False),
         "query_id": output.get("query_id", fields.get("query_id")),
+        "purpose": fields.get("query_purpose"),
         **fields.get("query_quality", {}),
     }
     if result.success:

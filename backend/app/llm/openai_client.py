@@ -5,7 +5,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from app.contracts.actions import AgentAction
+from app.contracts.actions import MAX_CAVEAT_LENGTH, MAX_CAVEATS, AgentAction
 from app.llm.contracts import LLMClient, LLMDecision, LLMUsage
 
 
@@ -173,9 +173,32 @@ class OpenAIClient(LLMClient):
                 "type": "object",
                 "properties": {
                     "final_answer": {"type": "string"},
+                    "citations": {
+                        "type": "array",
+                        "maxItems": 12,
+                        "items": {"type": "string"},
+                        "description": (
+                            "Stable query references returned by query_database, for example "
+                            "query_001, that this answer rests on. Empty when the answer used "
+                            "no queried evidence."
+                        ),
+                    },
+                    "caveats": {
+                        "type": "array",
+                        "maxItems": MAX_CAVEATS,
+                        "items": {"type": "string", "maxLength": MAX_CAVEAT_LENGTH},
+                        "description": (
+                            "Genuine limitations of this analysis, each a short plain-text "
+                            "sentence: missing or incomplete data, an ambiguous definition, a "
+                            "small sample, an unavailable dimension, a period the data does "
+                            "not fully cover, source data that may be stale, or a result that "
+                            "should not be generalized. Empty when the analysis has no such "
+                            "limitation. Never generic filler."
+                        ),
+                    },
                     "reasoning_summary": OpenAIClient._reasoning_schema(),
                 },
-                "required": ["final_answer", "reasoning_summary"],
+                "required": ["final_answer", "citations", "caveats", "reasoning_summary"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -298,10 +321,17 @@ class OpenAIClient(LLMClient):
                 skill_name=arguments.get("skill_name"),
             )
         if name == "finish":
+            citations = arguments.get("citations")
             return AgentAction(
                 action_type="finish",
                 reasoning_summary=reasoning_summary,
                 final_answer=arguments.get("final_answer"),
+                citations=[item for item in citations if isinstance(item, str)]
+                if isinstance(citations, list)
+                else [],
+                # Bounded by the contract, which drops anything a report could
+                # not print rather than failing an otherwise complete answer.
+                caveats=arguments.get("caveats"),
             )
         if name == "delegate":
             return AgentAction(

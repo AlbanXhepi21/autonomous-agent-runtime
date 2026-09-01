@@ -6,15 +6,32 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.analytics.presentation.charts import ChartSpec
+from app.api.schemas.analytics import AnswerSource
 from app.api.schemas.analytics import (
     CreateRunRequest,
+    MetricListResponse,
+    MetricSummaryResponse,
     CreateRunResponse,
     PublicRunEventListResponse,
+    PublishedDocumentResponse,
+    PublishReportRequest,
+    PublishReportResponse,
+    ReportTemplateListResponse,
+    ReportTemplateResponse,
     RunMetricsResponse,
     RunResponse,
 )
-from app.composition import get_agent_runner, get_conversation_store, get_run_manager
+from app.analytics.semantics.metrics import MetricRegistry
+from app.composition import (
+    get_agent_runner,
+    get_conversation_store,
+    get_metric_registry,
+    get_report_publisher,
+    get_run_manager,
+)
 from app.conversations.store import ConversationStore
+from app.orchestration.publishing import ReportPublisher, ReportPublishingError
+from app.orchestration.reruns import rerun_query_id
 from app.orchestration.run_manager import AgentRunManager
 from app.runtime.runner import AgentRunner
 
@@ -42,7 +59,9 @@ async def get_run(run_id: str, manager: AgentRunManager = Depends(get_run_manage
                        created_at=persisted.created_at, started_at=persisted.started_at, finished_at=persisted.completed_at,
                        final_response=assistant_message.content if assistant_message else None, error=persisted.error,
                        metrics=RunMetricsResponse.model_validate(persisted.metrics) if persisted.metrics else None,
-                       charts=[ChartSpec.model_validate(chart) for chart in (getattr(persisted, "chart_specs", None) or [])])
+                       charts=[ChartSpec.model_validate(chart) for chart in (getattr(persisted, "chart_specs", None) or [])],
+                       sources=[AnswerSource.model_validate(source) for source in (getattr(persisted, "answer_sources", None) or [])],
+                       caveats=list(getattr(persisted, "answer_caveats", None) or []))
 
 
 @router.get("/runs/{run_id}/events")
@@ -81,3 +100,69 @@ async def get_event_history(run_id: str, manager: AgentRunManager = Depends(get_
     if run is None:
         raise HTTPException(status_code=404, detail={"code": "trace_unavailable", "message": "Trace is not available for this run."})
     return PublicRunEventListResponse(items=manager.events(run))
+
+
+@router.get("/report-templates", response_model=ReportTemplateListResponse)
+async def list_report_templates(
+    publisher: ReportPublisher = Depends(get_report_publisher),
+) -> ReportTemplateListResponse:
+    """Return the document shapes a completed run can be published into."""
+
+    return ReportTemplateListResponse(items=[
+        ReportTemplateResponse(
+            name=template.name, title=template.title, description=template.description,
+            report_type=template.report_type.value,
+            period_granularity=template.period_granularity,
+            # Structural blocks such as a cover or a page break print no
+            # heading, so they are not sections a reader would look for.
+            sections=[block.heading for block in template.blocks if block.heading],
+        )
+        for template in publisher.templates()
+    ])
+
+
+@router.get("/metrics", response_model=MetricListResponse)
+async def list_rerunnable_metrics(
+    registry: MetricRegistry = Depends(get_metric_registry),
+) -> MetricListResponse:
+    """Return the metrics a reader may recompute, and what each one accepts.
+
+    The Workbench builds its parameter controls from this, so a reader can only
+    choose groupings and filters the definitions already declare.
+    """
+
+    return MetricListResponse(items=[
+        MetricSummaryResponse(
+            name=metric.name, display_name=metric.display_name,
+            description=metric.description, unit=metric.unit, format=metric.format,
+            dimensions=sorted(metric.dimension_specs), filters=sorted(metric.filter_specs),
+            grains=list(metric.supported_grains), value_columns=list(metric.value_columns),
+            required_tables=list(metric.required_tables), caveats=list(metric.business_caveats),
+        )
+        for metric in registry.list_rerunnable()
+    ])
+
+
+@router.post("/runs/{run_id}/reports", response_model=PublishReportResponse, status_code=201)
+async def publish_report(
+    run_id: str, request: PublishReportRequest,
+    publisher: ReportPublisher = Depends(get_report_publisher),
+) -> PublishReportResponse:
+    """Assemble a completed run into documents. This never calls the model."""
+
+    try:
+        documents = await publisher.publish(
+            run_id=run_id, template_name=request.template, formats=list(request.formats),
+            period=request.period, title=request.title,
+            metrics=list(request.metrics), narrative=request.narrative,
+        )
+    except ReportPublishingError as error:
+        raise HTTPException(status_code=400, detail={"code": "report_not_published", "message": str(error)})
+    narrative = request.narrative or ("excluded_from_refreshed_report" if request.metrics else "current")
+    return PublishReportResponse(
+        run_id=run_id, template=request.template, narrative=narrative,
+        rerun_query_ids=[rerun_query_id(index) for index in range(1, len(request.metrics) + 1)],
+        documents=[PublishedDocumentResponse(artifact_id=item.id, name=item.name,
+                                             media_type=item.media_type, size=item.size)
+                   for item in documents],
+    )

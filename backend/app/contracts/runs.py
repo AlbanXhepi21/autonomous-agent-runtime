@@ -9,6 +9,8 @@ them and without either side importing the other.
 from collections.abc import Sequence
 from typing import Protocol
 
+from app.contracts.answers import AnswerSource
+
 
 class RunSummary(Protocol):
     """The part of a task summary that outlives the run that produced it."""
@@ -28,6 +30,12 @@ class CompletedRun(Protocol):
 
     @property
     def final_answer(self) -> str | None: ...
+
+    @property
+    def answer_sources(self) -> Sequence[AnswerSource]: ...
+
+    @property
+    def answer_caveats(self) -> Sequence[str]: ...
 
     @property
     def task_summary(self) -> RunSummary | None: ...

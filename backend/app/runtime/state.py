@@ -6,6 +6,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from app.artifacts.contracts import Artifact
+from app.contracts.answers import AnswerSource
 from app.runtime.delegation import (
     DelegationObservation,
     DelegationRequest,
@@ -77,4 +78,6 @@ class AgentState(BaseModel):
     completed: bool = False
     status: RunStatus = RunStatus.RUNNING
     final_answer: str | None = None
+    answer_sources: list[AnswerSource] = Field(default_factory=list)
+    answer_caveats: list[str] = Field(default_factory=list)
     stop_reason: StopReason | None = None

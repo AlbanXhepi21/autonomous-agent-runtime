@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.analytics.presentation.charts import ChartSpec
+from app.contracts.answers import AnswerSource
 
 RunStatusLiteral = Literal["running", "completed", "failed", "waiting_for_approval"]
 
@@ -38,6 +39,10 @@ class RunHistoryResponse(BaseModel):
     error: str | None = None
     metrics: RunMetricsResponse | None = None
     charts: list[ChartSpec] = Field(default_factory=list)
+    sources: list[AnswerSource] = Field(default_factory=list)
+    #: Limitations the model stated when it finished. Read-only: a reader may
+    #: republish them but never rewrite them, because they qualify the figures.
+    caveats: list[str] = Field(default_factory=list)
 
 
 class RunResponse(BaseModel):
@@ -51,6 +56,9 @@ class RunResponse(BaseModel):
     error: str | None = None
     metrics: RunMetricsResponse | None = None
     charts: list[ChartSpec] = Field(default_factory=list)
+    sources: list[AnswerSource] = Field(default_factory=list)
+    #: Limitations the model stated when it finished; see RunHistoryResponse.
+    caveats: list[str] = Field(default_factory=list)
 
 
 class PublicRunEvent(BaseModel):
