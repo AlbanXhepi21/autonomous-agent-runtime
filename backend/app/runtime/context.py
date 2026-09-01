@@ -76,6 +76,10 @@ class ContextBuilder:
             "goal": state.goal,
             "user_request": {"content": state.goal, "trust": ContentTrust.USER_INPUT.value},
             "task_summary": state.task_summary.model_dump() if state.task_summary else None,
+            # Kept separate from recent_observations so a plan and its statuses
+            # remain visible every iteration, whatever the observation window
+            # or compaction state currently shows.
+            "investigation_plan": state.investigation_plan.model_dump() if state.investigation_plan else None,
             "working_memory": [
                 {"content": memory.content, "metadata": memory.metadata}
                 for memory in working_memories

@@ -29,6 +29,7 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
         "goal",
         "user_request",
         "task_summary",
+        "investigation_plan",
         "working_memory",
         "relevant_memories",
         "untrusted_evidence",
@@ -40,6 +41,7 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
     ]
     assert context["goal"] == "Compare two libraries"
     assert context["task_summary"] is None
+    assert context["investigation_plan"] is None
     assert context["working_memory"] == []
     assert context["relevant_memories"] == []
 

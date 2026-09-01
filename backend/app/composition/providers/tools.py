@@ -39,6 +39,7 @@ from app.tools.database import (
 )
 from app.tools.execution import ToolExecutor
 from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
+from app.tools.planning import UpdateInvestigationPlanTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.registry import ToolRegistry
 from app.tools.repository import (
@@ -93,6 +94,7 @@ def get_tool_registry(
     registry.register(GenerateReportTool(get_analytics_dataset_store(), workspace, artifacts))
     registry.register(ListMetricsTool(get_metric_registry()))
     registry.register(DescribeMetricTool(get_metric_registry()))
+    registry.register(UpdateInvestigationPlanTool())
     return registry
 
 

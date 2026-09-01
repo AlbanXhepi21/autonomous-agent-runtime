@@ -226,7 +226,7 @@ _PUBLIC_EVENT_TYPES = {
     TraceEventType.ANALYTICS_PYTHON_STARTED: "python.analysis_started",
     TraceEventType.ANALYTICS_PYTHON_FINISHED: "python.analysis_completed",
     TraceEventType.ARTIFACT_CREATED: "artifact.created", TraceEventType.CHART_CREATED: "chart.created",
-    TraceEventType.REPORT_CREATED: "report.created",
+    TraceEventType.REPORT_CREATED: "report.created", TraceEventType.PLAN_UPDATED: "plan.updated",
     TraceEventType.DELEGATION_STARTED: "delegation.started", TraceEventType.DELEGATION_FINISHED: "delegation.completed",
     TraceEventType.TOOL_STARTED: "tool.started", TraceEventType.TOOL_FINISHED: "tool.completed",
     TraceEventType.TOOL_FAILED: "tool.failed", TraceEventType.SECURITY_POLICY_EVALUATED: "security.policy_evaluated",
@@ -243,6 +243,8 @@ def _public_data(event: TraceEvent, event_type: str) -> dict[str, object]:
         return {"skill": metadata.get("skill")}
     if event_type in {"artifact.created", "chart.created", "report.created"}:
         return {key: metadata[key] for key in ("artifact_id", "id", "artifact_type", "dataset_id", "report_type") if key in metadata}
+    if event_type == "plan.updated":
+        return {key: metadata[key] for key in ("plan", "progress") if key in metadata}
     if event_type.startswith("delegation."):
         return {key: metadata[key] for key in ("agent_name", "child_run_id", "child_run_ids") if key in metadata}
     if event_type.startswith("tool."):

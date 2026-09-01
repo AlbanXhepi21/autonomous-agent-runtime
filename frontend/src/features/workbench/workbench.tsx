@@ -9,6 +9,7 @@ import { DisplayPanel } from "@/features/workbench/components/display-panel";
 import { ReportExport } from "@/features/workbench/components/report-export";
 import { conversationsApi } from "@/lib/api/conversations";
 import { RunAnalysis } from "@/features/workbench/components/run-analysis";
+import { InvestigationProgress } from "@/features/workbench/components/investigation-progress";
 import { ArtifactPanel } from "@/features/workbench/components/artifact-panel";
 import { DatabaseExplorer } from "@/features/workbench/components/database-explorer";
 import { MemoryInspector } from "@/features/workbench/components/memory-inspector";
@@ -258,6 +259,9 @@ export function Workbench() {
               <span className="spinner" />
               {run.status}
             </div>
+          )}
+          {run.status && run.currentRunId && (
+            <InvestigationProgress events={run.eventsByRun[run.currentRunId] ?? []} />
           )}
           {approvals.approval && (
             <ApprovalCard

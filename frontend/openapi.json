@@ -2578,7 +2578,8 @@
           "analytics_python_finished",
           "analytics_python_failed",
           "chart_created",
-          "report_created"
+          "report_created",
+          "plan_updated"
         ],
         "title": "TraceEventType",
         "type": "string"

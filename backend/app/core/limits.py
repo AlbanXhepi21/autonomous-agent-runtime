@@ -15,6 +15,10 @@ class RuntimeLimits:
     max_delegations_per_run: int = 8
     max_subagent_iterations: int = 6
     max_agent_depth: int = 1
+    #: How many `finish` attempts an investigation plan may redirect before
+    #: the runtime accepts a bounded partial completion instead of asking
+    #: again. Zero means the first gap is disclosed and accepted immediately.
+    max_finish_redirects: int = 2
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -32,3 +36,5 @@ class RuntimeLimits:
         ):
             if value < 1:
                 raise ValueError(f"{name} must be at least 1")
+        if self.max_finish_redirects < 0:
+            raise ValueError("max_finish_redirects must be at least 0")
