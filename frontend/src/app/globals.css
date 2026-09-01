@@ -1,4 +1,3 @@
-
 :root {
   --ink: #142033;
   --muted: #657188;
@@ -925,4 +924,608 @@ textarea {
   color: var(--accent-dark);
   font-weight: 650;
   cursor: pointer;
+}
+
+/* Chat reading layout: keep the workspace wide while giving each answer a
+   deliberate, comfortable reading column. */
+.conversation {
+  max-width: none;
+  margin: 0;
+  border-right: 0;
+}
+.conversation header {
+  padding-inline: clamp(24px, 5vw, 72px);
+}
+.messages {
+  gap: 26px;
+  padding: clamp(28px, 4vw, 52px) clamp(24px, 8vw, 156px) 42px;
+  scroll-behavior: smooth;
+}
+.message-with-analysis {
+  align-self: center;
+  width: min(100%, 920px);
+  gap: 10px;
+}
+.message-role {
+  margin: 0 0 -2px 2px;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.message {
+  max-width: 100%;
+  border-radius: 16px;
+  padding: 20px 24px;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.message.user {
+  width: fit-content;
+  max-width: min(82%, 720px);
+  margin-left: auto;
+  border: 1px solid #d7e9ee;
+  background: #eaf5f8;
+  border-bottom-right-radius: 5px;
+  box-shadow: 0 5px 18px rgba(35, 84, 99, 0.06);
+}
+.message.assistant {
+  width: 100%;
+  border-color: #dfe6ee;
+  border-left: 4px solid #a9d7e4;
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 8px 24px rgba(21, 46, 66, 0.045);
+}
+.message.assistant h1,
+.message.assistant h2,
+.message.assistant h3,
+.message.assistant h4 {
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.message.assistant h1 {
+  font-size: 25px;
+  margin: 0 0 14px;
+}
+.message.assistant h2 {
+  font-size: 21px;
+  margin: 26px 0 12px;
+}
+.message.assistant h3 {
+  font-size: 18px;
+  margin: 22px 0 10px;
+}
+.message.assistant h4 {
+  font-size: 16px;
+  margin: 18px 0 8px;
+}
+.message.assistant p {
+  margin: 0 0 15px;
+}
+.message.assistant ul,
+.message.assistant ol {
+  margin: 10px 0 18px;
+  padding-left: 25px;
+}
+.message.assistant li {
+  margin: 5px 0;
+  padding-left: 3px;
+}
+.message.assistant strong {
+  color: #0f536c;
+}
+.message.assistant blockquote {
+  margin: 16px 0;
+  padding: 9px 14px;
+  border-left: 3px solid #9fd4e3;
+  color: #42536b;
+  background: #f4fafc;
+}
+.message.assistant :not(pre) > code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: #eef3f6;
+  color: #145873;
+  font-size: 0.9em;
+}
+.message.assistant table {
+  width: 100%;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.message.assistant th {
+  background: #f3f8fa;
+  color: #16536b;
+  font-weight: 700;
+}
+.message.assistant td,
+.message.assistant th {
+  padding: 9px 11px;
+}
+.chart-renderer,
+.analytical-display,
+.display-empty,
+.run-analysis {
+  width: 100%;
+}
+.run-analysis {
+  align-self: stretch;
+}
+.analysis-body {
+  padding: 16px;
+  box-shadow: 0 4px 14px rgba(21, 46, 66, 0.03);
+}
+.trace-events {
+  max-height: 310px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
+}
+.trace-events li {
+  padding-bottom: 2px;
+}
+.composer {
+  width: min(calc(100% - 48px), 920px);
+  margin: 0 auto 24px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(22, 48, 68, 0.08);
+}
+.composer textarea {
+  font-size: 16px;
+  line-height: 1.45;
+}
+.composer button {
+  min-width: 92px;
+  padding: 10px 16px;
+}
+.progress,
+.error,
+.approval-card {
+  align-self: center;
+  width: min(100%, 920px);
+}
+
+@media (max-width: 760px) {
+  .conversation header {
+    padding: 18px 20px;
+  }
+  .messages {
+    padding: 24px 16px 28px;
+  }
+  .message {
+    padding: 16px 18px;
+  }
+  .message.user {
+    max-width: 92%;
+  }
+  .analysis-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .run-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .composer {
+    width: calc(100% - 24px);
+    margin-bottom: 12px;
+  }
+}
+
+/* Citations: what an answer says it rests on, beneath the answer itself. */
+.answer-sources {
+  margin: -2px 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.answer-sources ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.answer-sources-lead {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.source-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 340px;
+  border: 1px solid #d7e4ea;
+  border-radius: 999px;
+  padding: 3px 11px;
+  background: #f2f8fa;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: help;
+}
+.source-chip-id {
+  color: var(--accent-dark);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.source-chip-label {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.answer-sources-note {
+  margin: 0 0 0 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Recompute controls: everything offered here comes from the server's metric
+   definitions, so the form can only express a supported question. */
+.report-refresh {
+  margin-top: 10px;
+  border-top: 1px solid var(--line, #e6eaf0);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.report-refresh-lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.report-refresh-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.report-refresh-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+.report-refresh-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.report-refresh-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #d7e4ea;
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: #f2f8fa;
+  font-size: 12px;
+}
+.report-refresh-narrative {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--line, #e6eaf0);
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-size: 12px;
+}
+.report-refresh-narrative label {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.report-export-notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Limitations the analysis stated. Read-only: a caveat qualifies the figures
+   beside it, so it is presented, never offered for editing. */
+.answer-caveats {
+  margin: 2px 2px 0;
+  border-left: 2px solid #d7e4ea;
+  padding: 2px 0 2px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.answer-caveats-lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.answer-caveats ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.answer-caveats li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* Explore panel: read a display more closely without changing what it says. */
+.display-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.explore-display {
+  border: 1px solid #d7e4ea;
+  border-radius: 999px;
+  padding: 3px 12px;
+  background: var(--surface);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.explore-display:hover {
+  background: #f2f8fa;
+}
+.display-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(20, 32, 51, 0.32);
+}
+.display-panel {
+  width: min(560px, 100vw);
+  height: 100dvh;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: -12px 0 36px rgba(21, 46, 66, 0.14);
+}
+.display-panel > header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.display-panel > header h2 {
+  margin: 2px 0 0;
+  font-size: 17px;
+}
+.display-panel-close {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.display-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 24px 32px;
+}
+.display-panel-count {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.display-panel-reset {
+  border: none;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.display-panel-note {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.display-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.display-filter legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.display-filter button {
+  border: 1px solid #d7e4ea;
+  border-radius: 999px;
+  padding: 3px 11px;
+  background: var(--surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+.display-filter button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.display-filter select {
+  border: 1px solid #d7e4ea;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.display-panel .analytical-display {
+  width: 100%;
+}
+
+/* Publishing a finished analysis as a document. */
+.report-export-open {
+  align-self: flex-start;
+  border: 1px solid #d7e4ea;
+  border-radius: 999px;
+  padding: 4px 13px;
+  background: var(--surface);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.report-export-open:hover {
+  background: #f2f8fa;
+}
+.report-export {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: flex-start;
+  width: min(100%, 430px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: var(--sidebar);
+}
+.report-export header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.report-export header button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.report-export label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.report-export select,
+.report-export input {
+  border: 1px solid #d7e4ea;
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+}
+.report-export fieldset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+.report-export fieldset legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.report-export fieldset button {
+  border: 1px solid #d7e4ea;
+  border-radius: 999px;
+  padding: 3px 13px;
+  background: var(--surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+.report-export fieldset button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.report-export-note {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.report-export-run {
+  align-self: flex-start;
+  border: none;
+  border-radius: 9px;
+  padding: 7px 18px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.report-export-run:disabled {
+  background: #a9c6d1;
+  cursor: not-allowed;
+}
+.report-export-error {
+  margin: 0;
+  color: var(--error);
+  font-size: 12px;
+}
+.report-export-results {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.report-export-results a {
+  color: var(--accent-dark);
 }

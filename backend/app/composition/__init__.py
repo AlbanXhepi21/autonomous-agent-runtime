@@ -27,9 +27,16 @@ from app.composition.providers.environment import (
 )
 from app.composition.providers.llm import get_llm_client, get_pricing_registry
 from app.composition.providers.observability import get_trace_recorder
-from app.composition.providers.orchestration import get_run_manager
+from app.composition.providers.orchestration import (
+    get_metric_runner,
+    get_report_publisher,
+    get_report_rerun_service,
+    get_report_template_registry,
+    get_run_manager,
+)
 from app.composition.providers.persistence import (
     get_conversation_store,
+    get_runtime_database,
     get_memory_manager,
     get_memory_retriever,
     get_memory_store,
@@ -70,6 +77,11 @@ __all__ = [
     "get_pricing_registry",
     "get_python_executor",
     "get_repository",
+    "get_runtime_database",
+    "get_metric_runner",
+    "get_report_publisher",
+    "get_report_rerun_service",
+    "get_report_template_registry",
     "get_run_manager",
     "get_runtime_limits",
     "get_security_policy",

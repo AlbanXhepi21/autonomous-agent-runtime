@@ -1,0 +1,52 @@
+{
+  "name": "analysis_summary",
+  "version": "3",
+  "title": "Analysis Summary",
+  "description": "A single investigation written up as a shareable document, whatever period it covered.",
+  "report_type": "executive",
+  "period_granularity": "custom",
+  "orientation": "portrait",
+  "formats": [
+    "pdf",
+    "docx"
+  ],
+  "blocks": [
+    {
+      "kind": "cover"
+    },
+    {
+      "kind": "scope",
+      "heading": "Reporting Scope",
+      "required": true
+    },
+    {
+      "kind": "narrative",
+      "heading": "Executive Summary",
+      "required": true
+    },
+    {
+      "kind": "metrics",
+      "heading": "Headline Metrics"
+    },
+    {
+      "kind": "chart",
+      "heading": "Charts",
+      "limit": 6
+    },
+    {
+      "kind": "table",
+      "heading": "Supporting Tables",
+      "limit": 6
+    },
+    {
+      "kind": "caveats",
+      "heading": "Limitations",
+      "required": true
+    },
+    {
+      "kind": "evidence",
+      "heading": "Evidence Appendix",
+      "required": true
+    }
+  ]
+}

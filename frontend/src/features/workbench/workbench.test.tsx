@@ -85,6 +85,8 @@ describe("Workbench", () => {
       error: null,
       metrics: null,
       charts: [],
+      sources: [],
+      caveats: [],
     });
     connect.mockImplementation(
       (_id: string, onEvent: (event: PublicRunEvent) => void, onError: () => void) => {
@@ -105,6 +107,66 @@ describe("Workbench", () => {
     expect(screen.getByText("Revenue declined.")).toBeInTheDocument();
     expect(screen.getAllByText("Revenue declined.")).toHaveLength(1);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows the evidence an answer cites beneath it", async () => {
+    let handler: ((event: PublicRunEvent) => void) | undefined;
+    vi.mocked(analyticsApi.createRun).mockResolvedValue({
+      run_id: "run-cited",
+      conversation_id: "c-1",
+      status: "running",
+    });
+    vi.mocked(analyticsApi.getRun).mockResolvedValue({
+      run_id: "run-cited",
+      conversation_id: "c-1",
+      status: "completed",
+      created_at: "",
+      started_at: "",
+      finished_at: "",
+      final_response: "Revenue grew 18%.",
+      error: null,
+      metrics: null,
+      charts: [],
+      sources: [
+        {
+          id: "query_003",
+          kind: "database_query",
+          run_id: "run-cited",
+          label: "Revenue by category",
+          referenced_tables: ["orders"],
+          columns: [],
+          metric: null,
+          dimensions: [],
+          filters: [],
+          sql_fingerprint: null,
+          row_count: 12,
+          truncated: false,
+          executed_at: "2026-08-22T13:31:00Z",
+        },
+      ],
+      caveats: [],
+    });
+    connect.mockImplementation((_id: string, onEvent: (event: PublicRunEvent) => void) => {
+      handler = onEvent;
+      return { close: vi.fn() } as unknown as EventSource;
+    });
+    render(<Workbench />);
+    fireEvent.change(screen.getByLabelText("Ask about your data"), {
+      target: { value: "Analyze revenue" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
+    await waitFor(() => expect(handler).toBeDefined());
+    handler?.({
+      id: "event-1",
+      run_id: "run-cited",
+      type: "run.completed",
+      timestamp: "",
+      data: {},
+    });
+
+    expect(await screen.findByText("Revenue grew 18%.")).toBeInTheDocument();
+    expect(screen.getByText("query_003")).toBeInTheDocument();
+    expect(screen.getByText("Revenue by category")).toBeInTheDocument();
   });
 
   it("shows a backend error without adding an assistant response", async () => {
@@ -139,6 +201,8 @@ describe("Workbench", () => {
       error: null,
       metrics: null,
       charts: [],
+      sources: [],
+      caveats: [],
     });
     vi.mocked(approvalsApi.list).mockResolvedValue([
       {

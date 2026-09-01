@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChatComposer } from "@/components/ui/chat-composer";
 import { SafeMarkdown } from "@/components/ui/markdown";
+import { AnswerCaveats } from "@/features/workbench/components/answer-caveats";
+import { AnswerSources } from "@/features/workbench/components/answer-sources";
+import { DisplayPanel } from "@/features/workbench/components/display-panel";
+import { ReportExport } from "@/features/workbench/components/report-export";
 import { conversationsApi } from "@/lib/api/conversations";
 import { RunAnalysis } from "@/features/workbench/components/run-analysis";
 import { ArtifactPanel } from "@/features/workbench/components/artifact-panel";
@@ -11,6 +15,7 @@ import { MemoryInspector } from "@/features/workbench/components/memory-inspecto
 import { ApprovalCard } from "@/features/workbench/components/approval-card";
 import { RunChartPreview } from "@/features/workbench/components/run-chart-preview";
 import { ChartRenderer } from "@/features/workbench/components/chart-renderer";
+import type { ChartSpec } from "@/types/displays";
 import { useAgentRun } from "./hooks/use-agent-run";
 import { useApprovals } from "./hooks/use-approvals";
 import { useConversations } from "./hooks/use-conversations";
@@ -28,6 +33,9 @@ export function Workbench() {
   const onApprovalRequired = useCallback((runId: string) => loadPending(runId), [loadPending]);
 
   const run = useAgentRun({ onRunSettled, onApprovalRequired });
+
+  /** The display opened in the explore panel, with the run whose evidence it cites. */
+  const [exploring, setExploring] = useState<{ chart: ChartSpec; runId: string } | null>(null);
 
   const decide = async (decision: "approve" | "reject") => {
     const released = await approvals.resolve(decision);
@@ -196,6 +204,7 @@ export function Workbench() {
           )}
           {run.messages.map((message, index) => (
             <div className="message-with-analysis" key={`${message.run_id ?? "message"}-${index}`}>
+              {message.role === "assistant" && <span className="message-role">Analyst answer</span>}
               <article
                 className={`message ${message.role}`}
                 data-run-id={message.run_id ?? undefined}
@@ -206,15 +215,34 @@ export function Workbench() {
                   message.content
                 )}
               </article>
+              {message.role === "assistant" && message.run_id && (
+                <AnswerSources sources={run.runs[message.run_id]?.sources ?? []} />
+              )}
+              {message.role === "assistant" && message.run_id && (
+                <AnswerCaveats caveats={run.runs[message.run_id]?.caveats ?? []} />
+              )}
               {message.role === "assistant" &&
                 message.run_id &&
                 run.runs[message.run_id]?.charts?.map((chart) => (
-                  <ChartRenderer key={chart.id} chart={chart} />
+                  <ChartRenderer
+                    key={chart.id}
+                    chart={chart}
+                    onExplore={
+                      chart.type === "kpi"
+                        ? undefined
+                        : () => setExploring({ chart, runId: message.run_id! })
+                    }
+                  />
                 ))}
               {message.role === "assistant" &&
                 message.run_id &&
                 !run.runs[message.run_id]?.charts?.length && (
                   <RunChartPreview runId={message.run_id} />
+                )}
+              {message.role === "assistant" &&
+                message.run_id &&
+                run.runs[message.run_id]?.status === "completed" && (
+                  <ReportExport runId={message.run_id} />
                 )}
               {message.role === "assistant" && message.run_id && (
                 <RunAnalysis
@@ -247,6 +275,13 @@ export function Workbench() {
         </div>
         <ChatComposer onSubmit={submit} disabled={Boolean(run.status)} />
       </section>
+      {exploring && (
+        <DisplayPanel
+          chart={exploring.chart}
+          sources={run.runs[exploring.runId]?.sources ?? []}
+          onClose={() => setExploring(null)}
+        />
+      )}
     </main>
   );
 }

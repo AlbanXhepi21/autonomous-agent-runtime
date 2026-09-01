@@ -1,0 +1,59 @@
+{
+  "name": "monthly_business_review",
+  "version": "3",
+  "title": "Monthly Business Review",
+  "description": "Headline metrics, the month's movements and the evidence behind them, for a recurring management readout.",
+  "report_type": "executive",
+  "period_granularity": "month",
+  "orientation": "portrait",
+  "formats": [
+    "pdf",
+    "docx"
+  ],
+  "blocks": [
+    {
+      "kind": "cover"
+    },
+    {
+      "kind": "scope",
+      "heading": "Reporting Scope",
+      "required": true
+    },
+    {
+      "kind": "narrative",
+      "heading": "Executive Summary",
+      "required": true
+    },
+    {
+      "kind": "metrics",
+      "heading": "Headline Metrics",
+      "required": true,
+      "limit": 8
+    },
+    {
+      "kind": "chart",
+      "heading": "Charts",
+      "required": true,
+      "limit": 6
+    },
+    {
+      "kind": "table",
+      "heading": "Supporting Tables",
+      "required": true,
+      "limit": 6
+    },
+    {
+      "kind": "caveats",
+      "heading": "Limitations",
+      "required": true
+    },
+    {
+      "kind": "page_break"
+    },
+    {
+      "kind": "evidence",
+      "heading": "Evidence Appendix",
+      "required": true
+    }
+  ]
+}
