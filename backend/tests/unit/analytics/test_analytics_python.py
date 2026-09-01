@@ -55,7 +55,7 @@ plt.savefig('untrusted-name.png')
 
     assert result.success and result.output["stdout"] == "20.0\n"
     assert result.output["artifacts"][0]["name"] == "chart-1.png"
-    assert artifacts.path_for(result.output["artifacts"][0]["id"]) is not None
+    assert await artifacts.path_for(result.output["artifacts"][0]["id"]) is not None
     trace = recorder.get_trace("run-1")
     assert trace is not None
     event_types = {event.event_type for event in trace.events}

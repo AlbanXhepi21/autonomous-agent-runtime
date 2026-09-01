@@ -594,14 +594,31 @@ long-term memory. An agent creates a file with the normal controlled workspace t
 then calls `register_artifact` to copy that selected file into:
 
 ```text
-workspace/artifacts/<run_id>/<artifact_id>-<name>
+workspace/artifacts/<run_id>/<artifact_id>/<name>
 ```
 
-The run response returns metadata only (ID, name, relative artifact path, type, media type,
-size, run ID, creation time, and metadata); it never embeds file content in agent state.
-`GET /artifacts/{artifact_id}` resolves only a validated registered ID through the artifact
-store, never an arbitrary filesystem path. Artifacts persist in the development workspace
-for V5; retention and cleanup policies are future work.
+That path is derived from a provider-independent storage key held on the record, never
+stored as a machine path, so the same key resolves on another host or later against object
+storage.
+
+The run response returns metadata only (ID, name, storage key, type, media type, size,
+SHA-256, status, run ID, creation time, and metadata); it never embeds file content in
+agent state. `GET /artifacts/{artifact_id}` resolves only a validated registered ID through
+the artifact store, never an arbitrary filesystem path.
+
+Registration is deliberately two steps. The record is created `pending`, the bytes are
+copied and measured, and only then does the record become `ready`; retrieval ignores
+anything that is not ready. An interrupted write therefore leaves an unusable row rather
+than a download link to a partial file.
+
+`ARTIFACT_BACKEND=in_memory` keeps records in the process that made them, which is enough
+for tests and single-process development but loses every download link at restart.
+`ARTIFACT_BACKEND=postgres` records them in the runtime database (`artifacts` table, added
+by migration `20260823_0005`) so a link outlives the process. Files written before durable
+records existed used an `<artifact_id>-<name>` layout; `python -m scripts.backfill_artifacts`
+reports what it would recover and records them under their original IDs with `--apply`.
+Retention and cleanup policies remain future work — `expires_at` is recorded but nothing
+sweeps it yet.
 
 The architecture separates tool selection from tool execution:
 

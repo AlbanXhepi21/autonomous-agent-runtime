@@ -31,23 +31,23 @@ class GenerateReportTool(Tool):
         directory.mkdir(parents=True, exist_ok=True)
         artifacts = []
         try:
-            artifacts.append(self._register(run_id, directory, "report.md", render_markdown(report), "report", "text/markdown", report))
-            artifacts.append(self._register(run_id, directory, "supporting_metrics.json", report.model_dump_json(indent=2), "report_data", "application/json", report))
+            artifacts.append(await self._register(run_id, directory, "report.md", render_markdown(report), "report", "text/markdown", report))
+            artifacts.append(await self._register(run_id, directory, "supporting_metrics.json", report.model_dump_json(indent=2), "report_data", "application/json", report))
             for index, dataset_id in enumerate(report.dataset_ids_for_csv, start=1):
                 dataset = self._datasets.get(run_id=run_id, dataset_id=dataset_id)
                 if dataset is None: continue
                 path = directory / f"extract-{index}.csv"
                 with path.open("w", encoding="utf-8", newline="") as stream:
                     writer = csv.writer(stream); writer.writerow(dataset["columns"]); writer.writerows(dataset["rows"])
-                artifacts.append(self._register_path(run_id, path, "csv_extract", "text/csv", report))
+                artifacts.append(await self._register_path(run_id, path, "csv_extract", "text/csv", report))
         except (OSError, ValueError) as error:
             raise ToolExecutionError("Report artifact could not be created within configured limits.", failure_category="artifact_registration_failed") from error
         return {"report_type": report.report_type.value, "time_period": report.time_period, "artifacts": artifacts, "source_query_ids": report.source_query_ids}
-    def _register(self, run_id: str, directory: Path, name: str, text: str, artifact_type: str, media_type: str, report: AnalyticalReport) -> dict[str, object]:
+    async def _register(self, run_id: str, directory: Path, name: str, text: str, artifact_type: str, media_type: str, report: AnalyticalReport) -> dict[str, object]:
         path = directory / name; path.write_text(text, encoding="utf-8")
-        return self._register_path(run_id, path, artifact_type, media_type, report)
-    def _register_path(self, run_id: str, path: Path, artifact_type: str, media_type: str, report: AnalyticalReport) -> dict[str, object]:
-        artifact = self._artifacts.register(run_id=run_id, source_path=path.relative_to(self._workspace.root).as_posix(), artifact_type=artifact_type, media_type=media_type, metadata={"report_type": report.report_type.value, "time_period": report.time_period, "source_query_ids": report.source_query_ids})
+        return await self._register_path(run_id, path, artifact_type, media_type, report)
+    async def _register_path(self, run_id: str, path: Path, artifact_type: str, media_type: str, report: AnalyticalReport) -> dict[str, object]:
+        artifact = await self._artifacts.register(run_id=run_id, source_path=path.relative_to(self._workspace.root).as_posix(), artifact_type=artifact_type, media_type=media_type, metadata={"report_type": report.report_type.value, "time_period": report.time_period, "source_query_ids": report.source_query_ids})
         return artifact.model_dump(mode="json")
     async def execute(self, **arguments: Any) -> dict[str, object]:
         raise ToolInputError("Report generation requires an active run.")

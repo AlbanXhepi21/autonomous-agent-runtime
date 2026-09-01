@@ -21,8 +21,8 @@ async def download_artifact(
     """Download a registered artifact by validated ID, never by a supplied path."""
 
     try:
-        artifact = artifact_store.get(artifact_id)
-        path = artifact_store.path_for(artifact_id)
+        artifact = await artifact_store.get(artifact_id)
+        path = await artifact_store.path_for(artifact_id)
     except ValueError:
         artifact = path = None
     if artifact is None or path is None:
@@ -48,13 +48,13 @@ def _metadata(artifact) -> ArtifactMetadata:
 
 @router.get("", response_model=list[ArtifactMetadata])
 async def list_artifacts(run_id: str | None = None, artifact_store: ArtifactStore = Depends(get_artifact_store)) -> list[ArtifactMetadata]:
-    return [_metadata(artifact) for artifact in artifact_store.list(run_id=run_id)]
+    return [_metadata(artifact) for artifact in await artifact_store.list(run_id=run_id)]
 
 
 @router.get("/{artifact_id}/preview")
 async def preview_artifact(artifact_id: str, artifact_store: ArtifactStore = Depends(get_artifact_store)):
     """Return only bounded, non-executable previews of registered artifacts."""
-    try: artifact, path = artifact_store.get(artifact_id), artifact_store.path_for(artifact_id)
+    try: artifact, path = await artifact_store.get(artifact_id), await artifact_store.path_for(artifact_id)
     except ValueError: artifact = path = None
     if artifact is None or path is None: raise HTTPException(status_code=404, detail="Artifact not found.")
     if artifact.media_type.startswith("image/") and artifact.media_type in {"image/png", "image/jpeg"}:
