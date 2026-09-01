@@ -95,6 +95,19 @@ not a pandas DataFrame. Read the returned column names and map them to row index
 plotting. Do not assume names such as `month`; use the query's actual column labels. Avoid
 `pathlib`, filesystem APIs, and database connections inside the restricted Python boundary.
 
+## Planning a multi-part investigation
+
+For a comparison, a broader investigation, or a report, use `update_investigation_plan`
+before running much analysis: name the objective, the request class, the concrete
+analysis questions an answer must resolve, and the outputs (kpi, chart, or table) that
+carry each answer, within a bounded display budget for that class. A single-fact question
+does not need a plan. Update it as evidence comes in — mark a question answered only once
+you can cite the `query_###` ids that resolved it, mark an output created with the
+`create_chart` display id, or mark either blocked with why — rather than leaving items
+silently unresolved. The runtime verifies every claimed status against what the run
+actually produced and resets an unverifiable one to pending, so finish only after the
+plan's required items are genuinely answered, created, or explicitly blocked.
+
 ## Interactive Workbench charts
 
 Choose the display from the shape of the result. Three or more rows across a dimension, or

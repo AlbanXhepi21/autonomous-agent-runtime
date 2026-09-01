@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.artifacts.contracts import Artifact
 from app.contracts.answers import AnswerSource
+from app.contracts.investigation import InvestigationPlan
 from app.runtime.delegation import (
     DelegationObservation,
     DelegationRequest,
@@ -63,6 +64,14 @@ class AgentState(BaseModel):
     observations: list[Observation] = Field(default_factory=list)
     artifacts: list[Artifact] = Field(default_factory=list)
     task_summary: TaskSummary | None = None
+    #: The run's own typed statement of what it must resolve, kept beside
+    #: (never inside) the summarized observation history so it survives
+    #: compaction unchanged.
+    investigation_plan: InvestigationPlan | None = None
+    #: How many times a `finish` attempt was redirected back for more work.
+    #: Bounds how long the runtime keeps asking rather than accepting a
+    #: disclosed partial completion.
+    finish_redirect_count: int = Field(default=0, ge=0)
     loaded_skills: dict[str, str] = Field(default_factory=dict)
     delegation_requests: list[DelegationRequest] = Field(default_factory=list)
     successful_delegation_count: int = 0

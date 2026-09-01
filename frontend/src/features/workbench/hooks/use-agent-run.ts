@@ -47,6 +47,9 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
   const [runs, setRuns] = useState<Record<string, RunHistory>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  //: The run currently streaming, so a live progress view can find its events
+  //: without guessing which entry in `runs` is still in flight.
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const settling = useRef(false);
   const stream = useRunStream();
 
@@ -57,6 +60,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
     setRuns({});
     setStatus(null);
     setError(null);
+    setCurrentRunId(null);
   }, [stream]);
 
   /** Read the final result once, whichever signal reported the run was over. */
@@ -87,6 +91,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
         setError(settled.error ?? "The analyst run ended without an answer.");
       }
       setStatus(null);
+      setCurrentRunId(null);
       stream.close();
       onRunSettled();
     },
@@ -118,6 +123,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
           message,
           ...(conversationId ? { conversation_id: conversationId } : {}),
         });
+        setCurrentRunId(created.run_id);
         onConversation(created.conversation_id);
         onRunSettled();
         setRuns((current) => ({
@@ -141,6 +147,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
           onFailed: (_runId, reason) => {
             setError(reason);
             setStatus(null);
+            setCurrentRunId(null);
             onRunSettled();
           },
           onDisconnected: (runId) => {
@@ -150,6 +157,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
         });
       } catch (cause) {
         setStatus(null);
+        setCurrentRunId(null);
         setError(cause instanceof ApiError ? cause.message : "Unable to start the analyst run.");
       }
     },
@@ -163,6 +171,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
       settling.current = false;
       setStatus(null);
       setError(null);
+      setCurrentRunId(null);
       setMessages(restored);
       setRuns(Object.fromEntries(historicalRuns.map((run) => [run.run_id, run])));
       await stream.hydrate(historicalRuns);
@@ -174,6 +183,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
     messages,
     runs,
     status,
+    currentRunId,
     error,
     setError,
     eventsByRun: stream.eventsByRun,

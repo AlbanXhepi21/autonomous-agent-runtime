@@ -7,8 +7,9 @@ from time import perf_counter
 from pydantic import ValidationError
 
 from app.artifacts.contracts import Artifact
-from app.contracts.actions import AgentAction
+from app.contracts.actions import AgentAction, normalize_caveats
 from app.contracts.answers import AnswerSource
+from app.contracts.investigation import InvestigationPlan
 from app.core.exceptions import UnknownSkillError
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
@@ -34,6 +35,7 @@ from app.runtime.delegation import (
     ParallelSubagentExecutor,
 )
 from app.runtime.fingerprints import tool_action_fingerprint
+from app.runtime.planning import evaluate_finish, plan_progress, reconcile_plan
 from app.runtime.prompt import SYSTEM_PROMPT
 from app.runtime.registry import AgentRegistry
 from app.runtime.state import AgentState, Observation, RunStatus, StopReason
@@ -406,6 +408,8 @@ class AgentRunner:
                     state.artifacts.append(Artifact.model_validate(result.output["artifact"]))
                 except (KeyError, ValidationError):
                     log_event(self._logger, logging.WARNING, "artifact_registration_failed", run_id=state.run_id, iteration=state.iteration_count)
+            if result.success and tool_name == "update_investigation_plan" and isinstance(result.output, dict):
+                self._update_investigation_plan(state, result.output)
             self._record_observation(state, source=tool_name, result=result)
             if not result.success:
                 state.recoverable_error_count += 1
@@ -481,9 +485,39 @@ class AgentRunner:
             await self._delegation.handle_parallel(state, action)
             return
 
+        evaluation = evaluate_finish(state, self._limits)
+        if not evaluation.accept:
+            state.finish_redirect_count += 1
+            self._record_observation(
+                state,
+                source="investigation_plan",
+                result=ToolResult(
+                    success=False,
+                    error=(
+                        "Finish was not accepted: " + " ".join(evaluation.missing) + " "
+                        "Continue the investigation, or call update_investigation_plan to mark "
+                        "an item blocked with why, then finish again."
+                    ),
+                    metadata={"redirected_finish": True, "missing_count": len(evaluation.missing)},
+                ),
+            )
+            log_event(
+                self._logger, logging.INFO, "finish_redirected", run_id=state.run_id,
+                iteration=state.iteration_count, missing_count=len(evaluation.missing),
+                redirect_count=state.finish_redirect_count,
+            )
+            return
+
         state.final_answer = action.final_answer
         state.answer_sources = self._resolved_sources(state, action)
-        state.answer_caveats = self._accepted_caveats(state, action)
+        caveats = self._accepted_caveats(state, action)
+        if evaluation.missing:
+            caveats = normalize_caveats(caveats + [f"Incomplete: {item}" for item in evaluation.missing])
+            log_event(
+                self._logger, logging.INFO, "finish_accepted_with_gaps", run_id=state.run_id,
+                iteration=state.iteration_count, missing_count=len(evaluation.missing),
+            )
+        state.answer_caveats = caveats
         state.completed = True
         state.status = RunStatus.COMPLETED
         state.stop_reason = StopReason.COMPLETED
@@ -609,6 +643,33 @@ class AgentRunner:
                 iteration=state.iteration_count,
                 sequence=len(state.observations) + 1,
             )
+        )
+
+    def _update_investigation_plan(self, state: AgentState, output: dict) -> None:
+        """Store the model's proposed plan only after reconciling its claims.
+
+        A question or output the model marks resolved is trusted only once
+        `reconcile_plan` confirms this run actually produced the evidence or
+        display behind it; anything it cannot confirm reverts to "pending"
+        here, before the plan is ever shown back to the model or a reader.
+        """
+
+        try:
+            proposed = InvestigationPlan.model_validate(output["plan"])
+        except (KeyError, ValidationError):
+            log_event(self._logger, logging.WARNING, "investigation_plan_update_failed", run_id=state.run_id, iteration=state.iteration_count)
+            return
+        state.investigation_plan = reconcile_plan(proposed, state.observations)
+        self._trace_recorder.record(
+            state.run_id, TraceEventType.PLAN_UPDATED, iteration=state.iteration_count,
+            metadata={
+                "plan": state.investigation_plan.model_dump(mode="json"),
+                "progress": plan_progress(state.investigation_plan),
+            },
+        )
+        log_event(
+            self._logger, logging.INFO, "investigation_plan_updated", run_id=state.run_id,
+            iteration=state.iteration_count, **plan_progress(state.investigation_plan),
         )
 
     def _resolved_sources(self, state: AgentState, action: AgentAction) -> list[AnswerSource]:

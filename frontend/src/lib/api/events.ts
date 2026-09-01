@@ -24,6 +24,7 @@ export const PUBLIC_RUN_EVENT_TYPES = [
   "artifact.created",
   "chart.created",
   "report.created",
+  "plan.updated",
   "delegation.started",
   "delegation.completed",
   "tool.started",
