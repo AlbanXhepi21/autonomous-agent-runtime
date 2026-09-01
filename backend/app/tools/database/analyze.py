@@ -50,7 +50,7 @@ class AnalyzeDatasetTool(Tool):
         artifacts = []
         for source_path in result.generated_files:
             try:
-                artifact = self._artifact_store.register(run_id=run_id, source_path=source_path,
+                artifact = await self._artifact_store.register(run_id=run_id, source_path=source_path,
                     name=f"chart-{len(artifacts) + 1}.png", artifact_type="chart", media_type="image/png",
                     metadata={"source": "analytics_python", "dataset_id": arguments["dataset_id"]})
             except ValueError as error:

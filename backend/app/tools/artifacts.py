@@ -27,7 +27,7 @@ class RegisterArtifactTool(Tool):
         if not run_id:
             raise ToolInputError("Artifact registration requires an active run.")
         try:
-            artifact = self._artifact_store.register(run_id=run_id, **arguments)
+            artifact = await self._artifact_store.register(run_id=run_id, **arguments)
         except ValueError as error:
             raise ToolInputError(str(error)) from error
         return {"artifact": artifact.model_dump(mode="json")}

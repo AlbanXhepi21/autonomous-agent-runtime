@@ -73,7 +73,8 @@ def test_command_and_python_child_environments_exclude_host_secrets(monkeypatch:
         assert name not in command_env and name not in python_env
 
 
-def test_memory_and_artifacts_reject_obvious_credentials(tmp_path: Any) -> None:
+@pytest.mark.asyncio
+async def test_memory_and_artifacts_reject_obvious_credentials(tmp_path: Any) -> None:
     candidate = MemoryCandidate(content=f"token={SECRET}", memory_type=MemoryType.LONG_TERM,
                                 category=MemoryCategory.LESSON, reason="x", source_run_id="run")
     assert MemoryPolicy().rejection_reason(candidate) == "credential_material"
@@ -81,7 +82,7 @@ def test_memory_and_artifacts_reject_obvious_credentials(tmp_path: Any) -> None:
     workspace = Workspace(tmp_path)
     (tmp_path / ".env").write_text(f"GITHUB_TOKEN={SECRET}")
     with pytest.raises(ValueError, match="Sensitive credential"):
-        WorkspaceArtifactStore(workspace).register(run_id="run", source_path=".env")
+        await WorkspaceArtifactStore(workspace).register(run_id="run", source_path=".env")
 
 
 @pytest.mark.asyncio

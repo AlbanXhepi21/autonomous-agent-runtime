@@ -43,7 +43,7 @@ async def test_register_artifact_copies_workspace_file_with_metadata(tmp_path: P
     assert result.success and artifact["run_id"] == "run-one"
     assert artifact["relative_path"].startswith("artifacts/run-one/")
     assert artifact["size"] == len("# Report\n")
-    assert store.path_for(artifact["id"]).read_text() == "# Report\n"
+    assert (await store.path_for(artifact["id"])).read_text() == "# Report\n"
 
 
 @pytest.mark.asyncio
@@ -55,15 +55,16 @@ async def test_artifact_rejects_external_or_traversal_source_paths(tmp_path: Pat
     assert not outside.success and not absolute.success
 
 
-def test_artifact_store_enforces_size_and_run_directory_containment(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_artifact_store_enforces_size_and_run_directory_containment(tmp_path: Path) -> None:
     (tmp_path / "large.txt").write_text("x" * 11)
     (tmp_path / "small.txt").write_text("small")
     store = WorkspaceArtifactStore(Workspace(tmp_path), max_artifact_bytes=10)
 
     with pytest.raises(ValueError, match="size limit"):
-        store.register(run_id="run", source_path="large.txt")
+        await store.register(run_id="run", source_path="large.txt")
     with pytest.raises(ValueError):
-        store.register(run_id="../escape", source_path="small.txt")
+        await store.register(run_id="../escape", source_path="small.txt")
 
 
 @pytest.mark.asyncio
@@ -76,9 +77,9 @@ async def test_multiple_artifacts_and_runs_remain_isolated(tmp_path: Path) -> No
     second = await executor.execute("register_artifact", {"source_path": "two.txt"}, run_id="second", iteration=1)
 
     assert first.output["artifact"]["id"] != second.output["artifact"]["id"]
-    assert store.path_for(first.output["artifact"]["id"]).parent.name == "first"
-    assert store.path_for(second.output["artifact"]["id"]).parent.name == "second"
-    assert store.path_for("../first") is None
+    assert (await store.path_for(first.output["artifact"]["id"])).parent.parent.name == "first"
+    assert (await store.path_for(second.output["artifact"]["id"])).parent.parent.name == "second"
+    assert await store.path_for("../first") is None
 
 
 class ArtifactLLM(LLMClient):
@@ -108,13 +109,13 @@ async def test_final_agent_response_includes_metadata_not_artifact_content(tmp_p
 async def test_artifact_download_uses_validated_ids_only(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     (tmp_path / "download.txt").write_text("download")
     _, store = artifact_tools(tmp_path)
-    artifact = store.register(run_id="run", source_path="download.txt")
+    artifact = await store.register(run_id="run", source_path="download.txt")
     caplog.set_level(logging.INFO)
 
     response = await download_artifact(artifact.id, store)
     with pytest.raises(HTTPException) as missing:
         await download_artifact("../download.txt", store)
 
-    assert response.path == store.path_for(artifact.id)
+    assert response.path == await store.path_for(artifact.id)
     assert missing.value.status_code == 404
     assert any(record.getMessage() == "artifact_accessed" for record in caplog.records)

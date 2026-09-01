@@ -25,7 +25,7 @@ async def test_report_generates_markdown_json_and_bounded_csv_artifacts(tmp_path
     result = await ToolExecutor(registry).execute("generate_report", {"report": report_payload()}, run_id="r")
     assert result.success and len(result.output["artifacts"]) == 3
     markdown = next(item for item in result.output["artifacts"] if item["name"] == "report.md")
-    assert "query_001" in artifacts.path_for(markdown["id"]).read_text()
+    assert "query_001" in (await artifacts.path_for(markdown["id"])).read_text()
     assert all(item["metadata"]["source_query_ids"] == ["query_001"] for item in result.output["artifacts"])
 
 
