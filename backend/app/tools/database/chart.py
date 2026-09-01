@@ -27,6 +27,16 @@ class CreateChartTool(Tool):
     def description(self) -> str:
         return (
             "Create a safe, interactive Workbench chart from a bounded query result. "
+            "Use this whenever the result has a shape: three or more rows across a dimension, "
+            "a series over time, a composition, a ranking, or a breakdown by two dimensions. "
+            "Prefer type 'table' when the reader needs exact figures and 'bar'/'line' when the "
+            "comparison or trend is the point. A result with two categorical dimensions and one "
+            "measure — a breakdown of one thing by another, such as failures by method and by "
+            "reason — is a composition: show it as 'stacked_bar' so the split is visible, and "
+            "add a separate 'table' display alongside when the exact figures also matter. "
+            "Listing more than three figures in the written "
+            "answer instead of creating a display is a mistake. Skip the display only for a "
+            "single number, a yes/no answer, or a two-value comparison. "
             "Pass a data-only ChartSpec: supported types are line, bar, stacked_bar, area, pie, "
             "scatter, table, and kpi. Never include JavaScript, HTML, formatter functions, SQL, "
             "or filesystem paths. The source_query_ids must refer to query_database results from "

@@ -141,12 +141,16 @@ class StreamResult:
 class Connection:
     def __init__(self, rows: list[list[object]], error: Exception | None = None) -> None:
         self.rows, self.error, self.executed = rows, error, []
+        self.streamed: tuple[str, object] | None = None
     @asynccontextmanager
     async def begin(self): yield
     async def execute(self, statement: object, params: object = None) -> None:
         self.executed.append((str(statement), params))
         if self.error: raise self.error
-    async def stream(self, statement: object) -> StreamResult:
+    async def stream(self, statement: object, params: object = None) -> StreamResult:
+        # Mirrors AsyncConnection.stream, which binds parameters alongside the
+        # statement; a compiled metric relies on that second argument.
+        self.streamed = (str(statement), params)
         if self.error: raise self.error
         return StreamResult(self.rows)
 
@@ -174,3 +178,63 @@ async def test_executor_maps_timeout_to_safe_failure_category() -> None:
     with pytest.raises(AnalyticsQueryError, match="timed out") as error:
         await executor.execute("SELECT 1", referenced_tables=[])
     assert error.value.failure_category == "database_timeout"
+
+
+# ------------------------------------------------- actionable failure reasons
+
+
+class _Wrapped(Exception):
+    """A SQLAlchemy-shaped wrapper carrying an asyncpg cause, as the driver raises."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.orig = Exception(message)
+
+
+@pytest.mark.parametrize("cause,expected", [
+    ("<class 'asyncpg.exceptions.UndefinedColumnError'>: column m.method_name does not exist",
+     "column m.method_name does not exist"),
+    ('<class \'asyncpg.exceptions.GroupingError\'>: column "m.name" must appear in the GROUP BY clause',
+     'column "m.name" must appear in the GROUP BY clause'),
+    ("<class 'asyncpg.exceptions.UndefinedFunctionError'>: function bogus(bigint) does not exist",
+     "function bogus(bigint) does not exist"),
+])
+def test_a_caller_is_told_what_about_its_own_query_was_wrong(cause: str, expected: str) -> None:
+    """Blind retries are what killed a run; the caller needs the failing name.
+
+    Every message here describes the statement the caller wrote, and the schema
+    is already available through describe_table, so this reveals nothing new.
+    """
+
+    from app.analytics.sql.executor import _actionable_reason
+
+    assert _actionable_reason(_Wrapped(cause)) == expected
+
+
+@pytest.mark.parametrize("cause", [
+    "<class 'asyncpg.exceptions.InsufficientPrivilegeError'>: permission denied for table secrets",
+    "<class 'asyncpg.exceptions.InternalServerError'>: unexpected internal state",
+    "<class 'asyncpg.exceptions.ConnectionDoesNotExistError'>: connection was closed",
+    "some entirely unrecognised driver failure",
+])
+def test_anything_not_about_the_callers_query_stays_generic(cause: str) -> None:
+    """An internal or permission failure must not be echoed back."""
+
+    from app.analytics.sql.executor import _actionable_reason
+
+    assert _actionable_reason(_Wrapped(cause)) is None
+
+
+def test_a_reason_is_bounded_to_one_line() -> None:
+    from app.analytics.sql.executor import _MAX_REASON_CHARS, _actionable_reason
+
+    sprawling = (
+        "<class 'asyncpg.exceptions.UndefinedColumnError'>: column "
+        + "x" * 400 + "\nHINT: something the caller need not read"
+    )
+
+    reason = _actionable_reason(_Wrapped(sprawling))
+
+    assert reason is not None
+    assert len(reason) <= _MAX_REASON_CHARS
+    assert "HINT" not in reason

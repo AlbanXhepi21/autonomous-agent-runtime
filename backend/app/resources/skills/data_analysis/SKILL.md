@@ -68,6 +68,20 @@ In the answer, lead with the conclusion, give the key numbers and comparison, di
 observation from interpretation, state material caveats, and cite `query_###` references for
 database-backed statements. Avoid dumping SQL or generic business prose unless useful.
 
+Write for a reader who cannot see your tools. Do not describe what you displayed ("this is
+charted as a table"); state the finding and let the display stand beside it.
+
+When a result breaks one dimension down by another — failures by method and reason, revenue
+by category and month — create a `stacked_bar` so the composition is visible, and add a
+`table` when the exact figures matter too. A headline figure the answer leads with belongs
+in a `kpi` display so it appears as a headline metric rather than only in prose.
+
+Repeat those material caveats in the finish action's `caveats` field — missing or
+incomplete data, an ambiguous definition, a small sample, an unavailable dimension, a
+period the data does not fully cover, possibly stale source data, or a result that should
+not be generalized. They are printed verbatim as a published report's limitations, so keep
+each to one short sentence and leave the list empty when there is nothing genuine to say.
+
 Prefer SQL for large-scale filtering, joins, grouping, and aggregation. Use
 `analyze_dataset` only with a small dataset reference returned by `query_database` when it
 adds value: descriptive statistics, correlation, distributions, transformations, cohorts,
@@ -83,8 +97,13 @@ plotting. Do not assume names such as `month`; use the query's actual column lab
 
 ## Interactive Workbench charts
 
-When a user asks to plot, compare, or visualize query results, prefer `create_chart` after
-`query_database`. It creates a validated, interactive data-only display in the Workbench; it
+Choose the display from the shape of the result. Three or more rows across a dimension, or
+any series over time, belongs in a chart or table rather than in prose; a breakdown by two
+dimensions belongs in a table. A long bulleted list of figures is a table that was not
+created. A single figure, a yes/no answer, or a two-value comparison stays in the sentence,
+and a number already stated plainly does not also need a chart.
+
+When a display is warranted, prefer `create_chart` after `query_database`. It creates a validated, interactive data-only display in the Workbench; it
 does not create React, JavaScript, HTML, or executable formatter code. Copy only a bounded set
 of values from the query result, use the exact field names returned by SQL, and include the
 actual `query_###` identifier in `source_query_ids`.
