@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.analytics.presentation.charts import ChartSpec
 from app.api.schemas.analytics import (
+    AnswerSource,
     ConversationCreateRequest,
     ConversationDetailResponse,
     ConversationListResponse,
@@ -42,7 +43,7 @@ async def get_conversation(conversation_id: UUID, message_limit: int = Query(def
     if conversation is None: raise HTTPException(status_code=404, detail={"code": "unknown_conversation", "message": "Conversation not found."})
     messages, total = await store.list_messages(conversation_id, limit=message_limit, offset=message_offset)
     runs = await store.list_runs(conversation_id)
-    return ConversationDetailResponse(**_conversation(conversation).model_dump(), messages=[MessageResponse(id=str(message.id), role=message.role, content=message.content, created_at=message.created_at, run_id=message.run_id) for message in messages], messages_total=total, messages_limit=message_limit, messages_offset=message_offset, runs=[RunHistoryResponse(run_id=run.id, status=run.status, created_at=run.created_at, started_at=run.started_at, completed_at=run.completed_at, error=run.error, metrics=RunMetricsResponse.model_validate(run.metrics) if run.metrics else None, charts=[ChartSpec.model_validate(chart) for chart in (getattr(run, "chart_specs", None) or [])]) for run in runs])
+    return ConversationDetailResponse(**_conversation(conversation).model_dump(), messages=[MessageResponse(id=str(message.id), role=message.role, content=message.content, created_at=message.created_at, run_id=message.run_id) for message in messages], messages_total=total, messages_limit=message_limit, messages_offset=message_offset, runs=[RunHistoryResponse(run_id=run.id, status=run.status, created_at=run.created_at, started_at=run.started_at, completed_at=run.completed_at, error=run.error, metrics=RunMetricsResponse.model_validate(run.metrics) if run.metrics else None, charts=[ChartSpec.model_validate(chart) for chart in (getattr(run, "chart_specs", None) or [])], sources=[AnswerSource.model_validate(source) for source in (getattr(run, "answer_sources", None) or [])], caveats=list(getattr(run, "answer_caveats", None) or [])) for run in runs])
 
 
 @router.patch("/{conversation_id}", response_model=ConversationResponse)

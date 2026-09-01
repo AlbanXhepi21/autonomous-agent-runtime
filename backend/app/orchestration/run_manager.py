@@ -5,12 +5,14 @@ every agent run goes through here, whatever interface requested it.
 """
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.analytics.presentation.chart_store import ChartSpecStore
 from app.analytics.presentation.charts import ChartSpec
+from app.contracts.answers import AnswerSource
 from app.conversations.store import ConversationStore
 from app.core.logging import safe_error_message
 from app.observability import TraceEvent, TraceEventType, TraceRecorder
@@ -35,6 +37,8 @@ class ManagedRun:
     final_response: str | None = None
     error: str | None = None
     charts: list[ChartSpec] = field(default_factory=list)
+    sources: list[AnswerSource] = field(default_factory=list)
+    caveats: list[str] = field(default_factory=list)
     task: asyncio.Task[None] | None = None
 
 
@@ -71,6 +75,8 @@ class AgentRunManager:
             result = await runner.run(managed.message, state=state)
             managed.final_response = result.final_answer
             managed.charts = self._charts_for(managed.run_id)
+            managed.sources = list(result.answer_sources)
+            managed.caveats = list(result.answer_caveats)
             managed.status = "completed" if result.completed else _public_status(result.status)
             if managed.status == "running":
                 # A bounded runtime stop is a failed run from the Workbench's perspective.
@@ -88,6 +94,8 @@ class AgentRunManager:
                     run_id=managed.run_id, status=managed.status, completed_at=managed.finished_at,
                     metrics=self._metrics(managed.run_id), error=managed.error,
                     chart_specs=[chart.model_dump(mode="json") for chart in managed.charts],
+                    answer_sources=_persisted_sources(managed.sources, managed.status),
+                    answer_caveats=_persisted_caveats(managed.caveats, managed.status),
                     assistant_content=managed.final_response if managed.status == "completed" else None,
                 )
 
@@ -101,11 +109,15 @@ class AgentRunManager:
         if managed is not None:
             managed.status, managed.final_response, managed.error, managed.finished_at = status, result.final_answer, error, finished_at
             managed.charts = self._charts_for(result.run_id)
+            managed.sources = list(result.answer_sources)
+            managed.caveats = list(result.answer_caveats)
         if self._store is not None:
             await self._store.finish_run(
                 run_id=result.run_id, status=status, completed_at=finished_at,
                 metrics=self._metrics(result.run_id), error=error,
                 chart_specs=[chart.model_dump(mode="json") for chart in self._charts_for(result.run_id)],
+                answer_sources=_persisted_sources(result.answer_sources, status),
+                answer_caveats=_persisted_caveats(result.answer_caveats, status),
                 assistant_content=result.final_answer if status == "completed" else None,
             )
 
@@ -123,7 +135,8 @@ class AgentRunManager:
         return RunResponse(run_id=managed.run_id, conversation_id=managed.conversation_id, status=managed.status,
                            created_at=managed.created_at, started_at=managed.started_at,
                            finished_at=managed.finished_at, final_response=managed.final_response,
-                           error=managed.error, metrics=metrics, charts=managed.charts)
+                           error=managed.error, metrics=metrics, charts=managed.charts,
+                           sources=managed.sources, caveats=managed.caveats)
 
     def _charts_for(self, run_id: str) -> list[ChartSpec]:
         return self._chart_specs.list(run_id) if self._chart_specs is not None else []
@@ -167,6 +180,33 @@ class AgentRunManager:
                                                 type="agent.completed", timestamp=event.timestamp,
                                                 data={"agent": "data_analyst"}))
         return projected
+
+
+def _persisted_sources(
+    sources: Sequence[AnswerSource], status: str
+) -> list[dict[str, object]] | None:
+    """Store the evidence registry only for a run that produced an answer.
+
+    Query identifiers are minted against a process-local trace, so the registry
+    is written out in full here rather than left as references that resolve to
+    nothing after a restart.
+    """
+
+    if status != "completed":
+        return None
+    return [source.model_dump(mode="json") for source in sources]
+
+
+def _persisted_caveats(caveats: Sequence[str], status: str) -> list[str] | None:
+    """Store stated limitations only for a run that produced an answer.
+
+    A run that stopped short has no answer for a limitation to qualify, so its
+    caveats would describe nothing.
+    """
+
+    if status != "completed":
+        return None
+    return list(caveats)
 
 
 def _public_status(status: RunStatus) -> str:

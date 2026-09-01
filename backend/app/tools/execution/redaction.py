@@ -62,6 +62,14 @@ def database_table_names(tool_name: object, arguments: object) -> list[str]:
     return []
 
 
+def query_purpose(purpose: Any) -> str | None:
+    """Keep the model's short description of a query, bounded, never its SQL."""
+
+    if not isinstance(purpose, str) or not purpose.strip():
+        return None
+    return purpose.strip()[:200]
+
+
 def query_quality_metadata(sql: Any) -> dict[str, object]:
     """Expose only coarse SQL-quality signals to evaluations, never query text."""
 

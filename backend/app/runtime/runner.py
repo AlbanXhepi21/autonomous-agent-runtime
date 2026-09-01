@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from app.artifacts.contracts import Artifact
 from app.contracts.actions import AgentAction
+from app.contracts.answers import AnswerSource
 from app.core.exceptions import UnknownSkillError
 from app.core.limits import RuntimeLimits
 from app.core.logging import log_event, safe_error_message, safe_log_value
@@ -16,7 +17,13 @@ from app.llm.pricing import PricingRegistry, estimate_cost
 from app.memory.manager import MemoryManager
 from app.memory.retrieval import MemoryRetriever
 from app.memory.writing import MemoryWritingPipeline
-from app.observability import InMemoryTraceStore, TraceEventType, TraceRecorder, TraceStatus
+from app.observability import (
+    InMemoryTraceStore,
+    TraceEventType,
+    TraceRecorder,
+    TraceStatus,
+    resolve_citations,
+)
 from app.reliability import RetryPolicy, classify_llm_failure
 from app.reliability.retry import Sleep, default_sleep
 from app.runtime.context import ContextBuilder
@@ -475,6 +482,8 @@ class AgentRunner:
             return
 
         state.final_answer = action.final_answer
+        state.answer_sources = self._resolved_sources(state, action)
+        state.answer_caveats = self._accepted_caveats(state, action)
         state.completed = True
         state.status = RunStatus.COMPLETED
         state.stop_reason = StopReason.COMPLETED
@@ -601,6 +610,48 @@ class AgentRunner:
                 sequence=len(state.observations) + 1,
             )
         )
+
+    def _resolved_sources(self, state: AgentState, action: AgentAction) -> list[AnswerSource]:
+        """Keep only the cited evidence this run actually produced.
+
+        A citation the run cannot account for is dropped rather than shown. The
+        answer text still stands on its own, and a dropped reference is logged
+        so the gap is visible in operations rather than in the Workbench.
+        """
+
+        resolved, unresolved = resolve_citations(
+            self._trace_recorder.get_trace(state.run_id), action.citations
+        )
+        if unresolved:
+            log_event(
+                self._logger,
+                logging.WARNING,
+                "answer_citation_unresolved",
+                run_id=state.run_id,
+                iteration=state.iteration_count,
+                unresolved_citations=safe_log_value(unresolved),
+                resolved_count=len(resolved),
+            )
+        return resolved
+
+    def _accepted_caveats(self, state: AgentState, action: AgentAction) -> list[str]:
+        """Record the limitations the model stated, as the contract bounded them.
+
+        The model writes these; nothing here rewrites them, and publishing later
+        prints them verbatim rather than asking for them again.
+        """
+
+        caveats = list(action.caveats)
+        if caveats:
+            log_event(
+                self._logger,
+                logging.INFO,
+                "answer_caveats_recorded",
+                run_id=state.run_id,
+                iteration=state.iteration_count,
+                caveat_count=len(caveats),
+            )
+        return caveats
 
     async def _finish_run(
         self, state: AgentState, started_at: float, *, session_id: str | None
