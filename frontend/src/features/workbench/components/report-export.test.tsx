@@ -3,9 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportExport } from "./report-export";
 import { analyticsApi } from "@/lib/api/analytics";
 import { ApiError } from "@/lib/api/client";
+import type { ReportPreview } from "@/types/analytics";
 
 vi.mock("@/lib/api/analytics", () => ({
-  analyticsApi: { reportTemplates: vi.fn(), publishReport: vi.fn(), rerunMetrics: vi.fn() },
+  analyticsApi: {
+    reportTemplates: vi.fn(),
+    reportSuitability: vi.fn(),
+    previewReport: vi.fn(),
+    publishReport: vi.fn(),
+    rerunMetrics: vi.fn(),
+  },
 }));
 
 const templates = {
@@ -21,9 +28,54 @@ const templates = {
   ],
 };
 
+const suitability = {
+  items: [
+    {
+      template_name: "monthly_business_review",
+      completion_percentage: 100,
+      satisfied_required_slots: [],
+      missing_required_slots: [],
+      optional_slots_filled: 0,
+      optional_slots_total: 0,
+      unused_display_count: 0,
+      warnings: [],
+      can_publish: true,
+    },
+  ],
+  recommended_template: "monthly_business_review",
+};
+
+const preview: ReportPreview = {
+  template_name: "monthly_business_review",
+  template_title: "Monthly Business Review",
+  report: {
+    report_id: "r1",
+    run_id: "run-1",
+    title: "Monthly Business Review",
+    template_id: "monthly_business_review",
+    template_version: "4",
+    subtitle: null,
+    analysis_period: null,
+    displayed_period: null,
+    narrative_period_status: "current",
+    narrative_warning: null,
+    orientation: "portrait",
+    blocks: [],
+    sources: [],
+    generated_at: "2026-01-01T00:00:00Z",
+  },
+  suitability: suitability.items[0],
+  assignment: { template_name: "monthly_business_review", slots: [], unused_chart_ids: [], unresolved_evidence_chart_ids: [] },
+  missing_required_content: [],
+  estimated_page_count: 2,
+  pdf_authoritative_notice: "This preview is generated for review only.",
+};
+
 describe("ReportExport", () => {
   beforeEach(() => {
     vi.mocked(analyticsApi.reportTemplates).mockResolvedValue(templates);
+    vi.mocked(analyticsApi.reportSuitability).mockResolvedValue(suitability);
+    vi.mocked(analyticsApi.previewReport).mockResolvedValue(preview);
     // Recompute controls are built from the server's metric definitions; with
     // none offered the panel does not render and export behaves as before.
     vi.mocked(analyticsApi.rerunMetrics).mockResolvedValue({ items: [] });

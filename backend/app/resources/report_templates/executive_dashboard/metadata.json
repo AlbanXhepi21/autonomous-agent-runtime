@@ -1,6 +1,6 @@
 {
   "name": "executive_dashboard",
-  "version": "2",
+  "version": "3",
   "title": "Executive Dashboard",
   "description": "A one-page landscape summary: headline cards, the principal charts and little else, with the full evidence kept behind it.",
   "report_type": "executive",
@@ -54,6 +54,51 @@
       "kind": "evidence",
       "heading": "Evidence Appendix",
       "required": true
+    }
+  ],
+  "slots": [
+    {
+      "id": "headline_metrics",
+      "accepts": ["kpi"],
+      "minimum": 3,
+      "maximum": 6,
+      "required": true,
+      "role": "primary",
+      "purpose_hint": "headline"
+    },
+    {
+      "id": "primary_trend",
+      "accepts": ["line", "area"],
+      "minimum": 0,
+      "maximum": 1,
+      "required": false,
+      "role": "primary",
+      "purpose_hint": "trend"
+    },
+    {
+      "id": "primary_breakdown",
+      "accepts": ["bar", "stacked_bar"],
+      "minimum": 1,
+      "maximum": 1,
+      "required": true,
+      "role": "primary",
+      "purpose_hint": "breakdown"
+    },
+    {
+      "id": "secondary_breakdown",
+      "accepts": ["bar", "stacked_bar", "pie", "scatter"],
+      "minimum": 0,
+      "maximum": 2,
+      "required": false,
+      "role": "supporting"
+    },
+    {
+      "id": "supporting_table",
+      "accepts": ["table"],
+      "minimum": 0,
+      "maximum": 2,
+      "required": false,
+      "role": "supporting"
     }
   ]
 }

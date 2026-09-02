@@ -1,6 +1,6 @@
 """PostgreSQL AST validation for strictly read-only analytics queries."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 import sqlglot
 from sqlglot import exp
@@ -25,7 +25,23 @@ class PostgreSQLQueryValidator:
     def __init__(self, policy: AnalyticsSchemaPolicy) -> None:
         self._policy = policy
 
-    def validate(self, sql: str, *, allowed_tables: Iterable[str]) -> SQLValidationResult:
+    def validate(
+        self, sql: str, *, allowed_tables: Iterable[str],
+        excluded_columns: Mapping[str, frozenset[str]] | None = None,
+    ) -> SQLValidationResult:
+        """Validate one read-only statement, optionally against excluded columns.
+
+        ``excluded_columns`` maps a table name to the column names a governed
+        catalog has marked off-limits (sensitive or explicitly excluded) --
+        omitted entirely by every caller before this feature, so existing
+        behavior for the process-wide demo connection is unchanged. A
+        qualified reference (``orders.email``, or through an alias) is
+        checked against that table specifically; an unqualified reference
+        is checked against every referenced table's exclusions at once,
+        since a validator working from syntax alone cannot always resolve
+        which table an ambiguous column came from -- refusing is the safe
+        direction to be wrong in, not silently allowing.
+        """
         try:
             statements = sqlglot.parse(sql, read="postgres")
         except sqlglot.errors.ParseError:
@@ -54,7 +70,33 @@ class PostgreSQLQueryValidator:
             if not name or name not in allowed:
                 return self._invalid("The query references a table that is not available for analytics.", statement, tables)
             tables.append(f"{schema}.{name}" if schema else name)
+
+        if excluded_columns:
+            issue = self._excluded_column_reference(statement, excluded_columns)
+            if issue is not None:
+                return self._invalid(f"The query references an excluded column: {issue}.", statement, tables)
+
         return SQLValidationResult(valid=True, reason="Read-only SELECT query is permitted.", statement_type="SELECT", referenced_tables=sorted(set(tables)))
+
+    @staticmethod
+    def _excluded_column_reference(
+        statement: exp.Expression, excluded_columns: Mapping[str, frozenset[str]],
+    ) -> str | None:
+        """Return a description of the first excluded column referenced, if any."""
+
+        alias_to_table = {table.alias_or_name: table.name for table in statement.find_all(exp.Table)}
+        referenced_tables = set(alias_to_table.values())
+        for column in statement.find_all(exp.Column):
+            qualifier = column.table
+            if qualifier:
+                real_table = alias_to_table.get(qualifier, qualifier)
+                if column.name in excluded_columns.get(real_table, frozenset()):
+                    return f"{real_table}.{column.name}"
+            else:
+                for table in referenced_tables:
+                    if column.name in excluded_columns.get(table, frozenset()):
+                        return f"{table}.{column.name}"
+        return None
 
     @staticmethod
     def _has_dangerous_function(statement: exp.Expression) -> bool:

@@ -23,6 +23,7 @@ from app.environment import CommandExecutor, PythonExecutor, Workspace
 from app.environment.repository import Repository
 from app.security import SecurityPolicy
 from app.tools.artifacts import RegisterArtifactTool
+from app.tools.base import Tool
 from app.tools.calculator import CalculatorTool
 from app.tools.commands import RunCommandTool
 from app.tools.database import (
@@ -56,8 +57,17 @@ def get_tool_registry(
     python_executor: PythonExecutor | None = None,
     repository: Repository | None = None,
     artifact_store: ArtifactStore | None = None,
+    analytics_tools: dict[str, Tool] | None = None,
 ) -> ToolRegistry:
-    """Build the tools available to the runtime."""
+    """Build the tools available to the runtime.
+
+    ``analytics_tools``, when given, replaces the five demo-database analytics
+    tools (list_tables, describe_table, search_schema, get_table_relationships,
+    query_database) with a workspace's own governed set -- see
+    ``app.datasources.agent_integration.resolve_workspace_tools``. Everything
+    else about the registry (files, commands, repository, artifacts, charts,
+    metrics) is unchanged either way.
+    """
 
     registry = ToolRegistry()
     registry.register(CalculatorTool())
@@ -74,19 +84,23 @@ def get_tool_registry(
     registry.register(GitInspectTool(repository))
     artifacts = artifact_store or get_artifact_store()
     registry.register(RegisterArtifactTool(artifacts))
-    inspector = get_analytics_inspector()
-    registry.register(ListTablesTool(inspector))
-    registry.register(DescribeTableTool(inspector))
-    registry.register(GetTableRelationshipsTool(inspector))
-    registry.register(SearchSchemaTool(inspector))
-    registry.register(
-        QueryDatabaseTool(
-            inspector,
-            get_analytics_query_validator(),
-            get_analytics_query_executor(),
-            get_analytics_dataset_store(),
+    if analytics_tools is not None:
+        for tool in analytics_tools.values():
+            registry.register(tool)
+    else:
+        inspector = get_analytics_inspector()
+        registry.register(ListTablesTool(inspector))
+        registry.register(DescribeTableTool(inspector))
+        registry.register(GetTableRelationshipsTool(inspector))
+        registry.register(SearchSchemaTool(inspector))
+        registry.register(
+            QueryDatabaseTool(
+                inspector,
+                get_analytics_query_validator(),
+                get_analytics_query_executor(),
+                get_analytics_dataset_store(),
+            )
         )
-    )
     registry.register(
         AnalyzeDatasetTool(get_analytics_dataset_store(), get_analytics_python_executor(), artifacts)
     )

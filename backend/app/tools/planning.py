@@ -38,12 +38,22 @@ class UpdateInvestigationPlanTool(Tool):
 
     @property
     def arguments_schema(self) -> dict[str, Any]:
-        return {
+        # InvestigationPlan has nested models (e.g. AnalysisQuestion), so
+        # Pydantic emits "$ref": "#/$defs/..." inside the plan schema. $defs
+        # must live at the root of the schema a provider validates against --
+        # left nested under properties.plan, the $ref is unresolvable and
+        # providers such as OpenAI reject the whole tool definition.
+        plan_schema = InvestigationPlan.model_json_schema()
+        defs = plan_schema.pop("$defs", None)
+        schema: dict[str, Any] = {
             "type": "object",
-            "properties": {"plan": InvestigationPlan.model_json_schema()},
+            "properties": {"plan": plan_schema},
             "required": ["plan"],
             "additionalProperties": False,
         }
+        if defs:
+            schema["$defs"] = defs
+        return schema
 
     async def execute(self, **arguments: Any) -> dict[str, object]:
         try:

@@ -14,7 +14,7 @@ class ListMetricsTool(Tool):
  def arguments_schema(self): return {"type":"object","properties":{"query":{"type":"string"}},"required":[],"additionalProperties":False}
  async def execute(self, **arguments: Any):
   items=self._registry.find_metrics(arguments["query"]) if arguments.get("query") else self._registry.list_metrics()
-  return [{"name":x.name,"display_name":x.display_name,"version":x.version,"unit":x.unit} for x in items]
+  return [{"name":x.name,"display_name":x.display_name,"version":x.version,"unit":x.unit,"lifecycle_status":x.status,"is_rerunnable":x.is_rerunnable} for x in items]
 
 class DescribeMetricTool(Tool):
  def __init__(self, registry: MetricRegistry): self._registry=registry

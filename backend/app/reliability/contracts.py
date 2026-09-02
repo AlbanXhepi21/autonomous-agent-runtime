@@ -25,6 +25,9 @@ class FailureCategory(StrEnum):
     SECURITY_DENIAL = "security_denial"
     POLICY_FAILURE = "policy_failure"
     RUNTIME_LIMIT = "runtime_limit"
+    SCHEDULED_REPORT_FAILURE = "scheduled_report_failure"
+    DELIVERY_FAILURE = "delivery_failure"
+    RETENTION_FAILURE = "retention_failure"
     UNKNOWN_FAILURE = "unknown_failure"
 
 

@@ -133,6 +133,13 @@ class OpenAIClient(LLMClient):
 
         if not isinstance(schema, dict):
             return True
+        if "$ref" in schema:
+            # A $ref (e.g. a nested Pydantic submodel under $defs) isn't resolved
+            # and checked here -- Pydantic's generated required list for a def with
+            # a defaulted field won't satisfy strict mode's "every property is
+            # required" rule, so treat any $ref as unverified rather than assume
+            # compliance and let OpenAI reject the whole tool definition instead.
+            return False
         value_type = schema.get("type")
         types = {value_type} if isinstance(value_type, str) else set(value_type) if isinstance(value_type, list) else set()
         if "object" in types:
@@ -266,7 +273,7 @@ class OpenAIClient(LLMClient):
         for name, definition in list(properties.items()):
             if name not in originally_required and name != "reasoning_summary":
                 properties[name] = OpenAIClient._nullable_property(definition)
-        return {
+        result: dict[str, Any] = {
             "type": "object",
             "properties": properties,
             # OpenAI strict function schemas require every declared property. Optional
@@ -274,6 +281,13 @@ class OpenAIClient(LLMClient):
             "required": list(properties),
             "additionalProperties": False,
         }
+        # A tool whose schema has nested Pydantic models (e.g. update_investigation_plan)
+        # carries a root-level "$defs" its properties' "$ref"s resolve against --
+        # dropped here, every such $ref becomes unresolvable to OpenAI's validator.
+        defs = schema.get("$defs")
+        if defs:
+            result["$defs"] = defs
+        return result
 
     @staticmethod
     def _nullable_property(definition: Any) -> Any:

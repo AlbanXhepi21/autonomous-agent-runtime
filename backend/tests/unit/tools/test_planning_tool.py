@@ -61,6 +61,16 @@ async def test_an_out_of_range_display_budget_is_rejected() -> None:
     assert not result.success
 
 
+def test_the_arguments_schema_hoists_defs_to_the_root_for_providers_to_resolve() -> None:
+    """A $ref nested under properties.plan.$defs is unresolvable to an OpenAI-style validator."""
+
+    schema = UpdateInvestigationPlanTool().arguments_schema
+
+    assert "$defs" not in schema["properties"]["plan"]
+    assert "$defs" in schema
+    assert "AnalysisQuestion" in schema["$defs"]
+
+
 @pytest.mark.asyncio
 async def test_duplicate_question_ids_are_rejected() -> None:
     registry = ToolRegistry()

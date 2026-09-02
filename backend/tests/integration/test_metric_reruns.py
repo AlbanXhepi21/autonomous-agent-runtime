@@ -335,6 +335,73 @@ async def test_an_ungrouped_rerun_becomes_kpis_carrying_their_source_column(runn
         assert item.raw_value == outcome.result.rows[0][column]
 
 
+# ----------------------------------------------- provenance for group 1/2 metrics
+
+
+@pytest.mark.asyncio
+async def test_a_group_1_rerun_mints_full_evidence(runner) -> None:
+    """The same generic mechanism, exercised for a metric added in this phase."""
+
+    service = ReportRerunService(runner)
+
+    outcome = (await service.run_all(run_id="run-1", requests=[
+        MetricParameters(
+            metric="cancellation_rate", period=Q1, dimensions=["country"],
+            filters=[MetricFilter(field="country", operator="in", value=["Germany", "France"])],
+        ),
+    ]))[0]
+
+    source = outcome.source
+    assert outcome.query_id == "rerun_001"
+    assert source.metric == "cancellation_rate"
+    assert source.dimensions == ["country"]
+    assert source.filters == ["country in Germany, France"]
+    assert "2026-01-01" in source.label
+    assert source.referenced_tables == ["orders"]
+    assert source.columns == list(outcome.result.columns)
+    assert source.row_count == outcome.result.row_count
+    assert source.executed_at is not None
+    assert source.sql_fingerprint == outcome.result.sql_fingerprint
+    assert outcome.chart.type == "table"
+    assert outcome.chart.data == [dict(row) for row in outcome.result.rows]
+
+
+@pytest.mark.asyncio
+async def test_a_group_2_rerun_mints_full_evidence(runner) -> None:
+    service = ReportRerunService(runner)
+
+    outcome = (await service.run_all(run_id="run-1", requests=[
+        MetricParameters(metric="average_review_rating", period=Q1),
+    ]))[0]
+
+    source = outcome.source
+    assert source.metric == "average_review_rating"
+    assert source.referenced_tables
+    assert set(source.referenced_tables) <= {"reviews", "products", "product_categories"}
+    assert source.row_count == 1
+    assert source.sql_fingerprint
+    assert outcome.chart.type == "kpi"
+    assert {item.source_column for item in outcome.chart.kpis} == {"average_rating", "review_count"}
+
+
+@pytest.mark.asyncio
+async def test_reruns_of_two_different_new_metrics_mint_distinct_evidence(runner) -> None:
+    """Provenance must not blur two different metrics rerun in the same batch."""
+
+    service = ReportRerunService(runner)
+
+    outcomes = await service.run_all(run_id="run-1", requests=[
+        MetricParameters(metric="average_order_value", period=Q1),
+        MetricParameters(metric="new_customers", period=Q1),
+    ])
+
+    assert [outcome.query_id for outcome in outcomes] == ["rerun_001", "rerun_002"]
+    assert [outcome.source.metric for outcome in outcomes] == ["average_order_value", "new_customers"]
+    assert outcomes[0].source.referenced_tables == ["orders"]
+    assert outcomes[1].source.referenced_tables == ["customers"]
+    assert outcomes[0].source.sql_fingerprint != outcomes[1].source.sql_fingerprint
+
+
 # -------------------------------------------------------------- enforcement
 
 
@@ -372,4 +439,4 @@ async def test_a_metric_without_a_template_cannot_be_executed(runner) -> None:
     from app.analytics.semantics.compiler import MetricCompilationError
 
     with pytest.raises((MetricCompilationError, MetricExecutionError)):
-        await runner.run(MetricParameters(metric="conversion_rate", period=Q1))
+        await runner.run(MetricParameters(metric="cart_to_checkout_rate", period=Q1))

@@ -11,7 +11,11 @@ from app.api.routes.approvals import router as approval_router
 from app.api.routes.artifacts import router as artifact_router
 from app.api.routes.config import router as config_router
 from app.api.routes.conversations import router as conversations_router
+from app.api.routes.datasources import router as datasources_router
+from app.api.routes.deliveries import router as deliveries_router
 from app.api.routes.memory import router as memory_router
+from app.api.routes.reports import router as saved_reports_router
+from app.api.routes.scheduled_reports import router as scheduled_reports_router
 from app.api.routes.schema import router as schema_router
 from app.api.routes.traces import router as trace_router
 from app.composition import get_settings, shutdown
@@ -24,6 +28,10 @@ ROUTERS = (
     trace_router,
     analytics_router,
     conversations_router,
+    saved_reports_router,
+    scheduled_reports_router,
+    deliveries_router,
+    datasources_router,
     schema_router,
     memory_router,
     config_router,

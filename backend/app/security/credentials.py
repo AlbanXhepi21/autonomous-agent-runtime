@@ -48,6 +48,8 @@ class EnvironmentCredentialProvider(CredentialProvider):
         "openai.default": "OPENAI_API_KEY",
         "database.default": "DATABASE_URL",
         "github.default": "GITHUB_TOKEN",
+        "smtp.default": "SMTP_PASSWORD",
+        "datasource_encryption.default": "DATA_SOURCE_ENCRYPTION_KEY",
     }
 
     def __init__(self, references: dict[str, str] | None = None) -> None:

@@ -25,6 +25,7 @@ from app.runtime.runner import AgentRunner
 from app.runtime.summarization import SummaryPolicy
 from app.security import RiskClassifier, SecurityEnvironment, SecurityPolicy
 from app.skills.registry import SkillRegistry
+from app.tools.base import Tool
 
 
 def get_skill_registry() -> SkillRegistry:
@@ -68,7 +69,25 @@ def get_security_policy(settings: Settings | None = None) -> SecurityPolicy:
 
 
 def get_agent_runner() -> AgentRunner:
-    """Build the runtime used by the agent API route."""
+    """Build the runtime used by every agent API route except the run endpoint.
+
+    Kept as a zero-argument function (rather than folding ``analytics_tools``
+    in here) specifically so it stays valid as a bare ``Depends(get_agent_runner)``
+    default everywhere it's already used -- FastAPI inspects a dependency's
+    own parameters as request fields, and ``dict[str, Tool]`` is not one.
+    ``build_agent_runner`` is the parameterized version the run route calls
+    directly instead of through ``Depends``.
+    """
+
+    return build_agent_runner(None)
+
+
+def build_agent_runner(analytics_tools: dict[str, Tool] | None) -> AgentRunner:
+    """Build the runtime, optionally with a workspace's own analytics tools.
+
+    ``analytics_tools``, when given, is passed straight through to
+    ``get_tool_registry`` -- see its docstring for what that swaps.
+    """
 
     settings = get_settings()
     workspace = get_workspace(settings)
@@ -78,6 +97,7 @@ def get_agent_runner() -> AgentRunner:
         get_python_executor(workspace, settings),
         get_repository(workspace),
         get_artifact_store(),
+        analytics_tools,
     )
     skill_registry = get_skill_registry()
     agent_registry = get_agent_registry(tool_registry, skill_registry)

@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
@@ -14,8 +15,13 @@ class AnalyticsDatabaseError(RuntimeError):
 class AnalyticsDatabase:
     """Own the analytics engine without sharing application persistence resources."""
 
-    def __init__(self, database_url: str) -> None:
+    def __init__(self, database_url: str, *, connect_args: dict[str, Any] | None = None) -> None:
         self._database_url = database_url
+        #: Passed straight to asyncpg's own connect() -- a workspace data
+        #: source uses this for its SSL context (see
+        #: app.datasources.security.build_ssl_context); the single process-wide
+        #: ANALYTICS_DATABASE_URL leaves this unset, unchanged from before.
+        self._connect_args = connect_args or {}
         self._engine: AsyncEngine | None = None
 
     @property
@@ -26,7 +32,7 @@ class AnalyticsDatabase:
         if not self.configured:
             raise AnalyticsDatabaseError("Analytics database is not configured.")
         if self._engine is None:
-            self._engine = create_async_engine(self._database_url, pool_pre_ping=True)
+            self._engine = create_async_engine(self._database_url, pool_pre_ping=True, connect_args=self._connect_args)
         return self._engine
 
     @asynccontextmanager

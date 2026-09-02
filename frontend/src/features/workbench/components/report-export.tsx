@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { analyticsApi } from "@/lib/api/analytics";
 import { artifactsApi } from "@/lib/api/artifacts";
 import { ApiError } from "@/lib/api/client";
+import { ReportPreviewPanel } from "@/features/workbench/components/report-preview";
 import { ReportRefresh } from "@/features/workbench/components/report-refresh";
+import { SaveReportForm } from "@/features/workbench/components/save-report-form";
+import { reportRequestPayload } from "@/features/workbench/report-request";
 import type {
   DocumentFormat,
   MetricParameters,
   NarrativeStatus,
   PublishedDocument,
   ReportTemplate,
+  TemplateSuitabilityOverview,
 } from "@/types/analytics";
 
 const FORMATS: { value: DocumentFormat; label: string }[] = [
@@ -25,9 +29,18 @@ const FORMATS: { value: DocumentFormat; label: string }[] = [
  * server to assemble them — no second pass by the model, and therefore the same
  * figures and the same citations the reader saw in the Workbench.
  */
-export function ReportExport({ runId }: { runId: string }) {
+export function ReportExport({
+  runId,
+  narrativeText = "",
+  onReportSaved,
+}: {
+  runId: string;
+  narrativeText?: string;
+  onReportSaved?: (id: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [suitability, setSuitability] = useState<TemplateSuitabilityOverview | null>(null);
   const [template, setTemplate] = useState("");
   const [formats, setFormats] = useState<DocumentFormat[]>(["pdf"]);
   const [period, setPeriod] = useState("");
@@ -40,16 +53,21 @@ export function ReportExport({ runId }: { runId: string }) {
 
   useEffect(() => {
     if (!open || templates.length) return;
-    void analyticsApi
-      .reportTemplates()
-      .then((body) => {
-        setTemplates(body.items);
-        setTemplate((current) => current || (body.items[0]?.name ?? ""));
+    void Promise.all([analyticsApi.reportTemplates(), analyticsApi.reportSuitability(runId)])
+      .then(([templateBody, suitabilityBody]) => {
+        setTemplates(templateBody.items);
+        setSuitability(suitabilityBody);
+        setTemplate(
+          (current) => current || suitabilityBody.recommended_template || templateBody.items[0]?.name || "",
+        );
       })
       .catch(() => setError("Report templates are unavailable."));
-  }, [open, templates.length]);
+  }, [open, runId, templates.length]);
 
   const selected = templates.find((item) => item.name === template);
+  const currentSuitability = suitability?.items.find((item) => item.template_name === template);
+  const recommended = suitability?.recommended_template;
+  const blockedByMissingContent = currentSuitability?.can_publish === false;
 
   const publish = async () => {
     setBusy(true);
@@ -58,10 +76,8 @@ export function ReportExport({ runId }: { runId: string }) {
     setNotice(null);
     try {
       const result = await analyticsApi.publishReport(runId, {
-        template,
+        ...reportRequestPayload({ template, period, metrics, narrative }),
         formats,
-        ...(period.trim() ? { period: period.trim() } : {}),
-        ...(metrics.length ? { metrics, narrative } : {}),
       });
       setDocuments(result.documents);
       if (result.narrative === "excluded_from_refreshed_report" && metrics.length) {
@@ -104,11 +120,18 @@ export function ReportExport({ runId }: { runId: string }) {
           {templates.map((item) => (
             <option key={item.name} value={item.name}>
               {item.title}
+              {item.name === recommended ? " (recommended)" : ""}
             </option>
           ))}
         </select>
       </label>
       {selected && <p className="report-export-note">{selected.description}</p>}
+      {recommended && recommended !== template && (
+        <p className="report-export-recommendation">
+          {templates.find((item) => item.name === recommended)?.title ?? recommended} is the best fit for
+          what this analysis created.
+        </p>
+      )}
 
       <label>
         <span>Period covered</span>
@@ -154,14 +177,36 @@ export function ReportExport({ runId }: { runId: string }) {
         onNarrativeChange={setNarrative}
       />
 
+      <ReportPreviewPanel
+        runId={runId}
+        template={template}
+        period={period}
+        metrics={metrics}
+        narrative={narrative}
+      />
+
+      <SaveReportForm
+        runId={runId}
+        template={template}
+        metrics={metrics}
+        narrativeText={narrativeText}
+        onSaved={onReportSaved}
+      />
+
       <button
         type="button"
         className="report-export-run"
-        disabled={busy || !template || formats.length === 0}
+        disabled={busy || !template || formats.length === 0 || blockedByMissingContent}
         onClick={() => void publish()}
       >
         {busy ? "Generating…" : metrics.length ? "Generate with refreshed figures" : "Generate"}
       </button>
+      {blockedByMissingContent && (
+        <p className="report-export-note" role="alert">
+          This template is missing required content — see the preview above. Choose another template, or add
+          more displays to this analysis first.
+        </p>
+      )}
 
       {error && (
         <p className="report-export-error" role="alert">

@@ -2,9 +2,17 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+#: What the retention worker may do with an expired artifact.
+#:
+#:   standard    - claimable and deletable once past expires_at.
+#:   legal_hold  - never claimed, regardless of expires_at, until the hold
+#:                 is explicitly lifted by changing the policy back.
+#:   permanent   - never claimed; the artifact has no expiry that matters.
+ArtifactRetentionPolicy = Literal["standard", "legal_hold", "permanent"]
 
 
 class ArtifactStatus(StrEnum):
@@ -47,4 +55,9 @@ class Artifact(BaseModel):
     template_id: str | None = Field(default=None, max_length=64)
     template_version: str | None = Field(default=None, max_length=32)
     expires_at: datetime | None = None
+    retention_policy: ArtifactRetentionPolicy = "standard"
+    deleted_at: datetime | None = None
+    deletion_claimed_at: datetime | None = None
+    deletion_attempts: int = Field(default=0, ge=0)
+    deletion_error: str | None = Field(default=None, max_length=2_000)
     metadata: dict[str, Any] = Field(default_factory=dict)

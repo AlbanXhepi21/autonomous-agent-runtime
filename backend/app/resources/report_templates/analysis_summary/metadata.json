@@ -1,6 +1,6 @@
 {
   "name": "analysis_summary",
-  "version": "3",
+  "version": "4",
   "title": "Analysis Summary",
   "description": "A single investigation written up as a shareable document, whatever period it covered.",
   "report_type": "executive",
@@ -47,6 +47,32 @@
       "kind": "evidence",
       "heading": "Evidence Appendix",
       "required": true
+    }
+  ],
+  "slots": [
+    {
+      "id": "key_metrics",
+      "accepts": ["kpi"],
+      "minimum": 0,
+      "maximum": 6,
+      "required": false,
+      "role": "primary"
+    },
+    {
+      "id": "supporting_charts",
+      "accepts": ["line", "area", "bar", "stacked_bar", "pie", "scatter"],
+      "minimum": 0,
+      "maximum": 6,
+      "required": false,
+      "role": "supporting"
+    },
+    {
+      "id": "supporting_tables",
+      "accepts": ["table"],
+      "minimum": 0,
+      "maximum": 6,
+      "required": false,
+      "role": "supporting"
     }
   ]
 }

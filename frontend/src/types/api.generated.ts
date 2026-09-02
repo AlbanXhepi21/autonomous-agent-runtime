@@ -16,6 +16,13 @@ export interface paths {
         /**
          * Run Agent
          * @description Run the runtime for one submitted goal.
+         *
+         *     When ``request.workspace_id`` is set, ``runner`` is rebuilt with its
+         *     analytics tools scoped to that workspace's one active data source instead
+         *     of the demo database; everything else about the run (LLM client, limits,
+         *     memory, security policy) stays the same as the injected default. Omitted,
+         *     ``runner`` is used exactly as provided -- unchanged from before this
+         *     existed, including for callers (tests) that build and pass their own.
          */
         post: operations["run_agent_agent_run_post"];
         delete?: never;
@@ -138,6 +145,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/runs/{run_id}/report-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Report
+         * @description Compile the exact canonical report a publish of the same request would produce.
+         *
+         *     No PDF or DOCX is written. Publishing this same request afterward compiles
+         *     through the identical path, so the previewed assignment and the published
+         *     one always match.
+         */
+        post: operations["preview_report_api_v1_analytics_runs__run_id__report_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/runs/{run_id}/report-suitability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Report Suitability
+         * @description Score every template against a run's own displays, and recommend one.
+         *
+         *     Deterministic assembly only: this reads what the run already produced and
+         *     never calls a model. A caller is free to publish a different template than
+         *     the one recommended here, unless that template's own required content is
+         *     still missing.
+         */
+        get: operations["get_report_suitability_api_v1_analytics_runs__run_id__report_suitability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/runs/{run_id}/reports": {
         parameters: {
             query?: never;
@@ -212,6 +268,265 @@ export interface paths {
         patch: operations["update_conversation_api_v1_conversations__conversation_id__patch"];
         trace?: never;
     };
+    "/api/v1/datasources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Data Sources */
+        get: operations["list_data_sources_api_v1_datasources_get"];
+        put?: never;
+        /** Create Data Source */
+        post: operations["create_data_source_api_v1_datasources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Data Source */
+        get: operations["get_data_source_api_v1_datasources__data_source_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Data Source */
+        post: operations["activate_data_source_api_v1_datasources__data_source_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/freshness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Data Source Freshness */
+        get: operations["get_data_source_freshness_api_v1_datasources__data_source_id__freshness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Data Source Relationships */
+        get: operations["list_data_source_relationships_api_v1_datasources__data_source_id__relationships_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/relationships/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discover Data Source Relationships */
+        post: operations["discover_data_source_relationships_api_v1_datasources__data_source_id__relationships_discover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/relationships/{relationship_id}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Data Source Relationship Approval */
+        post: operations["set_data_source_relationship_approval_api_v1_datasources__data_source_id__relationships__relationship_id__approval_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/schemas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Data Source Schemas */
+        get: operations["list_data_source_schemas_api_v1_datasources__data_source_id__schemas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Data Source Tables */
+        get: operations["list_data_source_tables_api_v1_datasources__data_source_id__tables_get"];
+        put?: never;
+        /** Select Data Source Table */
+        post: operations["select_data_source_table_api_v1_datasources__data_source_id__tables_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/tables/{table_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Data Source Table */
+        get: operations["get_data_source_table_api_v1_datasources__data_source_id__tables__table_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Correct Data Source Table */
+        patch: operations["correct_data_source_table_api_v1_datasources__data_source_id__tables__table_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/tables/{table_id}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Data Source Table Active */
+        post: operations["set_data_source_table_active_api_v1_datasources__data_source_id__tables__table_id__active_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/tables/{table_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Data Source Table */
+        post: operations["approve_data_source_table_api_v1_datasources__data_source_id__tables__table_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Data Source Connection */
+        post: operations["test_data_source_connection_api_v1_datasources__data_source_id__test_connection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasources/{data_source_id}/verify-read-only": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Data Source Read Only */
+        post: operations["verify_data_source_read_only_api_v1_datasources__data_source_id__verify_read_only_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Deliveries */
+        get: operations["list_deliveries_api_v1_deliveries_get"];
+        put?: never;
+        /** Create Delivery */
+        post: operations["create_delivery_api_v1_deliveries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/memory": {
         parameters: {
             query?: never;
@@ -244,6 +559,181 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Saved Reports */
+        get: operations["list_saved_reports_api_v1_reports_saved_get"];
+        put?: never;
+        /**
+         * Create Saved Report
+         * @description Save a report recipe. The template version pinned is always the current one --
+         *
+         *     a caller names a ``template_id``; the version it is pinned to is derived
+         *     here, never accepted from the request, so a saved report can never claim
+         *     to be pinned to a version that never existed.
+         */
+        post: operations["create_saved_report_api_v1_reports_saved_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/saved/{saved_report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Saved Report */
+        get: operations["get_saved_report_api_v1_reports_saved__saved_report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Saved Report
+         * @description Apply a partial edit. Only parameters and presentation may change here --
+         *
+         *     there is no field on this request that lets a caller write a fact a rerun
+         *     would otherwise compute; the metrics, dimensions and filters submitted are
+         *     what get requested again, not a value to display as-is.
+         */
+        patch: operations["update_saved_report_api_v1_reports_saved__saved_report_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/reports/saved/{saved_report_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Saved Report
+         * @description Archive rather than delete -- a saved report's execution history outlives it.
+         */
+        post: operations["archive_saved_report_api_v1_reports_saved__saved_report_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/saved/{saved_report_id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Saved Report
+         * @description Run steps 1-8: resolve, rerun, compile, preview or publish, persist status.
+         *
+         *     A definition requiring a new investigation is refused with 409 rather than
+         *     silently starting one -- that policy exists precisely so saving or running
+         *     a report never triggers a model call by itself; a fresh investigation only
+         *     happens when a caller explicitly starts one through the normal chat flow.
+         */
+        post: operations["execute_saved_report_api_v1_reports_saved__saved_report_id__execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/saved/{saved_report_id}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Saved Report Executions
+         * @description Every prior run of this saved report, with the artifacts each one produced.
+         */
+        get: operations["list_saved_report_executions_api_v1_reports_saved__saved_report_id__executions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/saved/{saved_report_id}/resolved-parameters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Resolved Parameters
+         * @description What executing this definition right now would use -- no query runs.
+         *
+         *     Steps 1-3 of execution only: resolve the period, name the metric requests
+         *     that would be compiled, and say whether the pinned template version still
+         *     matches what is deployed. Nothing here touches the analytics database.
+         */
+        get: operations["preview_resolved_parameters_api_v1_reports_saved__saved_report_id__resolved_parameters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/scheduled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Scheduled Reports */
+        get: operations["list_scheduled_reports_api_v1_reports_scheduled_get"];
+        put?: never;
+        /** Create Scheduled Report */
+        post: operations["create_scheduled_report_api_v1_reports_scheduled_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/scheduled/{scheduled_report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Scheduled Report */
+        get: operations["get_scheduled_report_api_v1_reports_scheduled__scheduled_report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Scheduled Report */
+        patch: operations["update_scheduled_report_api_v1_reports_scheduled__scheduled_report_id__patch"];
         trace?: never;
     };
     "/api/v1/schema/search": {
@@ -472,6 +962,8 @@ export interface components {
             goal: string;
             /** Session Id */
             session_id?: string | null;
+            /** Workspace Id */
+            workspace_id?: string | null;
         };
         /**
          * AgentRunResponse
@@ -583,6 +1075,11 @@ export interface components {
          * @enum {string}
          */
         ApprovalStatus: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+        /** ApproveTableRequest */
+        ApproveTableRequest: {
+            /** Approved By */
+            approved_by: string;
+        };
         /**
          * Artifact
          * @description A registered file output, deliberately separate from observations and memory.
@@ -595,6 +1092,17 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /**
+             * Deletion Attempts
+             * @default 0
+             */
+            deletion_attempts: number;
+            /** Deletion Claimed At */
+            deletion_claimed_at?: string | null;
+            /** Deletion Error */
+            deletion_error?: string | null;
             /** Expires At */
             expires_at?: string | null;
             /** Id */
@@ -611,6 +1119,12 @@ export interface components {
             output_format?: string | null;
             /** Relative Path */
             relative_path: string;
+            /**
+             * Retention Policy
+             * @default standard
+             * @enum {string}
+             */
+            retention_policy: "standard" | "legal_hold" | "permanent";
             /** Run Id */
             run_id: string;
             /** Sha256 */
@@ -661,6 +1175,63 @@ export interface components {
          * @enum {string}
          */
         Capability: "calculator.evaluate" | "filesystem.read" | "filesystem.write" | "command.execute" | "python.execute" | "repository.read" | "repository.write" | "artifact.create" | "agent.delegate" | "web.search" | "database.schema.read" | "database.query.read" | "analytics.python.execute" | "analytics.report.create" | "database.metric.read";
+        /**
+         * CaveatsBlock
+         * @description Limitations, kept in two lists that must not be confused for each other.
+         *
+         *     ``stated`` was written by the analysis about itself. ``system_notices`` hold
+         *     for any report of this shape and are supplied by the runtime.
+         */
+        CaveatsBlock: {
+            /**
+             * Empty Message
+             * @default This analysis stated no limitations.
+             */
+            empty_message: string;
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "caveats";
+            /** Stated */
+            stated?: string[];
+            /** System Notices */
+            system_notices?: string[];
+        };
+        /**
+         * ChartBlock
+         * @description One drawn figure and the rows it was drawn from.
+         */
+        ChartBlock: {
+            /** Caption */
+            caption?: string | null;
+            /** Chart Id */
+            chart_id: string;
+            /**
+             * Chart Type
+             * @enum {string}
+             */
+            chart_type: "line" | "bar" | "stacked_bar" | "area" | "pie" | "scatter" | "table" | "kpi";
+            data?: components["schemas"]["CompiledRows"];
+            /** Figure Label */
+            figure_label: string;
+            formatting?: components["schemas"]["ChartFormatting"];
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "chart";
+            /** Period */
+            period?: string | null;
+            /** Source Query Ids */
+            source_query_ids?: string[];
+            /** Title */
+            title: string;
+        };
         /**
          * ChartFormatting
          * @description Small, non-executable formatting vocabulary for the shared renderer.
@@ -719,6 +1290,145 @@ export interface components {
             x_field?: string | null;
             /** Y Fields */
             y_fields?: string[];
+        };
+        /** ColumnCorrectionPayload */
+        ColumnCorrectionPayload: {
+            /** Data Type */
+            data_type: string;
+            /** Example Values */
+            example_values?: string[];
+            /**
+             * Excluded
+             * @default false
+             */
+            excluded: boolean;
+            /**
+             * Role
+             * @default other
+             * @enum {string}
+             */
+            role: "primary_key" | "dimension" | "measure" | "time" | "identifier" | "other";
+            /**
+             * Sensitivity
+             * @default internal
+             * @enum {string}
+             */
+            sensitivity: "public" | "internal" | "personal_data" | "financial_data" | "authentication_secret" | "restricted";
+            /** Technical Name */
+            technical_name: string;
+        };
+        /** ColumnResponse */
+        ColumnResponse: {
+            /** Data Type */
+            data_type: string;
+            /** Example Values */
+            example_values: string[];
+            /** Excluded */
+            excluded: boolean;
+            /** Id */
+            id: string;
+            /** Role */
+            role: string;
+            /** Sensitivity */
+            sensitivity: string;
+            /** Technical Name */
+            technical_name: string;
+        };
+        /**
+         * CompiledMetric
+         * @description One headline figure, with the cell it was read from.
+         *
+         *     ``raw_value`` is what the query returned and ``display_value`` is how it is
+         *     printed. The compiler never produces one from the other in either direction:
+         *     a run supplies both, or supplies only the display string and the raw value
+         *     stays absent.
+         */
+        CompiledMetric: {
+            /** Change */
+            change?: string | null;
+            /** Display Value */
+            display_value: string;
+            /** Label */
+            label: string;
+            /** Raw Value */
+            raw_value?: number | string | null;
+            row_selector?: components["schemas"]["RowSelector"] | null;
+            /** Source Column */
+            source_column?: string | null;
+            /** Source Query Ids */
+            source_query_ids?: string[];
+        };
+        /**
+         * CompiledReport
+         * @description One report, compiled and ready to render in any supported format.
+         */
+        CompiledReport: {
+            /** Analysis Period */
+            analysis_period?: string | null;
+            /** Blocks */
+            blocks?: (components["schemas"]["CoverBlock"] | components["schemas"]["ScopeBlock"] | components["schemas"]["NarrativeBlock"] | components["schemas"]["MetricsBlock"] | components["schemas"]["ChartBlock"] | components["schemas"]["TableBlock"] | components["schemas"]["CaveatsBlock"] | components["schemas"]["EvidenceBlock"] | components["schemas"]["PageBreakBlock"])[];
+            /** Displayed Period */
+            displayed_period?: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Narrative Period Status
+             * @default current
+             * @enum {string}
+             */
+            narrative_period_status: "current" | "pinned_to_original_period" | "excluded_from_refreshed_report";
+            /** Narrative Warning */
+            narrative_warning?: string | null;
+            /**
+             * Orientation
+             * @default portrait
+             * @enum {string}
+             */
+            orientation: "portrait" | "landscape";
+            /** Report Id */
+            report_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Sources */
+            sources?: components["schemas"]["AnswerSource"][];
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Template Id */
+            template_id: string;
+            /** Template Version */
+            template_version: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * CompiledRows
+         * @description The exact rows a figure was drawn from, after filtering and ordering.
+         *
+         *     These are the rows the document shows, not the rows the query returned:
+         *     presentation may narrow and reorder, and the appendix has to restate what
+         *     was actually printed rather than what was available.
+         */
+        CompiledRows: {
+            /** Columns */
+            columns?: string[];
+            /** Rows */
+            rows?: {
+                [key: string]: string | number | boolean | null;
+            }[];
+            /** Total Row Count */
+            total_row_count?: number | null;
+        };
+        /** ConnectionTestResponse */
+        ConnectionTestResponse: {
+            /** Message */
+            message: string;
+            /** Server Version */
+            server_version: string | null;
+            /** Success */
+            success: boolean;
         };
         /** ConversationCreateRequest */
         ConversationCreateRequest: {
@@ -788,6 +1498,30 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * CoverBlock
+         * @description Title page material. Carries no facts of its own.
+         */
+        CoverBlock: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "cover";
+            /** Period */
+            period?: string | null;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Title */
+            title: string;
+        };
         /** CreateRunRequest */
         CreateRunRequest: {
             /** Conversation Id */
@@ -806,6 +1540,110 @@ export interface components {
              * @constant
              */
             status: "running";
+        };
+        /** DataSourceCreateRequest */
+        DataSourceCreateRequest: {
+            /** Allowed Schemas */
+            allowed_schemas: string[];
+            /** Database */
+            database: string;
+            /** Host */
+            host: string;
+            /**
+             * Max Result Bytes
+             * @default 1000000
+             */
+            max_result_bytes: number;
+            /**
+             * Max Result Rows
+             * @default 5000
+             */
+            max_result_rows: number;
+            /** Name */
+            name: string;
+            /** Password */
+            password: string;
+            /**
+             * Port
+             * @default 5432
+             */
+            port: number;
+            /**
+             * Ssl Mode
+             * @default require
+             * @enum {string}
+             */
+            ssl_mode: "require" | "verify-ca" | "verify-full";
+            /**
+             * Statement Timeout Seconds
+             * @default 15
+             */
+            statement_timeout_seconds: number;
+            /** Username */
+            username: string;
+            /**
+             * Workspace Id
+             * @default default
+             */
+            workspace_id: string;
+        };
+        /** DataSourceListResponse */
+        DataSourceListResponse: {
+            /** Items */
+            items: components["schemas"]["DataSourceResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** DataSourceResponse */
+        DataSourceResponse: {
+            /** Allowed Schemas */
+            allowed_schemas: string[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Database */
+            database: string;
+            /** Health Status */
+            health_status: string;
+            /** Host */
+            host: string;
+            /** Id */
+            id: string;
+            /** Last Connection At */
+            last_connection_at: string | null;
+            /** Last Connection Error */
+            last_connection_error: string | null;
+            /** Last Profiled At */
+            last_profiled_at: string | null;
+            /** Max Result Bytes */
+            max_result_bytes: number;
+            /** Max Result Rows */
+            max_result_rows: number;
+            /** Name */
+            name: string;
+            /** Port */
+            port: number;
+            /** Ssl Mode */
+            ssl_mode: string;
+            /** Statement Timeout Seconds */
+            statement_timeout_seconds: number;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Username */
+            username: string;
+            /** Workspace Id */
+            workspace_id: string;
         };
         /** DatabaseColumn */
         DatabaseColumn: {
@@ -837,6 +1675,118 @@ export interface components {
             /** Schema */
             schema: string;
         };
+        /** DeliveryResponse */
+        DeliveryResponse: {
+            /** Artifact Id */
+            artifact_id: string;
+            /** Attempt Count */
+            attempt_count: number;
+            /** Channel */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Destination */
+            destination: string;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /** Id */
+            id: string;
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Provider Metadata */
+            provider_metadata: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** DeliveryTriggerRequest */
+        DeliveryTriggerRequest: {
+            /** Artifact Id */
+            artifact_id: string;
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "link" | "webhook" | "email";
+            /** Destination */
+            destination: string;
+        };
+        /**
+         * EvidenceBlock
+         * @description The appendix: every query the report used, and what it contributed.
+         */
+        EvidenceBlock: {
+            /**
+             * Empty Message
+             * @default This report cites no queried evidence.
+             */
+            empty_message: string;
+            /** Entries */
+            entries?: components["schemas"]["EvidenceEntry"][];
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "evidence";
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * EvidenceEntry
+         * @description One query, as the appendix accounts for it.
+         *
+         *     Everything here was recorded by the runtime when the query ran, or derived
+         *     by the compiler from which blocks cite it. The model never authors an
+         *     evidence record.
+         */
+        EvidenceEntry: {
+            /** Description */
+            description: string;
+            /** Dimensions */
+            dimensions?: string[];
+            /** Displayed Rows */
+            displayed_rows?: {
+                [key: string]: components["schemas"]["CompiledRows"];
+            };
+            /** Executed At */
+            executed_at?: string | null;
+            /** Metric */
+            metric?: string | null;
+            /** Parameters */
+            parameters?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Period */
+            period?: string | null;
+            /** Query Id */
+            query_id: string;
+            /** Returned Columns */
+            returned_columns?: string[];
+            /** Row Count */
+            row_count?: number | null;
+            /** Sql Fingerprint */
+            sql_fingerprint?: string | null;
+            /** Tables Consulted */
+            tables_consulted?: string[];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Used By */
+            used_by?: string[];
+        };
         /** ForeignKeyRelationship */
         ForeignKeyRelationship: {
             /** Source Column */
@@ -851,6 +1801,26 @@ export interface components {
             target_schema: string;
             /** Target Table */
             target_table: string;
+        };
+        /** FreshnessResponse */
+        FreshnessResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Data Source Id */
+            data_source_id: string;
+            /** Health Status */
+            health_status: string;
+            /** Latest Source Timestamp */
+            latest_source_timestamp: string | null;
+            /** Per Table */
+            per_table: {
+                [key: string]: string;
+            };
+            /** Stale */
+            stale: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -951,9 +1921,29 @@ export interface components {
             metric: string;
             period: components["schemas"]["ReportPeriod"];
         };
+        /** MetricRequestPayload */
+        MetricRequestPayload: {
+            /** Dimensions */
+            dimensions?: string[];
+            /** Filters */
+            filters?: components["schemas"]["MetricFilter"][];
+            /**
+             * Grain
+             * @default month
+             * @enum {string}
+             */
+            grain: "day" | "week" | "month" | "quarter" | "year";
+            /** Metric */
+            metric: string;
+        };
         /**
          * MetricSummaryResponse
          * @description One metric a reader may recompute, and what it will accept.
+         *
+         *     Only ever built from a metric whose lifecycle status is beyond
+         *     "documented" -- see ``MetricRegistry.list_rerunnable`` -- so
+         *     ``lifecycle_status`` here is always one a reader may actually execute;
+         *     a documentation-only metric never reaches this response.
          */
         MetricSummaryResponse: {
             /** Caveats */
@@ -970,6 +1960,8 @@ export interface components {
             format: string;
             /** Grains */
             grains: string[];
+            /** Lifecycle Status */
+            lifecycle_status: string;
             /** Name */
             name: string;
             /** Required Tables */
@@ -978,6 +1970,79 @@ export interface components {
             unit: string;
             /** Value Columns */
             value_columns: string[];
+        };
+        /**
+         * MetricsBlock
+         * @description Headline figures, each carrying the query cell it was read from.
+         */
+        MetricsBlock: {
+            /**
+             * Empty Message
+             * @default This analysis produced no headline metrics.
+             */
+            empty_message: string;
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "metrics";
+            /** Metrics */
+            metrics?: components["schemas"]["CompiledMetric"][];
+        };
+        /**
+         * NarrativeBlock
+         * @description The analyst's written answer, as document lines rather than as Markdown.
+         */
+        NarrativeBlock: {
+            /**
+             * Empty Message
+             * @default This run produced no written answer.
+             */
+            empty_message: string;
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "narrative";
+            /** Lines */
+            lines?: components["schemas"]["ProseLine"][];
+            /** Warning */
+            warning?: string | null;
+        };
+        /**
+         * PageBreakBlock
+         * @description An explicit break. Renderers honour it; nothing else depends on it.
+         */
+        PageBreakBlock: {
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "page_break";
+        };
+        /**
+         * ProseLine
+         * @description One paragraph-level piece of the written answer.
+         */
+        ProseLine: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "heading" | "paragraph" | "bullet" | "number";
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+            /** Text */
+            text: string;
         };
         /**
          * PublicRunEvent
@@ -1056,6 +2121,98 @@ export interface components {
             /** Size */
             size: number;
         };
+        /** PublishedDocumentSummary */
+        PublishedDocumentSummary: {
+            /** Artifact Id */
+            artifact_id: string;
+            /** Media Type */
+            media_type: string;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+        };
+        /** ReadOnlyVerificationResponse */
+        ReadOnlyVerificationResponse: {
+            /** Is Read Only */
+            is_read_only: boolean;
+            /** Message */
+            message: string;
+            /** Role Bypasses Row Level Security */
+            role_bypasses_row_level_security: boolean;
+            /** Role Can Create Database */
+            role_can_create_database: boolean;
+            /** Role Can Create Role */
+            role_can_create_role: boolean;
+            /** Role Is Superuser */
+            role_is_superuser: boolean;
+        };
+        /** RelationshipApprovalRequest */
+        RelationshipApprovalRequest: {
+            /**
+             * Approval Status
+             * @enum {string}
+             */
+            approval_status: "approved" | "rejected";
+            /** Approved By */
+            approved_by?: string | null;
+        };
+        /** RelationshipListResponse */
+        RelationshipListResponse: {
+            /** Items */
+            items: components["schemas"]["RelationshipResponse"][];
+        };
+        /** RelationshipResponse */
+        RelationshipResponse: {
+            /** Approval Status */
+            approval_status: string;
+            /** Approved At */
+            approved_at: string | null;
+            /** Approved By */
+            approved_by: string | null;
+            /** Cardinality */
+            cardinality: string;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Data Source Id */
+            data_source_id: string;
+            /** Discovery Method */
+            discovery_method: string;
+            /** Id */
+            id: string;
+            /** Source Column */
+            source_column: string;
+            /** Source Table */
+            source_table: string;
+            /** Target Column */
+            target_column: string;
+            /** Target Table */
+            target_table: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** RelativePeriodPayload */
+        RelativePeriodPayload: {
+            /** Days */
+            days?: number | null;
+            /** End */
+            end?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "current_month" | "previous_month" | "current_quarter" | "previous_quarter" | "current_year" | "previous_year" | "last_n_days" | "fixed";
+            /** Start */
+            start?: string | null;
+        };
         /**
          * ReportPeriod
          * @description A half-open date range, ``start`` inclusive and ``end`` exclusive.
@@ -1075,6 +2232,45 @@ export interface components {
              * Format: date
              */
             start: string;
+        };
+        /**
+         * ReportPreview
+         * @description Everything a reader needs to judge a report before it is published.
+         */
+        ReportPreview: {
+            assignment: components["schemas"]["TemplateAssignment"];
+            /** Estimated Page Count */
+            estimated_page_count: number;
+            /** Missing Required Content */
+            missing_required_content: string[];
+            /**
+             * Pdf Authoritative Notice
+             * @default This preview is generated for review only. The published PDF is the authoritative record of this report's figures and layout. A Word copy is provided for editing and reuse; once edited it is no longer a record of what this run produced.
+             */
+            pdf_authoritative_notice: string;
+            report: components["schemas"]["CompiledReport"];
+            suitability: components["schemas"]["TemplateSuitability"];
+            /** Template Name */
+            template_name: string;
+            /** Template Title */
+            template_title: string;
+        };
+        /**
+         * ReportPreviewRequest
+         * @description What a caller may choose to preview. The same shape ``publish`` takes,
+         *     minus the output formats a preview never renders — never a figure.
+         */
+        ReportPreviewRequest: {
+            /** Metrics */
+            metrics?: components["schemas"]["MetricParameters"][];
+            /** Narrative */
+            narrative?: ("current" | "pinned_to_original_period" | "excluded_from_refreshed_report") | null;
+            /** Period */
+            period?: string | null;
+            /** Template */
+            template: string;
+            /** Title */
+            title?: string | null;
         };
         /** ReportTemplateListResponse */
         ReportTemplateListResponse: {
@@ -1098,6 +2294,49 @@ export interface components {
             sections: string[];
             /** Title */
             title: string;
+        };
+        /**
+         * ResolvedParametersResponse
+         * @description What executing this definition right now would actually use.
+         *
+         *     Produced without running a single query -- steps 1-3 of execution only,
+         *     read-only against nothing but the template registry and the clock.
+         */
+        ResolvedParametersResponse: {
+            /** Current Template Version */
+            current_template_version: string;
+            /** Metric Requests */
+            metric_requests: components["schemas"]["MetricRequestPayload"][];
+            /** Pinned Template Version */
+            pinned_template_version: string;
+            /** Resolved Period Description */
+            resolved_period_description: string;
+            /**
+             * Resolved Period End
+             * Format: date
+             */
+            resolved_period_end: string;
+            /**
+             * Resolved Period Start
+             * Format: date
+             */
+            resolved_period_start: string;
+            /** Template Version Matches Pin */
+            template_version_matches_pin: boolean;
+        };
+        /**
+         * RowSelector
+         * @description Which row a figure was read out of, by identity rather than by position.
+         *
+         *     An index would stop meaning the same row the moment a display is filtered or
+         *     reordered, both of which presentation is allowed to do. Naming the cells
+         *     that identify the row survives that.
+         */
+        RowSelector: {
+            /** Fields */
+            fields?: {
+                [key: string]: string | number | boolean | null;
+            };
         };
         /** RunHistoryResponse */
         RunHistoryResponse: {
@@ -1324,12 +2563,504 @@ export interface components {
             /** Stop Reason */
             stop_reason?: string | null;
         };
+        /** SavedReportArchiveRequest */
+        SavedReportArchiveRequest: {
+            /** Expected Version */
+            expected_version: number;
+        };
+        /** SavedReportCreateRequest */
+        SavedReportCreateRequest: {
+            default_period: components["schemas"]["RelativePeriodPayload"];
+            /** Description */
+            description?: string | null;
+            /** Metric Requests */
+            metric_requests: components["schemas"]["MetricRequestPayload"][];
+            /** Name */
+            name: string;
+            /**
+             * Narrative Policy
+             * @default exclude
+             * @enum {string}
+             */
+            narrative_policy: "exclude" | "include_original" | "require_new_investigation";
+            /** Owner */
+            owner?: string | null;
+            /** Seed Narrative */
+            seed_narrative?: string | null;
+            /** Seed Narrative Period */
+            seed_narrative_period?: string | null;
+            /** Seed Run Id */
+            seed_run_id?: string | null;
+            /** Template Id */
+            template_id: string;
+            /**
+             * Workspace Id
+             * @default default
+             */
+            workspace_id: string;
+        };
+        /** SavedReportExecuteRequest */
+        SavedReportExecuteRequest: {
+            /** Formats */
+            formats?: ("pdf" | "docx")[];
+            /**
+             * Mode
+             * @default preview
+             * @enum {string}
+             */
+            mode: "preview" | "publish";
+        };
+        /** SavedReportExecuteResponse */
+        SavedReportExecuteResponse: {
+            /** Documents */
+            documents?: components["schemas"]["PublishedDocumentSummary"][];
+            /** Execution Id */
+            execution_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "preview" | "publish";
+            preview?: components["schemas"]["ReportPreview"] | null;
+            /**
+             * Resolved Period End
+             * Format: date
+             */
+            resolved_period_end: string;
+            /**
+             * Resolved Period Start
+             * Format: date
+             */
+            resolved_period_start: string;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+        };
+        /** SavedReportExecutionListResponse */
+        SavedReportExecutionListResponse: {
+            /** Items */
+            items: components["schemas"]["SavedReportExecutionResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** SavedReportExecutionResponse */
+        SavedReportExecutionResponse: {
+            /** Artifacts */
+            artifacts?: components["schemas"]["PublishedDocumentSummary"][];
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Formats */
+            formats: string[] | null;
+            /** Id */
+            id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "preview" | "publish";
+            /** Resolved Period End */
+            resolved_period_end: string | null;
+            /** Resolved Period Start */
+            resolved_period_start: string | null;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+        };
+        /** SavedReportListResponse */
+        SavedReportListResponse: {
+            /** Items */
+            items: components["schemas"]["SavedReportSummaryResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * SavedReportResponse
+         * @description The full definition, including what a rerun will actually request.
+         */
+        SavedReportResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            default_period: components["schemas"]["RelativePeriodPayload"];
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: string;
+            /** Metric Requests */
+            metric_requests: components["schemas"]["MetricRequestPayload"][];
+            /** Name */
+            name: string;
+            /**
+             * Narrative Policy
+             * @enum {string}
+             */
+            narrative_policy: "exclude" | "include_original" | "require_new_investigation";
+            /** Owner */
+            owner: string | null;
+            /** Seed Narrative */
+            seed_narrative: string | null;
+            /** Seed Narrative Period */
+            seed_narrative_period: string | null;
+            /** Seed Run Id */
+            seed_run_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "archived";
+            /** Template Id */
+            template_id: string;
+            /** Template Version */
+            template_version: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /**
+         * SavedReportSummaryResponse
+         * @description One row of a saved-report list -- no narrative text, for a light payload.
+         */
+        SavedReportSummaryResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Narrative Policy
+             * @enum {string}
+             */
+            narrative_policy: "exclude" | "include_original" | "require_new_investigation";
+            /** Owner */
+            owner: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "archived";
+            /** Template Id */
+            template_id: string;
+            /** Template Version */
+            template_version: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /**
+         * SavedReportUpdateRequest
+         * @description A partial update. Only the fields present are changed.
+         *
+         *     ``expected_version`` enforces optimistic concurrency: it must equal the
+         *     definition's current stored version, or the update is refused with a
+         *     conflict rather than silently overwriting a concurrent edit.
+         */
+        SavedReportUpdateRequest: {
+            default_period?: components["schemas"]["RelativePeriodPayload"] | null;
+            /** Description */
+            description?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Metric Requests */
+            metric_requests?: components["schemas"]["MetricRequestPayload"][] | null;
+            /** Name */
+            name?: string | null;
+            /** Narrative Policy */
+            narrative_policy?: ("exclude" | "include_original" | "require_new_investigation") | null;
+            /** Seed Narrative */
+            seed_narrative?: string | null;
+            /** Seed Narrative Period */
+            seed_narrative_period?: string | null;
+            /** Seed Run Id */
+            seed_run_id?: string | null;
+            /** Status */
+            status?: ("active" | "archived") | null;
+            /** Template Id */
+            template_id?: string | null;
+        };
+        /** ScheduleConfigPayload */
+        ScheduleConfigPayload: {
+            /** Day Of Month */
+            day_of_month?: number | null;
+            /** Day Of Week */
+            day_of_week?: number | null;
+            /**
+             * Hour
+             * @default 6
+             */
+            hour: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "daily" | "weekly" | "monthly" | "quarterly";
+            /**
+             * Minute
+             * @default 0
+             */
+            minute: number;
+            /** Month Of Quarter */
+            month_of_quarter?: number | null;
+        };
+        /** ScheduledReportCreateRequest */
+        ScheduledReportCreateRequest: {
+            /** Delivery Channel */
+            delivery_channel?: ("link" | "webhook" | "email") | null;
+            /** Delivery Destination */
+            delivery_destination?: string | null;
+            /** Formats */
+            formats?: ("pdf" | "docx")[];
+            /**
+             * Saved Report Id
+             * Format: uuid
+             */
+            saved_report_id: string;
+            schedule: components["schemas"]["ScheduleConfigPayload"];
+            /** Timezone */
+            timezone: string;
+            /**
+             * Workspace Id
+             * @default default
+             */
+            workspace_id: string;
+        };
+        /** ScheduledReportListResponse */
+        ScheduledReportListResponse: {
+            /** Items */
+            items: components["schemas"]["ScheduledReportResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** ScheduledReportResponse */
+        ScheduledReportResponse: {
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Delivery Channel */
+            delivery_channel: string | null;
+            /** Delivery Destination */
+            delivery_destination: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Formats */
+            formats: string[];
+            /** Id */
+            id: string;
+            /** Last Result */
+            last_result: string | null;
+            /** Last Run At */
+            last_run_at: string | null;
+            /**
+             * Next Run At
+             * Format: date-time
+             */
+            next_run_at: string;
+            /** Saved Report Id */
+            saved_report_id: string;
+            schedule: components["schemas"]["ScheduleConfigPayload"];
+            /** Timezone */
+            timezone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /** ScheduledReportUpdateRequest */
+        ScheduledReportUpdateRequest: {
+            /** Delivery Channel */
+            delivery_channel?: ("link" | "webhook" | "email") | null;
+            /** Delivery Destination */
+            delivery_destination?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Formats */
+            formats?: ("pdf" | "docx")[] | null;
+            schedule?: components["schemas"]["ScheduleConfigPayload"] | null;
+            /** Timezone */
+            timezone?: string | null;
+        };
+        /** SchemaSummaryResponse */
+        SchemaSummaryResponse: {
+            /** Schemas */
+            schemas: string[];
+            /** Tables */
+            tables: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * ScopeBlock
+         * @description What the report covers, stated so a reader need not infer it.
+         */
+        ScopeBlock: {
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "scope";
+            /** Rows */
+            rows?: components["schemas"]["ScopeRow"][];
+        };
+        /** ScopeRow */
+        ScopeRow: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** SelectTableRequest */
+        SelectTableRequest: {
+            /** Business Name */
+            business_name: string;
+            /** Description */
+            description?: string | null;
+            /** Freshness Column */
+            freshness_column?: string | null;
+            /** Grain */
+            grain?: string | null;
+            /** Schema Name */
+            schema_name: string;
+            /** Technical Name */
+            technical_name: string;
+        };
+        /**
+         * SlotAssignment
+         * @description What one slot ended up with, and whether that was enough.
+         */
+        SlotAssignment: {
+            /** Accepts */
+            accepts: string[];
+            /** Assigned Chart Ids */
+            assigned_chart_ids?: string[];
+            /**
+             * Block Kind
+             * @enum {string}
+             */
+            block_kind: "cover" | "scope" | "narrative" | "metrics" | "chart" | "table" | "caveats" | "evidence" | "page_break";
+            /** Maximum */
+            maximum: number;
+            /** Minimum */
+            minimum: number;
+            /** Required */
+            required: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "primary" | "supporting";
+            /** Satisfied */
+            satisfied: boolean;
+            /** Slot Id */
+            slot_id: string;
+        };
         /**
          * StopReason
          * @description Why an agent run reached its terminal state.
          * @enum {string}
          */
         StopReason: "completed" | "max_iterations" | "max_tool_calls" | "too_many_errors" | "cancelled" | "fatal_error";
+        /** TableActiveRequest */
+        TableActiveRequest: {
+            /** Active */
+            active: boolean;
+        };
+        /**
+         * TableBlock
+         * @description A grid of exact values, printed rather than summarised.
+         */
+        TableBlock: {
+            data?: components["schemas"]["CompiledRows"];
+            /**
+             * Empty Message
+             * @default This analysis produced no data tables.
+             */
+            empty_message: string;
+            /** Figure Label */
+            figure_label: string;
+            /** Heading */
+            heading?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "table";
+            /** Period */
+            period?: string | null;
+            /** Source Query Ids */
+            source_query_ids?: string[];
+            /** Table Id */
+            table_id: string;
+            /** Title */
+            title: string;
+        };
+        /** TableCorrectionRequest */
+        TableCorrectionRequest: {
+            /** Business Name */
+            business_name: string;
+            /** Columns */
+            columns: components["schemas"]["ColumnCorrectionPayload"][];
+            /** Description */
+            description?: string | null;
+            /** Freshness Column */
+            freshness_column?: string | null;
+            /** Grain */
+            grain?: string | null;
+        };
         /** TableDescription */
         TableDescription: {
             /** Columns */
@@ -1344,6 +3075,106 @@ export interface components {
             schema: string;
             /** Unique Constraints */
             unique_constraints?: string[][];
+        };
+        /** TableListResponse */
+        TableListResponse: {
+            /** Items */
+            items: components["schemas"]["TableResponse"][];
+        };
+        /** TableResponse */
+        TableResponse: {
+            /** Active */
+            active: boolean;
+            /** Approved At */
+            approved_at: string | null;
+            /** Approved By */
+            approved_by: string | null;
+            /** Business Name */
+            business_name: string;
+            /** Columns */
+            columns: components["schemas"]["ColumnResponse"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Data Source Id */
+            data_source_id: string;
+            /** Description */
+            description: string | null;
+            /** Dimensions */
+            dimensions: string[];
+            /** Freshness Column */
+            freshness_column: string | null;
+            /** Grain */
+            grain: string | null;
+            /** Id */
+            id: string;
+            /** Measures */
+            measures: string[];
+            /** Primary Key */
+            primary_key: string[];
+            /** Schema Name */
+            schema_name: string;
+            /** Sensitive Columns */
+            sensitive_columns: string[];
+            /** Technical Name */
+            technical_name: string;
+            /** Time Columns */
+            time_columns: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TemplateAssignment
+         * @description The complete, deterministic result of fitting one run to one template.
+         */
+        TemplateAssignment: {
+            /** Slots */
+            slots?: components["schemas"]["SlotAssignment"][];
+            /** Template Name */
+            template_name: string;
+            /** Unresolved Evidence Chart Ids */
+            unresolved_evidence_chart_ids?: string[];
+            /** Unused Chart Ids */
+            unused_chart_ids?: string[];
+        };
+        /**
+         * TemplateSuitability
+         * @description How well one template fits the content a run actually produced.
+         */
+        TemplateSuitability: {
+            /** Can Publish */
+            can_publish: boolean;
+            /** Completion Percentage */
+            completion_percentage: number;
+            /** Missing Required Slots */
+            missing_required_slots: string[];
+            /** Optional Slots Filled */
+            optional_slots_filled: number;
+            /** Optional Slots Total */
+            optional_slots_total: number;
+            /** Satisfied Required Slots */
+            satisfied_required_slots: string[];
+            /** Template Name */
+            template_name: string;
+            /** Unused Display Count */
+            unused_display_count: number;
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * TemplateSuitabilityOverview
+         * @description Every template's fit for one run, and which one best fits it.
+         */
+        TemplateSuitabilityOverview: {
+            /** Items */
+            items: components["schemas"]["TemplateSuitability"][];
+            /** Recommended Template */
+            recommended_template?: string | null;
         };
         /**
          * ToolOutcomeSummary
@@ -1666,6 +3497,72 @@ export interface operations {
             };
         };
     };
+    preview_report_api_v1_analytics_runs__run_id__report_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_suitability_api_v1_analytics_runs__run_id__report_suitability_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateSuitabilityOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     publish_report_api_v1_analytics_runs__run_id__reports_post: {
         parameters: {
             query?: never;
@@ -1884,6 +3781,659 @@ export interface operations {
             };
         };
     };
+    list_data_sources_api_v1_datasources_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+                status?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_data_source_api_v1_datasources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataSourceCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_data_source_api_v1_datasources__data_source_id__get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_data_source_api_v1_datasources__data_source_id__activate_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_data_source_freshness_api_v1_datasources__data_source_id__freshness_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreshnessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_source_relationships_api_v1_datasources__data_source_id__relationships_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+                approval_status?: string | null;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discover_data_source_relationships_api_v1_datasources__data_source_id__relationships_discover_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_data_source_relationship_approval_api_v1_datasources__data_source_id__relationships__relationship_id__approval_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+                relationship_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_source_schemas_api_v1_datasources__data_source_id__schemas_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_source_tables_api_v1_datasources__data_source_id__tables_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+                active_only?: boolean;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_data_source_table_api_v1_datasources__data_source_id__tables_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelectTableRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_data_source_table_api_v1_datasources__data_source_id__tables__table_id__get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_data_source_table_api_v1_datasources__data_source_id__tables__table_id__patch: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TableCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_data_source_table_active_api_v1_datasources__data_source_id__tables__table_id__active_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TableActiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_data_source_table_api_v1_datasources__data_source_id__tables__table_id__approve_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveTableRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_data_source_connection_api_v1_datasources__data_source_id__test_connection_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_data_source_read_only_api_v1_datasources__data_source_id__verify_read_only_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                data_source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadOnlyVerificationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_deliveries_api_v1_deliveries_get: {
+        parameters: {
+            query?: {
+                artifact_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_delivery_api_v1_deliveries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryTriggerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_memory_api_v1_memory_get: {
         parameters: {
             query?: {
@@ -1936,6 +4486,422 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_saved_reports_api_v1_reports_saved_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+                status?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_saved_report_api_v1_reports_saved_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedReportCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_saved_report_api_v1_reports_saved__saved_report_id__get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_saved_report_api_v1_reports_saved__saved_report_id__patch: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedReportUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_saved_report_api_v1_reports_saved__saved_report_id__archive_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedReportArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_saved_report_api_v1_reports_saved__saved_report_id__execute_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedReportExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_saved_report_executions_api_v1_reports_saved__saved_report_id__executions_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportExecutionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_resolved_parameters_api_v1_reports_saved__saved_report_id__resolved_parameters_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedParametersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_scheduled_reports_api_v1_reports_scheduled_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+                enabled?: boolean | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledReportListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_scheduled_report_api_v1_reports_scheduled_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduledReportCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scheduled_report_api_v1_reports_scheduled__scheduled_report_id__get: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                scheduled_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_scheduled_report_api_v1_reports_scheduled__scheduled_report_id__patch: {
+        parameters: {
+            query?: {
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                scheduled_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduledReportUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledReportResponse"];
                 };
             };
             /** @description Validation Error */

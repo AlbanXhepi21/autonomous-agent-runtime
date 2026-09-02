@@ -22,6 +22,7 @@ const metrics = {
       value_columns: ["revenue", "order_count"],
       required_tables: ["orders"],
       caveats: [],
+      lifecycle_status: "production_ready",
     },
   ],
 };

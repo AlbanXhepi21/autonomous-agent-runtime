@@ -10,13 +10,15 @@ The in-process implementation needs no I/O to satisfy them, but sharing one
 contract is what lets the provider swap without changing a caller.
 """
 
+from __future__ import annotations
+
 import mimetypes
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from app.artifacts.contracts import Artifact, ArtifactStatus
+from app.artifacts.contracts import Artifact, ArtifactRetentionPolicy, ArtifactStatus
 from app.artifacts.files import WorkspaceArtifactFiles, storage_key
 from app.environment.workspace import Workspace
 
@@ -55,7 +57,8 @@ class ArtifactStore(ABC):
                        metadata: dict[str, object] | None = None,
                        output_format: str | None = None, template_id: str | None = None,
                        template_version: str | None = None,
-                       expires_at: datetime | None = None) -> Artifact: ...
+                       expires_at: datetime | None = None,
+                       retention_policy: ArtifactRetentionPolicy = "standard") -> Artifact: ...
 
     @abstractmethod
     async def get(self, artifact_id: str) -> Artifact | None: ...
@@ -65,6 +68,35 @@ class ArtifactStore(ABC):
 
     @abstractmethod
     async def list(self, *, run_id: str | None = None) -> list[Artifact]: ...
+
+    @abstractmethod
+    async def claim_expired(
+        self, *, now: datetime, stale_after: timedelta, limit: int, max_attempts: int | None = None,
+    ) -> list[Artifact]:
+        """Atomically claim up to ``limit`` ready, expired, standard-policy artifacts.
+
+        Same safety property as ``ScheduledReportStore.claim_due``: safe for
+        any number of concurrent retention workers, and a claim older than
+        ``stale_after`` is treated as abandoned and reclaimable.
+        ``legal_hold`` and ``permanent`` artifacts are never returned,
+        regardless of ``expires_at``. When ``max_attempts`` is given, an
+        artifact that has already failed that many times is excluded too --
+        it stays a ``READY`` row with its error recorded, rather than being
+        retried forever or silently disappearing.
+        """
+
+    @abstractmethod
+    async def mark_deleted(self, artifact_id: str) -> None:
+        """Record that an artifact's bytes are gone, without erasing its row.
+
+        The record survives as an audit trail -- name, size, hashes and
+        timestamps are untouched; only ``status`` becomes ``DELETED`` and
+        ``deleted_at`` is stamped.
+        """
+
+    @abstractmethod
+    async def record_deletion_failure(self, artifact_id: str, error: str) -> None:
+        """Release the claim, note the failure, and leave the row reclaimable."""
 
 
 class BaseArtifactStore(ArtifactStore):
@@ -78,7 +110,8 @@ class BaseArtifactStore(ArtifactStore):
                        metadata: dict[str, object] | None = None,
                        output_format: str | None = None, template_id: str | None = None,
                        template_version: str | None = None,
-                       expires_at: datetime | None = None) -> Artifact:
+                       expires_at: datetime | None = None,
+                       retention_policy: ArtifactRetentionPolicy = "standard") -> Artifact:
         run_id = validated_run_id(run_id)
         source = self._files.validate_source(source_path)
         filename = validated_filename(name or source.name)
@@ -91,7 +124,7 @@ class BaseArtifactStore(ArtifactStore):
             size=0, sha256="0" * 64, status=ArtifactStatus.PENDING, run_id=run_id,
             created_at=datetime.now(timezone.utc), output_format=output_format,
             template_id=template_id, template_version=template_version, expires_at=expires_at,
-            metadata=dict(metadata or {}),
+            retention_policy=retention_policy, metadata=dict(metadata or {}),
         )
         await self._record_pending(pending)
         try:
@@ -159,3 +192,39 @@ class WorkspaceArtifactStore(BaseArtifactStore):
         if run_id is not None:
             items = [item for item in items if item.run_id == run_id]
         return sorted(items, key=lambda artifact: artifact.created_at, reverse=True)
+
+    async def claim_expired(
+        self, *, now: datetime, stale_after: timedelta, limit: int, max_attempts: int | None = None,
+    ) -> list[Artifact]:
+        stale_before = now - stale_after
+        eligible = [
+            item for item in self._artifacts.values()
+            if item.status is ArtifactStatus.READY
+            and item.retention_policy == "standard"
+            and item.expires_at is not None and item.expires_at <= now
+            and (item.deletion_claimed_at is None or item.deletion_claimed_at < stale_before)
+            and (max_attempts is None or item.deletion_attempts < max_attempts)
+        ]
+        eligible.sort(key=lambda artifact: artifact.expires_at or now)
+        claimed = eligible[:limit]
+        for artifact in claimed:
+            self._artifacts[artifact.id] = artifact.model_copy(update={"deletion_claimed_at": now})
+        return [self._artifacts[artifact.id] for artifact in claimed]
+
+    async def mark_deleted(self, artifact_id: str) -> None:
+        existing = self._artifacts.get(artifact_id)
+        if existing is None:
+            return
+        self._artifacts[artifact_id] = existing.model_copy(update={
+            "status": ArtifactStatus.DELETED, "deleted_at": datetime.now(timezone.utc),
+            "deletion_claimed_at": None,
+        })
+
+    async def record_deletion_failure(self, artifact_id: str, error: str) -> None:
+        existing = self._artifacts.get(artifact_id)
+        if existing is None:
+            return
+        self._artifacts[artifact_id] = existing.model_copy(update={
+            "deletion_attempts": existing.deletion_attempts + 1, "deletion_error": error,
+            "deletion_claimed_at": None,
+        })

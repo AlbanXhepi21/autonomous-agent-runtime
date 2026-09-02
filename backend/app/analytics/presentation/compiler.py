@@ -284,6 +284,7 @@ def compile_report(
     report_id: str | None = None,
     narrative_status: NarrativeStatus = "current",
     analysis_period: str | None = None,
+    content_order: dict[str, list[str]] | None = None,
 ) -> CompiledReport:
     """Lay one run out as the template asks, without changing what it says.
 
@@ -291,14 +292,28 @@ def compile_report(
     prose was written for; when they differ the narrative is either dropped or
     kept under a warning, according to ``narrative_status``. It is never
     silently reused.
+
+    ``content_order``, when given, names the chart ids each block kind should
+    draw from and in what order — the output of
+    ``app.analytics.presentation.assignment.TemplateAssignment.content_order``.
+    Absent, the block still takes every matching chart in the order it was
+    given, exactly as before slots existed; this keeps every existing caller
+    unaffected.
     """
 
     all_charts = list(charts)
     resolved = list(sources)
     stated = list(caveats or ())
-    drawable = [chart for chart in all_charts if chart.type in RASTERIZABLE]
-    grids = [chart for chart in all_charts if chart.type == "table"]
-    headline = [(item, chart) for chart in all_charts if chart.type == "kpi" for item in chart.kpis]
+    chart_by_id = {chart.id: chart for chart in all_charts}
+
+    def _ordered(block_kind: str) -> list[ChartSpec]:
+        if content_order is None:
+            return all_charts
+        return [chart_by_id[chart_id] for chart_id in content_order.get(block_kind, []) if chart_id in chart_by_id]
+
+    drawable = [chart for chart in _ordered("chart") if chart.type in RASTERIZABLE]
+    grids = [chart for chart in _ordered("table") if chart.type == "table"]
+    headline = [(item, chart) for chart in _ordered("metrics") if chart.type == "kpi" for item in chart.kpis]
     written_for = analysis_period if analysis_period is not None else period
     excluded = narrative_status == "excluded_from_refreshed_report"
     narrative = [] if excluded else parse_prose(answer or "")

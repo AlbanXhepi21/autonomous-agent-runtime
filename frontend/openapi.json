@@ -19,6 +19,17 @@
               }
             ],
             "title": "Session Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
           }
         },
         "required": [
@@ -388,6 +399,22 @@
         "title": "ApprovalStatus",
         "type": "string"
       },
+      "ApproveTableRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "approved_by": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Approved By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approved_by"
+        ],
+        "title": "ApproveTableRequest",
+        "type": "object"
+      },
       "Artifact": {
         "additionalProperties": false,
         "description": "A registered file output, deliberately separate from observations and memory.",
@@ -402,6 +429,48 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "deletion_attempts": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Deletion Attempts",
+            "type": "integer"
+          },
+          "deletion_claimed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletion Claimed At"
+          },
+          "deletion_error": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletion Error"
           },
           "expires_at": {
             "anyOf": [
@@ -454,6 +523,16 @@
             "maxLength": 512,
             "minLength": 1,
             "title": "Relative Path",
+            "type": "string"
+          },
+          "retention_policy": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "legal_hold",
+              "permanent"
+            ],
+            "title": "Retention Policy",
             "type": "string"
           },
           "run_id": {
@@ -595,6 +674,156 @@
         ],
         "title": "Capability",
         "type": "string"
+      },
+      "CaveatsBlock": {
+        "additionalProperties": false,
+        "description": "Limitations, kept in two lists that must not be confused for each other.\n\n``stated`` was written by the analysis about itself. ``system_notices`` hold\nfor any report of this shape and are supplied by the runtime.",
+        "properties": {
+          "empty_message": {
+            "default": "This analysis stated no limitations.",
+            "maxLength": 300,
+            "title": "Empty Message",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "caveats",
+            "default": "caveats",
+            "title": "Kind",
+            "type": "string"
+          },
+          "stated": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Stated",
+            "type": "array"
+          },
+          "system_notices": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "System Notices",
+            "type": "array"
+          }
+        },
+        "title": "CaveatsBlock",
+        "type": "object"
+      },
+      "ChartBlock": {
+        "additionalProperties": false,
+        "description": "One drawn figure and the rows it was drawn from.",
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "chart_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Chart Id",
+            "type": "string"
+          },
+          "chart_type": {
+            "enum": [
+              "line",
+              "bar",
+              "stacked_bar",
+              "area",
+              "pie",
+              "scatter",
+              "table",
+              "kpi"
+            ],
+            "title": "Chart Type",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CompiledRows"
+          },
+          "figure_label": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Figure Label",
+            "type": "string"
+          },
+          "formatting": {
+            "$ref": "#/components/schemas/ChartFormatting"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "chart",
+            "default": "chart",
+            "title": "Kind",
+            "type": "string"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "source_query_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Source Query Ids",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chart_id",
+          "title",
+          "figure_label",
+          "chart_type"
+        ],
+        "title": "ChartBlock",
+        "type": "object"
       },
       "ChartFormatting": {
         "additionalProperties": false,
@@ -773,6 +1002,458 @@
         "title": "ChartSpec",
         "type": "object"
       },
+      "ColumnCorrectionPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "data_type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Data Type",
+            "type": "string"
+          },
+          "example_values": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Example Values",
+            "type": "array"
+          },
+          "excluded": {
+            "default": false,
+            "title": "Excluded",
+            "type": "boolean"
+          },
+          "role": {
+            "default": "other",
+            "enum": [
+              "primary_key",
+              "dimension",
+              "measure",
+              "time",
+              "identifier",
+              "other"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "sensitivity": {
+            "default": "internal",
+            "enum": [
+              "public",
+              "internal",
+              "personal_data",
+              "financial_data",
+              "authentication_secret",
+              "restricted"
+            ],
+            "title": "Sensitivity",
+            "type": "string"
+          },
+          "technical_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Technical Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "technical_name",
+          "data_type"
+        ],
+        "title": "ColumnCorrectionPayload",
+        "type": "object"
+      },
+      "ColumnResponse": {
+        "properties": {
+          "data_type": {
+            "title": "Data Type",
+            "type": "string"
+          },
+          "example_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Example Values",
+            "type": "array"
+          },
+          "excluded": {
+            "title": "Excluded",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "sensitivity": {
+            "title": "Sensitivity",
+            "type": "string"
+          },
+          "technical_name": {
+            "title": "Technical Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "technical_name",
+          "data_type",
+          "role",
+          "sensitivity",
+          "excluded",
+          "example_values"
+        ],
+        "title": "ColumnResponse",
+        "type": "object"
+      },
+      "CompiledMetric": {
+        "additionalProperties": false,
+        "description": "One headline figure, with the cell it was read from.\n\n``raw_value`` is what the query returned and ``display_value`` is how it is\nprinted. The compiler never produces one from the other in either direction:\na run supplies both, or supplies only the display string and the raw value\nstays absent.",
+        "properties": {
+          "change": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "display_value": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Value",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "raw_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Value"
+          },
+          "row_selector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RowSelector"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_column": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Column"
+          },
+          "source_query_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Source Query Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "label",
+          "display_value"
+        ],
+        "title": "CompiledMetric",
+        "type": "object"
+      },
+      "CompiledReport": {
+        "additionalProperties": false,
+        "description": "One report, compiled and ready to render in any supported format.",
+        "properties": {
+          "analysis_period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Period"
+          },
+          "blocks": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "caveats": "#/components/schemas/CaveatsBlock",
+                  "chart": "#/components/schemas/ChartBlock",
+                  "cover": "#/components/schemas/CoverBlock",
+                  "evidence": "#/components/schemas/EvidenceBlock",
+                  "metrics": "#/components/schemas/MetricsBlock",
+                  "narrative": "#/components/schemas/NarrativeBlock",
+                  "page_break": "#/components/schemas/PageBreakBlock",
+                  "scope": "#/components/schemas/ScopeBlock",
+                  "table": "#/components/schemas/TableBlock"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CoverBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/ScopeBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/NarrativeBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/MetricsBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/ChartBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/TableBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/CaveatsBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/EvidenceBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/PageBreakBlock"
+                }
+              ]
+            },
+            "maxItems": 64,
+            "title": "Blocks",
+            "type": "array"
+          },
+          "displayed_period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayed Period"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "narrative_period_status": {
+            "default": "current",
+            "enum": [
+              "current",
+              "pinned_to_original_period",
+              "excluded_from_refreshed_report"
+            ],
+            "title": "Narrative Period Status",
+            "type": "string"
+          },
+          "narrative_warning": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrative Warning"
+          },
+          "orientation": {
+            "default": "portrait",
+            "enum": [
+              "portrait",
+              "landscape"
+            ],
+            "title": "Orientation",
+            "type": "string"
+          },
+          "report_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Report Id",
+            "type": "string"
+          },
+          "run_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerSource"
+            },
+            "maxItems": 64,
+            "title": "Sources",
+            "type": "array"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "template_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Template Id",
+            "type": "string"
+          },
+          "template_version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Template Version",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_id",
+          "run_id",
+          "title",
+          "template_id",
+          "template_version",
+          "generated_at"
+        ],
+        "title": "CompiledReport",
+        "type": "object"
+      },
+      "CompiledRows": {
+        "additionalProperties": false,
+        "description": "The exact rows a figure was drawn from, after filtering and ordering.\n\nThese are the rows the document shows, not the rows the query returned:\npresentation may narrow and reorder, and the appendix has to restate what\nwas actually printed rather than what was available.",
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Columns",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "maxItems": 500,
+            "title": "Rows",
+            "type": "array"
+          },
+          "total_row_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Row Count"
+          }
+        },
+        "title": "CompiledRows",
+        "type": "object"
+      },
+      "ConnectionTestResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "server_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Version"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "server_version"
+        ],
+        "title": "ConnectionTestResponse",
+        "type": "object"
+      },
       "ConversationCreateRequest": {
         "properties": {
           "title": {
@@ -922,6 +1603,71 @@
         "title": "ConversationTitleRequest",
         "type": "object"
       },
+      "CoverBlock": {
+        "additionalProperties": false,
+        "description": "Title page material. Carries no facts of its own.",
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "cover",
+            "default": "cover",
+            "title": "Kind",
+            "type": "string"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "generated_at"
+        ],
+        "title": "CoverBlock",
+        "type": "object"
+      },
       "CreateRunRequest": {
         "properties": {
           "conversation_id": {
@@ -972,6 +1718,266 @@
           "status"
         ],
         "title": "CreateRunResponse",
+        "type": "object"
+      },
+      "DataSourceCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_schemas": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Allowed Schemas",
+            "type": "array"
+          },
+          "database": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Database",
+            "type": "string"
+          },
+          "host": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Host",
+            "type": "string"
+          },
+          "max_result_bytes": {
+            "default": 1000000,
+            "minimum": 1024.0,
+            "title": "Max Result Bytes",
+            "type": "integer"
+          },
+          "max_result_rows": {
+            "default": 5000,
+            "maximum": 50000.0,
+            "minimum": 1.0,
+            "title": "Max Result Rows",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "port": {
+            "default": 5432,
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "type": "integer"
+          },
+          "ssl_mode": {
+            "default": "require",
+            "enum": [
+              "require",
+              "verify-ca",
+              "verify-full"
+            ],
+            "title": "Ssl Mode",
+            "type": "string"
+          },
+          "statement_timeout_seconds": {
+            "default": 15,
+            "exclusiveMinimum": 0.0,
+            "maximum": 120.0,
+            "title": "Statement Timeout Seconds",
+            "type": "number"
+          },
+          "username": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          },
+          "workspace_id": {
+            "default": "default",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "host",
+          "database",
+          "username",
+          "password",
+          "allowed_schemas"
+        ],
+        "title": "DataSourceCreateRequest",
+        "type": "object"
+      },
+      "DataSourceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DataSourceResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "DataSourceListResponse",
+        "type": "object"
+      },
+      "DataSourceResponse": {
+        "properties": {
+          "allowed_schemas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Schemas",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "health_status": {
+            "title": "Health Status",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_connection_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Connection At"
+          },
+          "last_connection_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Connection Error"
+          },
+          "last_profiled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Profiled At"
+          },
+          "max_result_bytes": {
+            "title": "Max Result Bytes",
+            "type": "integer"
+          },
+          "max_result_rows": {
+            "title": "Max Result Rows",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "ssl_mode": {
+            "title": "Ssl Mode",
+            "type": "string"
+          },
+          "statement_timeout_seconds": {
+            "title": "Statement Timeout Seconds",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "name",
+          "host",
+          "port",
+          "database",
+          "username",
+          "ssl_mode",
+          "allowed_schemas",
+          "statement_timeout_seconds",
+          "max_result_rows",
+          "max_result_bytes",
+          "status",
+          "health_status",
+          "last_connection_at",
+          "last_connection_error",
+          "last_profiled_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DataSourceResponse",
         "type": "object"
       },
       "DatabaseColumn": {
@@ -1062,6 +2068,325 @@
         "title": "DatabaseTable",
         "type": "object"
       },
+      "DeliveryResponse": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "provider_metadata": {
+            "additionalProperties": true,
+            "title": "Provider Metadata",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "artifact_id",
+          "channel",
+          "destination",
+          "status",
+          "attempt_count",
+          "last_attempt_at",
+          "provider_metadata",
+          "failure_reason",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DeliveryResponse",
+        "type": "object"
+      },
+      "DeliveryTriggerRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "link",
+              "webhook",
+              "email"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "destination": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "channel",
+          "destination"
+        ],
+        "title": "DeliveryTriggerRequest",
+        "type": "object"
+      },
+      "EvidenceBlock": {
+        "additionalProperties": false,
+        "description": "The appendix: every query the report used, and what it contributed.",
+        "properties": {
+          "empty_message": {
+            "default": "This report cites no queried evidence.",
+            "maxLength": 300,
+            "title": "Empty Message",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceEntry"
+            },
+            "maxItems": 64,
+            "title": "Entries",
+            "type": "array"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "evidence",
+            "default": "evidence",
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 400,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "EvidenceBlock",
+        "type": "object"
+      },
+      "EvidenceEntry": {
+        "additionalProperties": false,
+        "description": "One query, as the appendix accounts for it.\n\nEverything here was recorded by the runtime when the query ran, or derived\nby the compiler from which blocks cite it. The model never authors an\nevidence record.",
+        "properties": {
+          "description": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "displayed_rows": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CompiledRows"
+            },
+            "maxProperties": 16,
+            "title": "Displayed Rows",
+            "type": "object"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxProperties": 16,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "query_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Query Id",
+            "type": "string"
+          },
+          "returned_columns": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Returned Columns",
+            "type": "array"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "sql_fingerprint": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sql Fingerprint"
+          },
+          "tables_consulted": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Tables Consulted",
+            "type": "array"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "used_by": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 24,
+            "title": "Used By",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query_id",
+          "description"
+        ],
+        "title": "EvidenceEntry",
+        "type": "object"
+      },
       "ForeignKeyRelationship": {
         "additionalProperties": false,
         "properties": {
@@ -1105,6 +2430,57 @@
           "target_schema"
         ],
         "title": "ForeignKeyRelationship",
+        "type": "object"
+      },
+      "FreshnessResponse": {
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "data_source_id": {
+            "title": "Data Source Id",
+            "type": "string"
+          },
+          "health_status": {
+            "title": "Health Status",
+            "type": "string"
+          },
+          "latest_source_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Source Timestamp"
+          },
+          "per_table": {
+            "additionalProperties": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "title": "Per Table",
+            "type": "object"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data_source_id",
+          "checked_at",
+          "latest_source_timestamp",
+          "stale",
+          "health_status",
+          "per_table"
+        ],
+        "title": "FreshnessResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1408,8 +2784,52 @@
         "title": "MetricParameters",
         "type": "object"
       },
+      "MetricRequestPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/MetricFilter"
+            },
+            "maxItems": 8,
+            "title": "Filters",
+            "type": "array"
+          },
+          "grain": {
+            "default": "month",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "quarter",
+              "year"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
+          "metric": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric"
+        ],
+        "title": "MetricRequestPayload",
+        "type": "object"
+      },
       "MetricSummaryResponse": {
-        "description": "One metric a reader may recompute, and what it will accept.",
+        "description": "One metric a reader may recompute, and what it will accept.\n\nOnly ever built from a metric whose lifecycle status is beyond\n\"documented\" -- see ``MetricRegistry.list_rerunnable`` -- so\n``lifecycle_status`` here is always one a reader may actually execute;\na documentation-only metric never reaches this response.",
         "properties": {
           "caveats": {
             "items": {
@@ -1451,6 +2871,10 @@
             "title": "Grains",
             "type": "array"
           },
+          "lifecycle_status": {
+            "title": "Lifecycle Status",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1485,9 +2909,163 @@
           "grains",
           "value_columns",
           "required_tables",
-          "caveats"
+          "caveats",
+          "lifecycle_status"
         ],
         "title": "MetricSummaryResponse",
+        "type": "object"
+      },
+      "MetricsBlock": {
+        "additionalProperties": false,
+        "description": "Headline figures, each carrying the query cell it was read from.",
+        "properties": {
+          "empty_message": {
+            "default": "This analysis produced no headline metrics.",
+            "maxLength": 300,
+            "title": "Empty Message",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "metrics",
+            "default": "metrics",
+            "title": "Kind",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/CompiledMetric"
+            },
+            "maxItems": 12,
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "title": "MetricsBlock",
+        "type": "object"
+      },
+      "NarrativeBlock": {
+        "additionalProperties": false,
+        "description": "The analyst's written answer, as document lines rather than as Markdown.",
+        "properties": {
+          "empty_message": {
+            "default": "This run produced no written answer.",
+            "maxLength": 300,
+            "title": "Empty Message",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "narrative",
+            "default": "narrative",
+            "title": "Kind",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ProseLine"
+            },
+            "maxItems": 400,
+            "title": "Lines",
+            "type": "array"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "title": "NarrativeBlock",
+        "type": "object"
+      },
+      "PageBreakBlock": {
+        "additionalProperties": false,
+        "description": "An explicit break. Renderers honour it; nothing else depends on it.",
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "page_break",
+            "default": "page_break",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "PageBreakBlock",
+        "type": "object"
+      },
+      "ProseLine": {
+        "additionalProperties": false,
+        "description": "One paragraph-level piece of the written answer.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "heading",
+              "paragraph",
+              "bullet",
+              "number"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "level": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Level",
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "ProseLine",
         "type": "object"
       },
       "PublicRunEvent": {
@@ -1691,6 +3269,273 @@
         "title": "PublishedDocumentResponse",
         "type": "object"
       },
+      "PublishedDocumentSummary": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "name",
+          "media_type",
+          "size"
+        ],
+        "title": "PublishedDocumentSummary",
+        "type": "object"
+      },
+      "ReadOnlyVerificationResponse": {
+        "properties": {
+          "is_read_only": {
+            "title": "Is Read Only",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "role_bypasses_row_level_security": {
+            "title": "Role Bypasses Row Level Security",
+            "type": "boolean"
+          },
+          "role_can_create_database": {
+            "title": "Role Can Create Database",
+            "type": "boolean"
+          },
+          "role_can_create_role": {
+            "title": "Role Can Create Role",
+            "type": "boolean"
+          },
+          "role_is_superuser": {
+            "title": "Role Is Superuser",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_read_only",
+          "role_is_superuser",
+          "role_can_create_database",
+          "role_can_create_role",
+          "role_bypasses_row_level_security",
+          "message"
+        ],
+        "title": "ReadOnlyVerificationResponse",
+        "type": "object"
+      },
+      "RelationshipApprovalRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_status": {
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Approval Status",
+            "type": "string"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          }
+        },
+        "required": [
+          "approval_status"
+        ],
+        "title": "RelationshipApprovalRequest",
+        "type": "object"
+      },
+      "RelationshipListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RelationshipResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RelationshipListResponse",
+        "type": "object"
+      },
+      "RelationshipResponse": {
+        "properties": {
+          "approval_status": {
+            "title": "Approval Status",
+            "type": "string"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "cardinality": {
+            "title": "Cardinality",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "data_source_id": {
+            "title": "Data Source Id",
+            "type": "string"
+          },
+          "discovery_method": {
+            "title": "Discovery Method",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source_column": {
+            "title": "Source Column",
+            "type": "string"
+          },
+          "source_table": {
+            "title": "Source Table",
+            "type": "string"
+          },
+          "target_column": {
+            "title": "Target Column",
+            "type": "string"
+          },
+          "target_table": {
+            "title": "Target Table",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data_source_id",
+          "source_table",
+          "source_column",
+          "target_table",
+          "target_column",
+          "cardinality",
+          "confidence",
+          "discovery_method",
+          "approval_status",
+          "approved_by",
+          "approved_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RelationshipResponse",
+        "type": "object"
+      },
+      "RelativePeriodPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "kind": {
+            "enum": [
+              "current_month",
+              "previous_month",
+              "current_quarter",
+              "previous_quarter",
+              "current_year",
+              "previous_year",
+              "last_n_days",
+              "fixed"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "RelativePeriodPayload",
+        "type": "object"
+      },
       "ReportPeriod": {
         "additionalProperties": false,
         "description": "A half-open date range, ``start`` inclusive and ``end`` exclusive.\n\nHalf-open because a closed range over timestamps either drops the last day's\nevening or double-counts a boundary, depending on how it is written, and\nboth mistakes are invisible in a published total.",
@@ -1711,6 +3556,121 @@
           "end"
         ],
         "title": "ReportPeriod",
+        "type": "object"
+      },
+      "ReportPreview": {
+        "additionalProperties": false,
+        "description": "Everything a reader needs to judge a report before it is published.",
+        "properties": {
+          "assignment": {
+            "$ref": "#/components/schemas/TemplateAssignment"
+          },
+          "estimated_page_count": {
+            "title": "Estimated Page Count",
+            "type": "integer"
+          },
+          "missing_required_content": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Required Content",
+            "type": "array"
+          },
+          "pdf_authoritative_notice": {
+            "default": "This preview is generated for review only. The published PDF is the authoritative record of this report's figures and layout. A Word copy is provided for editing and reuse; once edited it is no longer a record of what this run produced.",
+            "title": "Pdf Authoritative Notice",
+            "type": "string"
+          },
+          "report": {
+            "$ref": "#/components/schemas/CompiledReport"
+          },
+          "suitability": {
+            "$ref": "#/components/schemas/TemplateSuitability"
+          },
+          "template_name": {
+            "title": "Template Name",
+            "type": "string"
+          },
+          "template_title": {
+            "title": "Template Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_name",
+          "template_title",
+          "report",
+          "suitability",
+          "assignment",
+          "missing_required_content",
+          "estimated_page_count"
+        ],
+        "title": "ReportPreview",
+        "type": "object"
+      },
+      "ReportPreviewRequest": {
+        "additionalProperties": false,
+        "description": "What a caller may choose to preview. The same shape ``publish`` takes,\nminus the output formats a preview never renders \u2014 never a figure.",
+        "properties": {
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricParameters"
+            },
+            "maxItems": 8,
+            "title": "Metrics",
+            "type": "array"
+          },
+          "narrative": {
+            "anyOf": [
+              {
+                "enum": [
+                  "current",
+                  "pinned_to_original_period",
+                  "excluded_from_refreshed_report"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrative"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "template": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Template",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "template"
+        ],
+        "title": "ReportPreviewRequest",
         "type": "object"
       },
       "ReportTemplateListResponse": {
@@ -1769,6 +3729,87 @@
           "sections"
         ],
         "title": "ReportTemplateResponse",
+        "type": "object"
+      },
+      "ResolvedParametersResponse": {
+        "description": "What executing this definition right now would actually use.\n\nProduced without running a single query -- steps 1-3 of execution only,\nread-only against nothing but the template registry and the clock.",
+        "properties": {
+          "current_template_version": {
+            "title": "Current Template Version",
+            "type": "string"
+          },
+          "metric_requests": {
+            "items": {
+              "$ref": "#/components/schemas/MetricRequestPayload"
+            },
+            "title": "Metric Requests",
+            "type": "array"
+          },
+          "pinned_template_version": {
+            "title": "Pinned Template Version",
+            "type": "string"
+          },
+          "resolved_period_description": {
+            "title": "Resolved Period Description",
+            "type": "string"
+          },
+          "resolved_period_end": {
+            "format": "date",
+            "title": "Resolved Period End",
+            "type": "string"
+          },
+          "resolved_period_start": {
+            "format": "date",
+            "title": "Resolved Period Start",
+            "type": "string"
+          },
+          "template_version_matches_pin": {
+            "title": "Template Version Matches Pin",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "resolved_period_start",
+          "resolved_period_end",
+          "resolved_period_description",
+          "metric_requests",
+          "pinned_template_version",
+          "current_template_version",
+          "template_version_matches_pin"
+        ],
+        "title": "ResolvedParametersResponse",
+        "type": "object"
+      },
+      "RowSelector": {
+        "additionalProperties": false,
+        "description": "Which row a figure was read out of, by identity rather than by position.\n\nAn index would stop meaning the same row the moment a display is filtered or\nreordered, both of which presentation is allowed to do. Naming the cells\nthat identify the row survives that.",
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxProperties": 8,
+            "title": "Fields",
+            "type": "object"
+          }
+        },
+        "title": "RowSelector",
         "type": "object"
       },
       "RunHistoryResponse": {
@@ -2315,6 +4356,1394 @@
         "title": "RunTrace",
         "type": "object"
       },
+      "SavedReportArchiveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "SavedReportArchiveRequest",
+        "type": "object"
+      },
+      "SavedReportCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "default_period": {
+            "$ref": "#/components/schemas/RelativePeriodPayload"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "metric_requests": {
+            "items": {
+              "$ref": "#/components/schemas/MetricRequestPayload"
+            },
+            "maxItems": 24,
+            "minItems": 1,
+            "title": "Metric Requests",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "narrative_policy": {
+            "default": "exclude",
+            "enum": [
+              "exclude",
+              "include_original",
+              "require_new_investigation"
+            ],
+            "title": "Narrative Policy",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "seed_narrative": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Narrative"
+          },
+          "seed_narrative_period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Narrative Period"
+          },
+          "seed_run_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Run Id"
+          },
+          "template_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Template Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "default": "default",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "template_id",
+          "metric_requests",
+          "default_period"
+        ],
+        "title": "SavedReportCreateRequest",
+        "type": "object"
+      },
+      "SavedReportExecuteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "formats": {
+            "items": {
+              "enum": [
+                "pdf",
+                "docx"
+              ],
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Formats",
+            "type": "array"
+          },
+          "mode": {
+            "default": "preview",
+            "enum": [
+              "preview",
+              "publish"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "SavedReportExecuteRequest",
+        "type": "object"
+      },
+      "SavedReportExecuteResponse": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedDocumentSummary"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "preview",
+              "publish"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportPreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved_period_end": {
+            "format": "date",
+            "title": "Resolved Period End",
+            "type": "string"
+          },
+          "resolved_period_start": {
+            "format": "date",
+            "title": "Resolved Period Start",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_id",
+          "run_id",
+          "mode",
+          "status",
+          "resolved_period_start",
+          "resolved_period_end"
+        ],
+        "title": "SavedReportExecuteResponse",
+        "type": "object"
+      },
+      "SavedReportExecutionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SavedReportExecutionResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "SavedReportExecutionListResponse",
+        "type": "object"
+      },
+      "SavedReportExecutionResponse": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedDocumentSummary"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "formats": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formats"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "preview",
+              "publish"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "resolved_period_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Period End"
+          },
+          "resolved_period_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Period Start"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "mode",
+          "status",
+          "resolved_period_start",
+          "resolved_period_end",
+          "formats",
+          "error",
+          "created_at",
+          "completed_at"
+        ],
+        "title": "SavedReportExecutionResponse",
+        "type": "object"
+      },
+      "SavedReportListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SavedReportSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "SavedReportListResponse",
+        "type": "object"
+      },
+      "SavedReportResponse": {
+        "description": "The full definition, including what a rerun will actually request.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "default_period": {
+            "$ref": "#/components/schemas/RelativePeriodPayload"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "metric_requests": {
+            "items": {
+              "$ref": "#/components/schemas/MetricRequestPayload"
+            },
+            "title": "Metric Requests",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "narrative_policy": {
+            "enum": [
+              "exclude",
+              "include_original",
+              "require_new_investigation"
+            ],
+            "title": "Narrative Policy",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "seed_narrative": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Narrative"
+          },
+          "seed_narrative_period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Narrative Period"
+          },
+          "seed_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Run Id"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "template_id": {
+            "title": "Template Id",
+            "type": "string"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "owner",
+          "name",
+          "description",
+          "template_id",
+          "template_version",
+          "narrative_policy",
+          "status",
+          "version",
+          "created_at",
+          "updated_at",
+          "metric_requests",
+          "default_period",
+          "seed_run_id",
+          "seed_narrative",
+          "seed_narrative_period"
+        ],
+        "title": "SavedReportResponse",
+        "type": "object"
+      },
+      "SavedReportSummaryResponse": {
+        "description": "One row of a saved-report list -- no narrative text, for a light payload.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "narrative_policy": {
+            "enum": [
+              "exclude",
+              "include_original",
+              "require_new_investigation"
+            ],
+            "title": "Narrative Policy",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "template_id": {
+            "title": "Template Id",
+            "type": "string"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "owner",
+          "name",
+          "description",
+          "template_id",
+          "template_version",
+          "narrative_policy",
+          "status",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SavedReportSummaryResponse",
+        "type": "object"
+      },
+      "SavedReportUpdateRequest": {
+        "additionalProperties": false,
+        "description": "A partial update. Only the fields present are changed.\n\n``expected_version`` enforces optimistic concurrency: it must equal the\ndefinition's current stored version, or the update is refused with a\nconflict rather than silently overwriting a concurrent edit.",
+        "properties": {
+          "default_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelativePeriodPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "metric_requests": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MetricRequestPayload"
+                },
+                "maxItems": 24,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric Requests"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "narrative_policy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "exclude",
+                  "include_original",
+                  "require_new_investigation"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrative Policy"
+          },
+          "seed_narrative": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Narrative"
+          },
+          "seed_narrative_period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Narrative Period"
+          },
+          "seed_run_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Run Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "SavedReportUpdateRequest",
+        "type": "object"
+      },
+      "ScheduleConfigPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "day_of_month": {
+            "anyOf": [
+              {
+                "maximum": 28.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Of Month"
+          },
+          "day_of_week": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Of Week"
+          },
+          "hour": {
+            "default": 6,
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Hour",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "quarterly"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "minute": {
+            "default": 0,
+            "maximum": 59.0,
+            "minimum": 0.0,
+            "title": "Minute",
+            "type": "integer"
+          },
+          "month_of_quarter": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Of Quarter"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ScheduleConfigPayload",
+        "type": "object"
+      },
+      "ScheduledReportCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "delivery_channel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "link",
+                  "webhook",
+                  "email"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Channel"
+          },
+          "delivery_destination": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Destination"
+          },
+          "formats": {
+            "items": {
+              "enum": [
+                "pdf",
+                "docx"
+              ],
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Formats",
+            "type": "array"
+          },
+          "saved_report_id": {
+            "format": "uuid",
+            "title": "Saved Report Id",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleConfigPayload"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "workspace_id": {
+            "default": "default",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "saved_report_id",
+          "schedule",
+          "timezone"
+        ],
+        "title": "ScheduledReportCreateRequest",
+        "type": "object"
+      },
+      "ScheduledReportListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduledReportResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ScheduledReportListResponse",
+        "type": "object"
+      },
+      "ScheduledReportResponse": {
+        "properties": {
+          "consecutive_failures": {
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivery_channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Channel"
+          },
+          "delivery_destination": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Destination"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Formats",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Result"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "next_run_at": {
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          },
+          "saved_report_id": {
+            "title": "Saved Report Id",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleConfigPayload"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "saved_report_id",
+          "workspace_id",
+          "schedule",
+          "timezone",
+          "formats",
+          "delivery_channel",
+          "delivery_destination",
+          "enabled",
+          "next_run_at",
+          "last_run_at",
+          "last_result",
+          "consecutive_failures",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ScheduledReportResponse",
+        "type": "object"
+      },
+      "ScheduledReportUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "delivery_channel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "link",
+                  "webhook",
+                  "email"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Channel"
+          },
+          "delivery_destination": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Destination"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "formats": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "pdf",
+                    "docx"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formats"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleConfigPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "title": "ScheduledReportUpdateRequest",
+        "type": "object"
+      },
+      "SchemaSummaryResponse": {
+        "properties": {
+          "schemas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Schemas",
+            "type": "array"
+          },
+          "tables": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schemas",
+          "tables"
+        ],
+        "title": "SchemaSummaryResponse",
+        "type": "object"
+      },
+      "ScopeBlock": {
+        "additionalProperties": false,
+        "description": "What the report covers, stated so a reader need not infer it.",
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "scope",
+            "default": "scope",
+            "title": "Kind",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeRow"
+            },
+            "maxItems": 24,
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "title": "ScopeBlock",
+        "type": "object"
+      },
+      "ScopeRow": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 2000,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "ScopeRow",
+        "type": "object"
+      },
+      "SelectTableRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "business_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Business Name",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "freshness_column": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness Column"
+          },
+          "grain": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grain"
+          },
+          "schema_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Schema Name",
+            "type": "string"
+          },
+          "technical_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Technical Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_name",
+          "technical_name",
+          "business_name"
+        ],
+        "title": "SelectTableRequest",
+        "type": "object"
+      },
+      "SlotAssignment": {
+        "additionalProperties": false,
+        "description": "What one slot ended up with, and whether that was enough.",
+        "properties": {
+          "accepts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepts",
+            "type": "array"
+          },
+          "assigned_chart_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assigned Chart Ids",
+            "type": "array"
+          },
+          "block_kind": {
+            "enum": [
+              "cover",
+              "scope",
+              "narrative",
+              "metrics",
+              "chart",
+              "table",
+              "caveats",
+              "evidence",
+              "page_break"
+            ],
+            "title": "Block Kind",
+            "type": "string"
+          },
+          "maximum": {
+            "title": "Maximum",
+            "type": "integer"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "primary",
+              "supporting"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "satisfied": {
+            "title": "Satisfied",
+            "type": "boolean"
+          },
+          "slot_id": {
+            "title": "Slot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot_id",
+          "accepts",
+          "block_kind",
+          "role",
+          "required",
+          "minimum",
+          "maximum",
+          "satisfied"
+        ],
+        "title": "SlotAssignment",
+        "type": "object"
+      },
       "StopReason": {
         "description": "Why an agent run reached its terminal state.",
         "enum": [
@@ -2327,6 +5756,159 @@
         ],
         "title": "StopReason",
         "type": "string"
+      },
+      "TableActiveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "TableActiveRequest",
+        "type": "object"
+      },
+      "TableBlock": {
+        "additionalProperties": false,
+        "description": "A grid of exact values, printed rather than summarised.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompiledRows"
+          },
+          "empty_message": {
+            "default": "This analysis produced no data tables.",
+            "maxLength": 300,
+            "title": "Empty Message",
+            "type": "string"
+          },
+          "figure_label": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Figure Label",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "kind": {
+            "const": "table",
+            "default": "table",
+            "title": "Kind",
+            "type": "string"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "source_query_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Source Query Ids",
+            "type": "array"
+          },
+          "table_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Table Id",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "table_id",
+          "title",
+          "figure_label"
+        ],
+        "title": "TableBlock",
+        "type": "object"
+      },
+      "TableCorrectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "business_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Business Name",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnCorrectionPayload"
+            },
+            "minItems": 1,
+            "title": "Columns",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "freshness_column": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness Column"
+          },
+          "grain": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grain"
+          }
+        },
+        "required": [
+          "business_name",
+          "columns"
+        ],
+        "title": "TableCorrectionRequest",
+        "type": "object"
       },
       "TableDescription": {
         "additionalProperties": false,
@@ -2377,6 +5959,310 @@
           "columns"
         ],
         "title": "TableDescription",
+        "type": "object"
+      },
+      "TableListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TableResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TableListResponse",
+        "type": "object"
+      },
+      "TableResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "business_name": {
+            "title": "Business Name",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnResponse"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "data_source_id": {
+            "title": "Data Source Id",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "freshness_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness Column"
+          },
+          "grain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grain"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "measures": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "primary_key": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Primary Key",
+            "type": "array"
+          },
+          "schema_name": {
+            "title": "Schema Name",
+            "type": "string"
+          },
+          "sensitive_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sensitive Columns",
+            "type": "array"
+          },
+          "technical_name": {
+            "title": "Technical Name",
+            "type": "string"
+          },
+          "time_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Time Columns",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data_source_id",
+          "schema_name",
+          "technical_name",
+          "business_name",
+          "description",
+          "grain",
+          "freshness_column",
+          "active",
+          "approved_by",
+          "approved_at",
+          "columns",
+          "primary_key",
+          "dimensions",
+          "measures",
+          "time_columns",
+          "sensitive_columns",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TableResponse",
+        "type": "object"
+      },
+      "TemplateAssignment": {
+        "additionalProperties": false,
+        "description": "The complete, deterministic result of fitting one run to one template.",
+        "properties": {
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotAssignment"
+            },
+            "title": "Slots",
+            "type": "array"
+          },
+          "template_name": {
+            "title": "Template Name",
+            "type": "string"
+          },
+          "unresolved_evidence_chart_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved Evidence Chart Ids",
+            "type": "array"
+          },
+          "unused_chart_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unused Chart Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "template_name"
+        ],
+        "title": "TemplateAssignment",
+        "type": "object"
+      },
+      "TemplateSuitability": {
+        "additionalProperties": false,
+        "description": "How well one template fits the content a run actually produced.",
+        "properties": {
+          "can_publish": {
+            "title": "Can Publish",
+            "type": "boolean"
+          },
+          "completion_percentage": {
+            "title": "Completion Percentage",
+            "type": "number"
+          },
+          "missing_required_slots": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Required Slots",
+            "type": "array"
+          },
+          "optional_slots_filled": {
+            "title": "Optional Slots Filled",
+            "type": "integer"
+          },
+          "optional_slots_total": {
+            "title": "Optional Slots Total",
+            "type": "integer"
+          },
+          "satisfied_required_slots": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Satisfied Required Slots",
+            "type": "array"
+          },
+          "template_name": {
+            "title": "Template Name",
+            "type": "string"
+          },
+          "unused_display_count": {
+            "title": "Unused Display Count",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "template_name",
+          "completion_percentage",
+          "satisfied_required_slots",
+          "missing_required_slots",
+          "optional_slots_filled",
+          "optional_slots_total",
+          "unused_display_count",
+          "warnings",
+          "can_publish"
+        ],
+        "title": "TemplateSuitability",
+        "type": "object"
+      },
+      "TemplateSuitabilityOverview": {
+        "additionalProperties": false,
+        "description": "Every template's fit for one run, and which one best fits it.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateSuitability"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "recommended_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Template"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TemplateSuitabilityOverview",
         "type": "object"
       },
       "ToolOutcomeSummary": {
@@ -2735,7 +6621,7 @@
   "paths": {
     "/agent/run": {
       "post": {
-        "description": "Run the runtime for one submitted goal.",
+        "description": "Run the runtime for one submitted goal.\n\nWhen ``request.workspace_id`` is set, ``runner`` is rebuilt with its\nanalytics tools scoped to that workspace's one active data source instead\nof the demo database; everything else about the run (LLM client, limits,\nmemory, security policy) stays the same as the injected default. Omitted,\n``runner`` is used exactly as provided -- unchanged from before this\nexisted, including for callers (tests) that build and pass their own.",
         "operationId": "run_agent_agent_run_post",
         "requestBody": {
           "content": {
@@ -2996,6 +6882,102 @@
           }
         },
         "summary": "Get Event History",
+        "tags": [
+          "analytics-workbench"
+        ]
+      }
+    },
+    "/api/v1/analytics/runs/{run_id}/report-preview": {
+      "post": {
+        "description": "Compile the exact canonical report a publish of the same request would produce.\n\nNo PDF or DOCX is written. Publishing this same request afterward compiles\nthrough the identical path, so the previewed assignment and the published\none always match.",
+        "operationId": "preview_report_api_v1_analytics_runs__run_id__report_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Report",
+        "tags": [
+          "analytics-workbench"
+        ]
+      }
+    },
+    "/api/v1/analytics/runs/{run_id}/report-suitability": {
+      "get": {
+        "description": "Score every template against a run's own displays, and recommend one.\n\nDeterministic assembly only: this reads what the run already produced and\nnever calls a model. A caller is free to publish a different template than\nthe one recommended here, unless that template's own required content is\nstill missing.",
+        "operationId": "get_report_suitability_api_v1_analytics_runs__run_id__report_suitability_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateSuitabilityOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Suitability",
         "tags": [
           "analytics-workbench"
         ]
@@ -3321,6 +7303,1136 @@
         ]
       }
     },
+    "/api/v1/datasources": {
+      "get": {
+        "operationId": "list_data_sources_api_v1_datasources_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Data Sources",
+        "tags": [
+          "datasources"
+        ]
+      },
+      "post": {
+        "operationId": "create_data_source_api_v1_datasources_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataSourceCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Data Source",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}": {
+      "get": {
+        "operationId": "get_data_source_api_v1_datasources__data_source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Data Source",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/activate": {
+      "post": {
+        "operationId": "activate_data_source_api_v1_datasources__data_source_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Data Source",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/freshness": {
+      "get": {
+        "operationId": "get_data_source_freshness_api_v1_datasources__data_source_id__freshness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Data Source Freshness",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/relationships": {
+      "get": {
+        "operationId": "list_data_source_relationships_api_v1_datasources__data_source_id__relationships_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "approval_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Approval Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Data Source Relationships",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/relationships/discover": {
+      "post": {
+        "operationId": "discover_data_source_relationships_api_v1_datasources__data_source_id__relationships_discover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Data Source Relationships",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/relationships/{relationship_id}/approval": {
+      "post": {
+        "operationId": "set_data_source_relationship_approval_api_v1_datasources__data_source_id__relationships__relationship_id__approval_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "relationship_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Relationship Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelationshipApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Data Source Relationship Approval",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/schemas": {
+      "get": {
+        "operationId": "list_data_source_schemas_api_v1_datasources__data_source_id__schemas_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Data Source Schemas",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/tables": {
+      "get": {
+        "operationId": "list_data_source_tables_api_v1_datasources__data_source_id__tables_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Data Source Tables",
+        "tags": [
+          "datasources"
+        ]
+      },
+      "post": {
+        "operationId": "select_data_source_table_api_v1_datasources__data_source_id__tables_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Data Source Table",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/tables/{table_id}": {
+      "get": {
+        "operationId": "get_data_source_table_api_v1_datasources__data_source_id__tables__table_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Data Source Table",
+        "tags": [
+          "datasources"
+        ]
+      },
+      "patch": {
+        "operationId": "correct_data_source_table_api_v1_datasources__data_source_id__tables__table_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TableCorrectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Correct Data Source Table",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/tables/{table_id}/active": {
+      "post": {
+        "operationId": "set_data_source_table_active_api_v1_datasources__data_source_id__tables__table_id__active_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TableActiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Data Source Table Active",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/tables/{table_id}/approve": {
+      "post": {
+        "operationId": "approve_data_source_table_api_v1_datasources__data_source_id__tables__table_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Data Source Table",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/test-connection": {
+      "post": {
+        "operationId": "test_data_source_connection_api_v1_datasources__data_source_id__test_connection_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Data Source Connection",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/datasources/{data_source_id}/verify-read-only": {
+      "post": {
+        "operationId": "verify_data_source_read_only_api_v1_datasources__data_source_id__verify_read_only_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadOnlyVerificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Data Source Read Only",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/deliveries": {
+      "get": {
+        "operationId": "list_deliveries_api_v1_deliveries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "artifact_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeliveryResponse"
+                  },
+                  "title": "Response List Deliveries Api V1 Deliveries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Deliveries",
+        "tags": [
+          "deliveries"
+        ]
+      },
+      "post": {
+        "operationId": "create_delivery_api_v1_deliveries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryTriggerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Delivery",
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
     "/api/v1/memory": {
       "get": {
         "operationId": "list_memory_api_v1_memory_get",
@@ -3455,6 +8567,738 @@
         "summary": "Get Memory",
         "tags": [
           "memory-inspector"
+        ]
+      }
+    },
+    "/api/v1/reports/saved": {
+      "get": {
+        "operationId": "list_saved_reports_api_v1_reports_saved_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(active|archived)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Reports",
+        "tags": [
+          "saved-reports"
+        ]
+      },
+      "post": {
+        "description": "Save a report recipe. The template version pinned is always the current one --\n\na caller names a ``template_id``; the version it is pinned to is derived\nhere, never accepted from the request, so a saved report can never claim\nto be pinned to a version that never existed.",
+        "operationId": "create_saved_report_api_v1_reports_saved_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReportCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saved Report",
+        "tags": [
+          "saved-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/saved/{saved_report_id}": {
+      "get": {
+        "operationId": "get_saved_report_api_v1_reports_saved__saved_report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Saved Report",
+        "tags": [
+          "saved-reports"
+        ]
+      },
+      "patch": {
+        "description": "Apply a partial edit. Only parameters and presentation may change here --\n\nthere is no field on this request that lets a caller write a fact a rerun\nwould otherwise compute; the metrics, dimensions and filters submitted are\nwhat get requested again, not a value to display as-is.",
+        "operationId": "update_saved_report_api_v1_reports_saved__saved_report_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReportUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Saved Report",
+        "tags": [
+          "saved-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/saved/{saved_report_id}/archive": {
+      "post": {
+        "description": "Archive rather than delete -- a saved report's execution history outlives it.",
+        "operationId": "archive_saved_report_api_v1_reports_saved__saved_report_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReportArchiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Saved Report",
+        "tags": [
+          "saved-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/saved/{saved_report_id}/execute": {
+      "post": {
+        "description": "Run steps 1-8: resolve, rerun, compile, preview or publish, persist status.\n\nA definition requiring a new investigation is refused with 409 rather than\nsilently starting one -- that policy exists precisely so saving or running\na report never triggers a model call by itself; a fresh investigation only\nhappens when a caller explicitly starts one through the normal chat flow.",
+        "operationId": "execute_saved_report_api_v1_reports_saved__saved_report_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReportExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportExecuteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute Saved Report",
+        "tags": [
+          "saved-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/saved/{saved_report_id}/executions": {
+      "get": {
+        "description": "Every prior run of this saved report, with the artifacts each one produced.",
+        "operationId": "list_saved_report_executions_api_v1_reports_saved__saved_report_id__executions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportExecutionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Report Executions",
+        "tags": [
+          "saved-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/saved/{saved_report_id}/resolved-parameters": {
+      "get": {
+        "description": "What executing this definition right now would use -- no query runs.\n\nSteps 1-3 of execution only: resolve the period, name the metric requests\nthat would be compiled, and say whether the pinned template version still\nmatches what is deployed. Nothing here touches the analytics database.",
+        "operationId": "preview_resolved_parameters_api_v1_reports_saved__saved_report_id__resolved_parameters_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedParametersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Resolved Parameters",
+        "tags": [
+          "saved-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/scheduled": {
+      "get": {
+        "operationId": "list_scheduled_reports_api_v1_reports_scheduled_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enabled"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledReportListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Scheduled Reports",
+        "tags": [
+          "scheduled-reports"
+        ]
+      },
+      "post": {
+        "operationId": "create_scheduled_report_api_v1_reports_scheduled_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduledReportCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Scheduled Report",
+        "tags": [
+          "scheduled-reports"
+        ]
+      }
+    },
+    "/api/v1/reports/scheduled/{scheduled_report_id}": {
+      "get": {
+        "operationId": "get_scheduled_report_api_v1_reports_scheduled__scheduled_report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduled_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scheduled Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Scheduled Report",
+        "tags": [
+          "scheduled-reports"
+        ]
+      },
+      "patch": {
+        "operationId": "update_scheduled_report_api_v1_reports_scheduled__scheduled_report_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduled_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Scheduled Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduledReportUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Scheduled Report",
+        "tags": [
+          "scheduled-reports"
         ]
       }
     },

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.analytics.presentation.charts import ChartSpec
+from app.analytics.presentation.preview import ReportPreview, TemplateSuitabilityOverview
 from app.api.schemas.analytics import AnswerSource
 from app.api.schemas.analytics import (
     CreateRunRequest,
@@ -16,6 +17,7 @@ from app.api.schemas.analytics import (
     PublishedDocumentResponse,
     PublishReportRequest,
     PublishReportResponse,
+    ReportPreviewRequest,
     ReportTemplateListResponse,
     ReportTemplateResponse,
     RunMetricsResponse,
@@ -102,6 +104,44 @@ async def get_event_history(run_id: str, manager: AgentRunManager = Depends(get_
     return PublicRunEventListResponse(items=manager.events(run))
 
 
+@router.get("/runs/{run_id}/report-suitability", response_model=TemplateSuitabilityOverview)
+async def get_report_suitability(
+    run_id: str, publisher: ReportPublisher = Depends(get_report_publisher),
+) -> TemplateSuitabilityOverview:
+    """Score every template against a run's own displays, and recommend one.
+
+    Deterministic assembly only: this reads what the run already produced and
+    never calls a model. A caller is free to publish a different template than
+    the one recommended here, unless that template's own required content is
+    still missing.
+    """
+
+    try:
+        return await publisher.suitability(run_id=run_id)
+    except ReportPublishingError as error:
+        raise HTTPException(status_code=400, detail={"code": "report_not_available", "message": str(error)})
+
+
+@router.post("/runs/{run_id}/report-preview", response_model=ReportPreview)
+async def preview_report(
+    run_id: str, request: ReportPreviewRequest, publisher: ReportPublisher = Depends(get_report_publisher),
+) -> ReportPreview:
+    """Compile the exact canonical report a publish of the same request would produce.
+
+    No PDF or DOCX is written. Publishing this same request afterward compiles
+    through the identical path, so the previewed assignment and the published
+    one always match.
+    """
+
+    try:
+        return await publisher.preview(
+            run_id=run_id, template_name=request.template, period=request.period, title=request.title,
+            metrics=list(request.metrics), narrative=request.narrative,
+        )
+    except ReportPublishingError as error:
+        raise HTTPException(status_code=400, detail={"code": "report_not_previewable", "message": str(error)})
+
+
 @router.get("/report-templates", response_model=ReportTemplateListResponse)
 async def list_report_templates(
     publisher: ReportPublisher = Depends(get_report_publisher),
@@ -138,6 +178,7 @@ async def list_rerunnable_metrics(
             dimensions=sorted(metric.dimension_specs), filters=sorted(metric.filter_specs),
             grains=list(metric.supported_grains), value_columns=list(metric.value_columns),
             required_tables=list(metric.required_tables), caveats=list(metric.business_caveats),
+            lifecycle_status=metric.status,
         )
         for metric in registry.list_rerunnable()
     ])

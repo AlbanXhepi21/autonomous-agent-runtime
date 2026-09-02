@@ -130,6 +130,38 @@ def test_openai_client_makes_optional_tool_arguments_nullable_for_strict_mode() 
     assert action.tool_arguments == {}
 
 
+def test_openai_client_disables_strict_mode_for_a_schema_containing_a_ref() -> None:
+    """An unresolved $ref (e.g. update_investigation_plan's nested AnalysisQuestion) isn't
+    verifiably strict-compliant -- Pydantic's required list for a defaulted field won't
+    satisfy strict mode, so this must fall back rather than have OpenAI reject the tool."""
+
+    function = OpenAIClient._tool_function({
+        "name": "update_investigation_plan", "description": "Update the plan.",
+        "arguments_schema": {
+            "type": "object",
+            "properties": {"plan": {"$ref": "#/$defs/Plan"}},
+            "required": ["plan"], "additionalProperties": False,
+            "$defs": {"Plan": {"type": "object", "properties": {}}},
+        },
+    })
+    assert function["strict"] is False
+
+
+def test_openai_client_preserves_root_level_defs_a_nested_ref_resolves_against() -> None:
+    """A tool whose schema has $defs (e.g. update_investigation_plan) must keep them at the root."""
+
+    function = OpenAIClient._tool_function({
+        "name": "update_investigation_plan", "description": "Update the plan.",
+        "arguments_schema": {
+            "type": "object",
+            "properties": {"plan": {"$ref": "#/$defs/Plan"}},
+            "required": ["plan"], "additionalProperties": False,
+            "$defs": {"Plan": {"type": "object", "properties": {}}},
+        },
+    })
+    assert function["parameters"]["$defs"] == {"Plan": {"type": "object", "properties": {}}}
+
+
 def test_openai_client_accepts_function_calls_without_public_trace_summary() -> None:
     """Missing optional trace metadata must not fail an otherwise valid run."""
 

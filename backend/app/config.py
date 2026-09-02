@@ -68,6 +68,54 @@ class Settings(BaseSettings):
     analytics_ui_max_sql_chars: int = Field(default=4_000, ge=0, le=20_000)
     workbench_developer_mode: bool = False
 
+    # A claim (scheduled_reports.claimed_at, artifacts.deletion_claimed_at)
+    # older than this is treated as an abandoned worker, not a live one, and
+    # becomes claimable again -- shared by both workers so an operator tunes
+    # one number rather than two.
+    worker_claim_stale_seconds: int = Field(default=900, ge=1)
+    retention_max_deletion_attempts: int = Field(default=5, ge=1)
+    # Applied to the artifacts a *scheduled* publish produces; None leaves
+    # them with no expiry, matching an ad-hoc manual publish today. This is
+    # the one place scheduling and retention are connected by policy rather
+    # than by a direct code dependency.
+    scheduled_report_artifact_retention_days: int | None = Field(default=90, ge=1)
+
+    # Delivery: webhook has no configuration of its own beyond a per-request
+    # destination URL. Email is provider-neutral SMTP, and is only offered by
+    # DeliveryService when smtp_host and smtp_from_address are both set --
+    # the password itself is resolved through CredentialProvider, never read
+    # directly from Settings.
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65_535)
+    smtp_username: str = ""
+    smtp_from_address: str = ""
+    smtp_use_tls: bool = True
+    webhook_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    #: Only used to build a "secure artifact link" for delivery -- never
+    #: exposed to a browser directly, unlike the frontend's own API base URL.
+    public_api_base_url: str = "http://localhost:8000"
+
+    @property
+    def email_delivery_configured(self) -> bool:
+        """Whether enough SMTP configuration exists to attempt email delivery."""
+
+        return bool(self.smtp_host and self.smtp_from_address)
+
+    # Workspace-connected data sources: a workspace's own PostgreSQL, stored
+    # encrypted at rest and never the process-wide ANALYTICS_DATABASE_URL.
+    #: Resolved through CredentialProvider (reference "datasource_encryption.default"),
+    #: never read directly -- kept here only so validate_postgres_configuration
+    #: can require it be set at all before any data source can be saved.
+    data_source_encryption_key: str = Field(default="", repr=False)
+    #: SSRF guard: a connection host resolving to a private/loopback/link-local
+    #: address is refused unless this is true. Only for local development.
+    datasource_allow_local_hosts: bool = False
+    datasource_freshness_stale_after_hours: float = Field(default=48, gt=0)
+
+    @property
+    def data_source_encryption_configured(self) -> bool:
+        return bool(self.data_source_encryption_key)
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
