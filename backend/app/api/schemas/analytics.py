@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.analytics.presentation.document_model import NarrativeStatus
+from app.analytics.presentation.preview import ReportPreview, TemplateSuitabilityOverview
 from app.analytics.semantics.parameters import MetricParameters
 from app.contracts.answers import AnswerSource
 from app.orchestration.views import (
@@ -20,10 +21,12 @@ from app.orchestration.views import (
 __all__ = [
     "AnswerSource", "ConversationCreateRequest", "MetricParameters", "MetricSummaryResponse",
     "MetricListResponse", "NarrativeStatus", "PublishReportRequest", "PublishReportResponse",
-    "PublishedDocumentResponse", "ReportTemplateListResponse", "ReportTemplateResponse", "ConversationDetailResponse", "ConversationListResponse",
+    "PublishedDocumentResponse", "ReportPreview", "ReportPreviewRequest", "ReportTemplateListResponse",
+    "ReportTemplateResponse", "ConversationDetailResponse", "ConversationListResponse",
     "ConversationResponse", "ConversationTitleRequest", "CreateRunRequest",
     "CreateRunResponse", "MessageResponse", "PublicRunEvent",
     "PublicRunEventListResponse", "RunHistoryResponse", "RunMetricsResponse", "RunResponse",
+    "TemplateSuitabilityOverview",
 ]
 
 
@@ -117,8 +120,28 @@ class PublishReportRequest(BaseModel):
     narrative: NarrativeStatus | None = None
 
 
+class ReportPreviewRequest(BaseModel):
+    """What a caller may choose to preview. The same shape ``publish`` takes,
+    minus the output formats a preview never renders — never a figure.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    template: str = Field(min_length=1, max_length=64)
+    period: str | None = Field(default=None, max_length=120)
+    title: str | None = Field(default=None, max_length=120)
+    metrics: list[MetricParameters] = Field(default_factory=list, max_length=8)
+    narrative: NarrativeStatus | None = None
+
+
 class MetricSummaryResponse(BaseModel):
-    """One metric a reader may recompute, and what it will accept."""
+    """One metric a reader may recompute, and what it will accept.
+
+    Only ever built from a metric whose lifecycle status is beyond
+    "documented" -- see ``MetricRegistry.list_rerunnable`` -- so
+    ``lifecycle_status`` here is always one a reader may actually execute;
+    a documentation-only metric never reaches this response.
+    """
 
     name: str
     display_name: str
@@ -131,6 +154,7 @@ class MetricSummaryResponse(BaseModel):
     value_columns: list[str]
     required_tables: list[str]
     caveats: list[str]
+    lifecycle_status: str
 
 
 class MetricListResponse(BaseModel):

@@ -21,6 +21,9 @@ dependencies = [
     "matplotlib>=3.8",
     "python-docx>=1.1",
     "reportlab>=4.0",
+    # Envelope-encrypts a workspace-supplied data source password at rest;
+    # nothing else in this codebase has needed at-rest encryption before.
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]

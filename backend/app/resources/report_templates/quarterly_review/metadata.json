@@ -1,6 +1,6 @@
 {
   "name": "quarterly_review",
-  "version": "3",
+  "version": "4",
   "title": "Quarterly Performance Report",
   "description": "A quarter's performance with trend charts, supporting detail and a full evidence appendix, for a stakeholder review pack.",
   "report_type": "executive",
@@ -54,6 +54,43 @@
       "kind": "evidence",
       "heading": "Evidence Appendix",
       "required": true
+    }
+  ],
+  "slots": [
+    {
+      "id": "headline_metrics",
+      "accepts": ["kpi"],
+      "minimum": 3,
+      "maximum": 8,
+      "required": true,
+      "role": "primary",
+      "purpose_hint": "headline"
+    },
+    {
+      "id": "primary_trend",
+      "accepts": ["line", "area"],
+      "minimum": 0,
+      "maximum": 2,
+      "required": false,
+      "role": "primary",
+      "purpose_hint": "trend"
+    },
+    {
+      "id": "key_breakdowns",
+      "accepts": ["bar", "stacked_bar", "pie", "scatter"],
+      "minimum": 1,
+      "maximum": 4,
+      "required": true,
+      "role": "primary",
+      "purpose_hint": "breakdown"
+    },
+    {
+      "id": "supporting_tables",
+      "accepts": ["table"],
+      "minimum": 1,
+      "maximum": 6,
+      "required": true,
+      "role": "supporting"
     }
   ]
 }

@@ -18,6 +18,7 @@ from app.analytics.semantics.execution import MetricRunner
 from app.orchestration.publishing import ReportPublisher
 from app.orchestration.reruns import ReportRerunService
 from app.orchestration.run_manager import AgentRunManager
+from app.reports.execution import SavedReportExecutionService
 
 
 @provider
@@ -70,4 +71,16 @@ def get_report_publisher() -> ReportPublisher:
         get_artifact_store(),
         get_workspace(get_settings()),
         get_report_rerun_service(),
+    )
+
+
+@provider
+def get_saved_report_execution_service() -> SavedReportExecutionService:
+    """Run a saved report definition deterministically, without an agent turn."""
+
+    return SavedReportExecutionService(
+        templates=get_report_template_registry(),
+        reruns=get_report_rerun_service(),
+        workspace=get_workspace(get_settings()),
+        artifacts=get_artifact_store(),
     )

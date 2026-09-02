@@ -29,10 +29,28 @@ REGISTRY = MetricRegistry()
 VALIDATOR = PostgreSQLQueryValidator(AnalyticsSchemaPolicy.configured("public"))
 ALLOWED_TABLES = [
     "orders", "order_items", "payments", "payment_methods", "monthly_targets",
-    "refunds", "customers", "products",
+    "refunds", "customers", "products", "product_categories", "web_sessions",
+    "shipments", "warehouses", "reviews",
 ]
 #: The metrics this phase compiles. Anything else still needs an agent turn.
-ENABLED = ["revenue", "orders", "gross_profit", "payment_failure_count", "target_attainment"]
+ENABLED = [
+    "revenue", "orders", "gross_profit", "payment_failure_count", "target_attainment",
+    # Group 1
+    "average_order_value", "gross_margin_pct", "customer_count", "new_customers",
+    "repeat_purchase_rate", "refund_rate", "cancellation_rate", "conversion_rate",
+    "units_sold", "revenue_growth",
+    # Group 2
+    "payment_success_rate", "late_delivery_rate", "average_delivery_time", "average_review_rating",
+]
+#: Group 1 and Group 2 metrics added in this phase, without the five already
+#: compiled beforehand. Used to scope the new per-metric parametrized tests
+#: below without repeating assertions already made for the original five.
+NEW_METRICS = [name for name in ENABLED if name not in {
+    "revenue", "orders", "gross_profit", "payment_failure_count", "target_attainment",
+}]
+#: Metrics that intentionally decline dimension regrouping, because their
+#: computation already consumes the period as a single derived aggregate.
+NO_DIMENSION_METRICS = {"repeat_purchase_rate", "revenue_growth"}
 
 Q1 = ReportPeriod(start=date(2026, 1, 1), end=date(2026, 4, 1))
 
@@ -326,11 +344,39 @@ def test_a_fingerprint_identifies_the_shape_not_the_values() -> None:
 def test_a_metric_without_a_template_cannot_be_recomputed() -> None:
     """It is documentation for the agent, not something a reader may rerun."""
 
-    definition = REGISTRY.get_metric_definition("conversion_rate")
+    definition = REGISTRY.get_metric_definition("cart_to_checkout_rate")
 
     assert not definition.is_rerunnable
+    assert definition.status == "documented"
     with pytest.raises(MetricCompilationError, match="agent turn"):
-        _compile("conversion_rate")
+        _compile("cart_to_checkout_rate")
+
+
+@pytest.mark.parametrize("metric", [
+    "net_revenue", "payment_failure_rate", "cart_to_checkout_rate", "checkout_to_purchase_rate",
+    "customer_lifetime_revenue", "campaign_attributed_revenue", "campaign_roas",
+    "inventory_stockout_rate", "return_rate",
+])
+def test_every_remaining_documentation_only_metric_declines_execution(metric: str) -> None:
+    """The UI and API must not be able to represent these as executable."""
+
+    definition = REGISTRY.get_metric_definition(metric)
+
+    assert definition.status == "documented"
+    assert not definition.is_rerunnable
+    assert definition.sql_template is None
+    with pytest.raises(MetricCompilationError, match="agent turn"):
+        _compile(metric)
+
+
+def test_inventory_stockout_rate_and_return_rate_explain_their_missing_data() -> None:
+    """Left documentation-only on purpose; the reason must be readable, not silent."""
+
+    stockout = REGISTRY.get_metric_definition("inventory_stockout_rate")
+    returns = REGISTRY.get_metric_definition("return_rate")
+
+    assert any("snapshot" in caveat for caveat in stockout.business_caveats)
+    assert any("ledger" in caveat or "movement" in caveat for caveat in returns.business_caveats)
 
 
 def test_the_registry_lists_exactly_the_metrics_this_phase_enabled() -> None:
@@ -356,3 +402,173 @@ def test_target_attainment_divides_inside_the_statement() -> None:
     assert "IS NULL OR t.revenue_target = 0" in compiled.sql
     assert "FULL OUTER JOIN" in compiled.sql
     assert _validate(compiled).valid
+
+
+# --------------------------------------------------------- group 1 / group 2
+
+
+def test_every_newly_enabled_metric_has_a_lifecycle_status_beyond_documented() -> None:
+    for name in NEW_METRICS:
+        definition = REGISTRY.get_metric_definition(name)
+        assert definition.status != "documented", name
+        assert definition.is_rerunnable, name
+
+
+@pytest.mark.parametrize("metric", NEW_METRICS)
+def test_every_new_metric_compiles_to_a_statement_the_validator_accepts(metric: str) -> None:
+    compiled = _compile(metric)
+    result = _validate(compiled)
+
+    assert result.valid, f"{metric}: {result.reason}"
+    assert result.statement_type == "SELECT"
+    assert set(result.referenced_tables) <= set(ALLOWED_TABLES), f"{metric}: {result.referenced_tables}"
+
+
+@pytest.mark.parametrize("metric", NEW_METRICS)
+def test_every_new_metric_reports_the_columns_it_declares(metric: str) -> None:
+    definition = REGISTRY.get_metric_definition(metric)
+    compiled = _compile(metric)
+
+    assert compiled.value_columns == definition.value_columns
+    for column in definition.value_columns:
+        assert column in compiled.sql
+
+
+@pytest.mark.parametrize("metric", NEW_METRICS)
+def test_every_new_metric_computes_its_ratio_or_average_inside_sql(metric: str) -> None:
+    """A percentage, an average or a growth figure must come out of the statement."""
+
+    definition = REGISTRY.get_metric_definition(metric)
+    compiled = _compile(metric)
+
+    if definition.format in {"percent", "duration"} or metric in {"average_review_rating", "revenue_growth"}:
+        assert any(
+            keyword in compiled.sql for keyword in ("CASE WHEN", "ROUND(", "AVG(")
+        ), f"{metric}: expected a SQL-computed ratio or average"
+
+
+@pytest.mark.parametrize("metric,dimension", [
+    ("average_order_value", "period"), ("average_order_value", "country"),
+    ("gross_margin_pct", "period"), ("gross_margin_pct", "country"),
+    ("customer_count", "period"), ("customer_count", "country"),
+    ("new_customers", "period"), ("new_customers", "acquisition_channel"),
+    ("refund_rate", "period"), ("refund_rate", "country"),
+    ("cancellation_rate", "period"), ("cancellation_rate", "country"),
+    ("conversion_rate", "period"), ("conversion_rate", "device"), ("conversion_rate", "channel"),
+    ("units_sold", "period"), ("units_sold", "category"), ("units_sold", "product"),
+    ("payment_success_rate", "payment_method"), ("payment_success_rate", "provider"),
+    ("late_delivery_rate", "warehouse"), ("late_delivery_rate", "carrier"),
+    ("average_delivery_time", "warehouse"), ("average_delivery_time", "carrier"),
+    ("average_review_rating", "product"), ("average_review_rating", "category"),
+])
+def test_a_new_metrics_declared_dimension_compiles_and_validates(metric: str, dimension: str) -> None:
+    compiled = _compile(metric, dimensions=[dimension])
+
+    assert dimension in compiled.dimension_columns
+    assert "GROUP BY 1" in compiled.sql
+    assert _validate(compiled).valid
+
+
+@pytest.mark.parametrize("metric", NEW_METRICS)
+def test_a_new_metric_rejects_an_undeclared_dimension(metric: str) -> None:
+    with pytest.raises(MetricCompilationError):
+        _compile(metric, dimensions=["not_a_real_dimension"])
+
+
+@pytest.mark.parametrize("metric", NO_DIMENSION_METRICS)
+def test_a_dimensionless_metric_rejects_even_its_own_period(metric: str) -> None:
+    """Some metrics already consume the period as a single before/after or
+    population comparison, so regrouping by period is not offered either."""
+
+    with pytest.raises(MetricCompilationError, match="cannot be grouped by 'period'"):
+        _compile(metric, dimensions=["period"])
+
+
+@pytest.mark.parametrize("metric,field,value", [
+    ("average_order_value", "country", "Germany"),
+    ("gross_margin_pct", "campaign_id", 3),
+    ("customer_count", "shipping_country", "France"),
+    ("new_customers", "country", "Germany"),
+    ("new_customers", "acquisition_channel", "email"),
+    ("refund_rate", "country", "Germany"),
+    ("cancellation_rate", "country", "Germany"),
+    ("conversion_rate", "country", "Germany"),
+    ("conversion_rate", "device", "mobile"),
+    ("units_sold", "category", "Electronics"),
+    ("payment_success_rate", "payment_method", "Visa"),
+    ("late_delivery_rate", "carrier", "DHL"),
+    ("average_delivery_time", "warehouse", "Berlin"),
+    ("average_review_rating", "product", "Widget"),
+    ("revenue_growth", "country", "Germany"),
+    ("repeat_purchase_rate", "country", "Germany"),
+])
+def test_a_new_metrics_declared_filter_binds_its_value(metric: str, field: str, value: object) -> None:
+    compiled = _compile(metric, filters=[MetricFilter(field=field, value=value)])
+
+    assert ":filter_0" in compiled.sql
+    assert compiled.parameters["filter_0"] == value
+    assert str(value) not in compiled.sql
+    assert _validate(compiled).valid
+
+
+@pytest.mark.parametrize("metric", NEW_METRICS)
+def test_a_new_metric_rejects_an_undeclared_filter(metric: str) -> None:
+    with pytest.raises(MetricCompilationError, match="cannot be filtered"):
+        _compile(metric, filters=[MetricFilter(field="not_a_real_filter", value="x")])
+
+
+@pytest.mark.parametrize("metric,field", [
+    ("average_order_value", "country"),
+    ("new_customers", "country"),
+    ("units_sold", "category"),
+    ("average_review_rating", "product"),
+])
+def test_a_new_metrics_label_filter_rejects_a_numeric_comparison(metric: str, field: str) -> None:
+    """A country or a product name is a label; 'greater than' is not a question it answers."""
+
+    with pytest.raises(MetricCompilationError, match="does not support"):
+        _compile(metric, filters=[MetricFilter(field=field, operator="gt", value="Germany")])
+
+
+def test_revenue_growth_compares_the_period_to_its_own_immediate_predecessor() -> None:
+    """The prior window is derived from the request's own bounds, never a second period."""
+
+    compiled = _compile("revenue_growth")
+
+    assert "prior_start" in compiled.sql
+    assert "CAST(:period_start AS date)" in compiled.sql
+    assert set(compiled.parameters) == {"period_start", "period_end"}
+    assert _validate(compiled).valid
+
+
+def test_cancellation_rate_does_not_restrict_to_delivered_orders() -> None:
+    """The denominator must be every order placed, or cancellations could never appear in it."""
+
+    compiled = _compile("cancellation_rate")
+
+    assert "o.status = 'delivered'" not in compiled.sql
+    assert "o.status = 'cancelled'" in compiled.sql
+    assert _validate(compiled).valid
+
+
+def test_refund_rate_only_counts_processed_refunds_on_delivered_orders() -> None:
+    compiled = _compile("refund_rate")
+
+    assert "r.status = 'processed'" in compiled.sql
+    assert "o.status = 'delivered'" in compiled.sql
+    assert _validate(compiled).valid
+
+
+def test_new_customers_is_scoped_by_signup_date_not_first_order() -> None:
+    compiled = _compile("new_customers")
+
+    assert "FROM customers AS c" in compiled.sql
+    assert "orders" not in compiled.sql
+    assert _validate(compiled).valid
+
+
+def test_late_delivery_and_average_delivery_time_exclude_undelivered_shipments() -> None:
+    for metric in ("late_delivery_rate", "average_delivery_time"):
+        compiled = _compile(metric)
+        assert "s.delivered_at IS NOT NULL" in compiled.sql, metric
+        assert _validate(compiled).valid

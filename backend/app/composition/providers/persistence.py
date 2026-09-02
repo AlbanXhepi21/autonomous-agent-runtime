@@ -10,6 +10,7 @@ from app.memory.manager import MemoryManager
 from app.memory.retrieval import MemoryRetriever
 from app.memory.store import MemoryStore
 from app.memory.writing import MemoryWritingPipeline
+from app.reports.store import PostgresSavedReportStore, SavedReportStore
 
 if TYPE_CHECKING:
     from app.db.session import Database
@@ -71,3 +72,10 @@ def get_memory_writer() -> MemoryWritingPipeline:
     """Return the policy-gated writer for completed-run memory candidates."""
 
     return MemoryWritingPipeline(get_memory_manager())
+
+
+@provider
+def get_saved_report_store() -> SavedReportStore:
+    """Use the existing runtime PostgreSQL database for saved report definitions."""
+
+    return PostgresSavedReportStore(get_runtime_database())

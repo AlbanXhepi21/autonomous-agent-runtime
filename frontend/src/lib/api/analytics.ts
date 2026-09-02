@@ -7,8 +7,11 @@ import type {
   PublicRunEvent,
   PublishReportRequest,
   PublishReportResponse,
+  ReportPreview,
+  ReportPreviewRequest,
   ReportTemplate,
   RerunMetric,
+  TemplateSuitabilityOverview,
 } from "@/types/analytics";
 
 export const analyticsApi = {
@@ -20,6 +23,13 @@ export const analyticsApi = {
   getRun: (runId: string) => request<AnalystRun>(`/api/v1/analytics/runs/${runId}`),
   reportTemplates: () => request<{ items: ReportTemplate[] }>("/api/v1/analytics/report-templates"),
   rerunMetrics: () => request<{ items: RerunMetric[] }>("/api/v1/analytics/metrics"),
+  reportSuitability: (runId: string) =>
+    request<TemplateSuitabilityOverview>(`/api/v1/analytics/runs/${runId}/report-suitability`),
+  previewReport: (runId: string, payload: ReportPreviewRequest) =>
+    request<ReportPreview>(`/api/v1/analytics/runs/${runId}/report-preview`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   publishReport: (runId: string, payload: PublishReportRequest) =>
     request<PublishReportResponse>(`/api/v1/analytics/runs/${runId}/reports`, {
       method: "POST",

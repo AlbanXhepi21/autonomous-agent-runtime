@@ -72,3 +72,33 @@ export type PublicRunEvent = Omit<Always<Schemas["PublicRunEvent"]>, "type"> & {
   type: PublicRunEventType;
 };
 export type PublicRunEventListResponse = Always<Schemas["PublicRunEventListResponse"]>;
+
+export type ReportPreviewRequest = Schemas["ReportPreviewRequest"];
+export type ReportPreview = Always<Schemas["ReportPreview"]>;
+export type CompiledReport = Always<Schemas["CompiledReport"]>;
+/** One block of a compiled report, discriminated by `kind`. */
+export type ReportBlock = CompiledReport["blocks"][number];
+export type CompiledMetric = Always<Schemas["CompiledMetric"]>;
+export type CompiledRows = Always<Schemas["CompiledRows"]>;
+export type EvidenceEntry = Always<Schemas["EvidenceEntry"]>;
+export type TemplateAssignment = Always<Schemas["TemplateAssignment"]>;
+export type SlotAssignment = Always<Schemas["SlotAssignment"]>;
+export type TemplateSuitability = Always<Schemas["TemplateSuitability"]>;
+export type TemplateSuitabilityOverview = Always<Schemas["TemplateSuitabilityOverview"]>;
+
+export type SavedReportMetricRequest = Always<Schemas["MetricRequestPayload"]>;
+export type SavedReportRelativePeriod = Always<Schemas["RelativePeriodPayload"]>;
+export type RelativePeriodKind = SavedReportRelativePeriod["kind"];
+export type SavedReportCreateRequest = Schemas["SavedReportCreateRequest"];
+export type SavedReportUpdateRequest = Schemas["SavedReportUpdateRequest"];
+export type SavedReportArchiveRequest = Schemas["SavedReportArchiveRequest"];
+export type NarrativePolicy = NonNullable<SavedReportCreateRequest["narrative_policy"]>;
+export type SavedReportSummary = Always<Schemas["SavedReportSummaryResponse"]>;
+export type SavedReport = Always<Schemas["SavedReportResponse"]>;
+export type SavedReportList = Always<Schemas["SavedReportListResponse"]>;
+export type SavedReportResolvedParameters = Always<Schemas["ResolvedParametersResponse"]>;
+export type SavedReportExecuteRequest = Schemas["SavedReportExecuteRequest"];
+export type SavedReportDocument = Always<Schemas["PublishedDocumentSummary"]>;
+export type SavedReportExecuteResponse = Always<Schemas["SavedReportExecuteResponse"]>;
+export type SavedReportExecution = Always<Schemas["SavedReportExecutionResponse"]>;
+export type SavedReportExecutionList = Always<Schemas["SavedReportExecutionListResponse"]>;

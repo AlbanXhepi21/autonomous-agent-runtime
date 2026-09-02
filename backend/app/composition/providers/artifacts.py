@@ -5,6 +5,7 @@ where the record lives, so selecting one is a configuration choice rather than
 a different code path for the callers that register and download.
 """
 
+from app.artifacts.retention import RetentionWorker
 from app.artifacts.store import ArtifactStore, WorkspaceArtifactStore
 from app.composition.lifecycle import provider
 from app.composition.providers.environment import get_workspace
@@ -27,4 +28,21 @@ def get_artifact_store() -> ArtifactStore:
     return PostgresArtifactStore(
         WorkspaceArtifactFiles(workspace, max_artifact_bytes=settings.max_artifact_bytes),
         get_runtime_database(),
+    )
+
+
+@provider
+def get_retention_worker() -> RetentionWorker:
+    """Return the worker a retention process runs on a fixed interval."""
+
+    from datetime import timedelta
+
+    from app.artifacts.files import WorkspaceArtifactFiles
+
+    settings = get_settings()
+    return RetentionWorker(
+        artifacts=get_artifact_store(),
+        files=WorkspaceArtifactFiles(get_workspace(settings), max_artifact_bytes=settings.max_artifact_bytes),
+        max_attempts=settings.retention_max_deletion_attempts,
+        stale_claim_after=timedelta(seconds=settings.worker_claim_stale_seconds),
     )

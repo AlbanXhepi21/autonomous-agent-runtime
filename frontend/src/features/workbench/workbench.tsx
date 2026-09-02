@@ -11,6 +11,7 @@ import { conversationsApi } from "@/lib/api/conversations";
 import { RunAnalysis } from "@/features/workbench/components/run-analysis";
 import { InvestigationProgress } from "@/features/workbench/components/investigation-progress";
 import { ArtifactPanel } from "@/features/workbench/components/artifact-panel";
+import { SavedReportsPanel } from "@/features/workbench/components/saved-reports-panel";
 import { DatabaseExplorer } from "@/features/workbench/components/database-explorer";
 import { MemoryInspector } from "@/features/workbench/components/memory-inspector";
 import { ApprovalCard } from "@/features/workbench/components/approval-card";
@@ -37,6 +38,8 @@ export function Workbench() {
 
   /** The display opened in the explore panel, with the run whose evidence it cites. */
   const [exploring, setExploring] = useState<{ chart: ChartSpec; runId: string } | null>(null);
+  /** Bumped whenever a report is saved, so the sidebar list refetches. */
+  const [savedReportsVersion, setSavedReportsVersion] = useState(0);
 
   const decide = async (decision: "approve" | "reject") => {
     const released = await approvals.resolve(decision);
@@ -176,6 +179,7 @@ export function Workbench() {
             </button>
           )}
         </section>
+        <SavedReportsPanel refreshKey={String(savedReportsVersion)} />
         <ArtifactPanel
           runIds={Object.keys(run.runs)}
           refreshKey={Object.values(run.runs)
@@ -243,7 +247,11 @@ export function Workbench() {
               {message.role === "assistant" &&
                 message.run_id &&
                 run.runs[message.run_id]?.status === "completed" && (
-                  <ReportExport runId={message.run_id} />
+                  <ReportExport
+                    runId={message.run_id}
+                    narrativeText={message.content}
+                    onReportSaved={() => setSavedReportsVersion((current) => current + 1)}
+                  />
                 )}
               {message.role === "assistant" && message.run_id && (
                 <RunAnalysis
