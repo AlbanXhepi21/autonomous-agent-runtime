@@ -2,18 +2,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { SafeMarkdown } from "@/components/ui/markdown";
 import { artifactsApi, type Artifact } from "@/lib/api/artifacts";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 
 export function ArtifactPanel({ runIds, refreshKey }: { runIds: string[]; refreshKey?: string }) {
+  const workspaceId = useWorkspaceId();
   const [items, setItems] = useState<Artifact[]>([]);
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const runKey = useMemo(() => runIds.join(","), [runIds]);
   useEffect(() => {
     const ids = runKey ? runKey.split(",") : [];
-    void Promise.all(ids.map((runId) => artifactsApi.list(runId)))
+    void Promise.all(ids.map((runId) => artifactsApi.list(workspaceId, runId)))
       .then((groups) => setItems(groups.flat()))
       .catch(() => setItems([]));
-  }, [runKey, refreshKey]);
+  }, [runKey, refreshKey, workspaceId]);
   const preview = async (artifact: Artifact) => {
     setSelected(artifact);
     if (!artifact.media_type.startsWith("image/"))

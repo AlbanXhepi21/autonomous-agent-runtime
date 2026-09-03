@@ -4,7 +4,20 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -15,7 +28,13 @@ class Base(DeclarativeBase):
 
 
 class MemoryRecord(Base):
-    """Persistent representation of a domain memory."""
+    """Persistent representation of a domain memory.
+
+    ``workspace_id`` has no reliable foreign-key parent to inherit scoping
+    from -- ``run_id``/``session_id`` are loose correlation strings, not
+    foreign keys -- so it is a direct column here, checked on every read and
+    write rather than joined.
+    """
 
     __tablename__ = "memories"
     __table_args__ = (
@@ -23,9 +42,11 @@ class MemoryRecord(Base):
         Index("ix_memories_run_id", "run_id"),
         Index("ix_memories_session_id", "session_id"),
         Index("ix_memories_created_at", "created_at"),
+        Index("ix_memories_workspace_type", "workspace_id", "memory_type"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     memory_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, nullable=False)
@@ -36,12 +57,21 @@ class MemoryRecord(Base):
 
 
 class ConversationRecord(Base):
-    """A user-visible chat context. This is intentionally separate from memories."""
+    """A user-visible chat context. This is intentionally separate from memories.
+
+    ``workspace_id`` is the root of the conversation/message/run ownership
+    tree -- ``messages`` and ``agent_runs`` verify tenant ownership by
+    joining to this column rather than carrying their own copy of it.
+    """
 
     __tablename__ = "conversations"
-    __table_args__ = (Index("ix_conversations_updated_at", "updated_at"),)
+    __table_args__ = (
+        Index("ix_conversations_updated_at", "updated_at"),
+        Index("ix_conversations_workspace_updated_at", "workspace_id", "updated_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -103,9 +133,11 @@ class ArtifactRecord(Base):
     __table_args__ = (
         Index("ix_artifacts_run_id_created_at", "run_id", "created_at"),
         Index("ix_artifacts_status", "status"),
+        Index("ix_artifacts_workspace_created_at", "workspace_id", "created_at"),
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     run_id: Mapped[str] = mapped_column(String(128), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     # Provider-independent location within the artifact area, never a machine path.
@@ -136,10 +168,10 @@ class ArtifactRecord(Base):
 class SavedReportRecord(Base):
     """A durable, reusable report recipe: what to execute again, not an output.
 
-    ``workspace_id`` is a plain scoping identifier rather than a foreign key --
-    this application has no workspace/tenant table of its own yet, so every
-    query is still filtered by it to keep isolation real and enforced at the
-    store rather than assumed. ``seed_narrative`` is denormalised the same way
+    ``workspace_id`` is a real foreign key -- it started as a plain scoping
+    string before ``workspaces`` existed as a table; see
+    ``migrations/versions/20260903_0020_finalize_workspace_columns.py`` for
+    the conversion. ``seed_narrative`` is denormalised the same way
     ``answer_sources`` is on ``AgentRunRecord``: the run it was captured from
     can be deleted without silently breaking a definition that pins its
     narrative to that text.
@@ -151,7 +183,7 @@ class SavedReportRecord(Base):
     )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
-    workspace_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     owner: Mapped[str | None] = mapped_column(String(128), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -233,7 +265,7 @@ class ScheduledReportRecord(Base):
     saved_report_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True), ForeignKey("saved_reports.id", ondelete="RESTRICT"), nullable=False,
     )
-    workspace_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     schedule_kind: Mapped[str] = mapped_column(String(16), nullable=False)
     schedule_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -267,9 +299,14 @@ class DeliveryRecord(Base):
     __table_args__ = (
         Index("ix_deliveries_artifact_created_at", "artifact_id", "created_at"),
         Index("ix_deliveries_status", "status"),
+        Index("ix_deliveries_workspace_status", "workspace_id", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    # No foreign-key parent to inherit from -- artifact_id has none either
+    # (the artifact backend is switchable), so this is a direct column,
+    # populated from the artifact's own workspace at delivery-creation time.
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     artifact_id: Mapped[str] = mapped_column(String(64), nullable=False)
     channel: Mapped[str] = mapped_column(String(16), nullable=False)
     destination: Mapped[str] = mapped_column(Text, nullable=False)
@@ -289,10 +326,9 @@ class DataSourceRecord(Base):
     ``encrypted_password`` is ciphertext produced by
     ``app.datasources.encryption.SecretCipher`` -- this row never stores or
     returns a plaintext password, and no store method built on this record
-    reads that column back into an API response. ``workspace_id`` is a plain
-    scoping identifier rather than a foreign key, the same pattern
-    ``saved_reports``/``scheduled_reports`` already use: this application has
-    no workspace/tenant table of its own yet.
+    reads that column back into an API response. ``workspace_id`` is a real
+    foreign key, converted from a plain scoping string once ``workspaces``
+    existed as a table.
     """
 
     __tablename__ = "data_sources"
@@ -302,7 +338,7 @@ class DataSourceRecord(Base):
     )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
-    workspace_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     host: Mapped[str] = mapped_column(String(255), nullable=False)
     port: Mapped[int] = mapped_column(Integer, nullable=False, default=5432)
@@ -380,6 +416,217 @@ class DataSourceColumnRecord(Base):
     example_values: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class UserRecord(Base):
+    """A registered account. ``email`` is stored already normalized (trimmed, lowercased)
+    -- the uniqueness index is only correct because callers never write anything else here.
+    """
+
+    __tablename__ = "users"
+    __table_args__ = (Index("ix_users_email", "email", unique=True),)
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: Set while an email change is awaiting confirmation at the new address.
+    pending_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    preferred_timezone: Mapped[str] = mapped_column(String(64), nullable=False, server_default="UTC")
+    preferred_locale: Mapped[str] = mapped_column(String(16), nullable=False, server_default="en-US")
+    #: No foreign key to ``artifacts`` -- the artifact backend is switchable
+    #: (in-memory or PostgreSQL) and may not share this database at all, the
+    #: same reasoning ``DeliveryRecord.artifact_id`` already documents.
+    profile_image_artifact_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    profile_image_workspace_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SessionRecord(Base):
+    """A server-side session behind an HTTP-only cookie -- never a JWT.
+
+    ``token_hash``/``csrf_token_hash`` are SHA-256 digests; the raw values exist
+    only in the cookies issued to the browser and are never written here, the
+    same discipline ``identity_tokens`` and ``data_sources.encrypted_password``
+    already apply to secret material. ``user_agent``/``ip_address`` are best-effort
+    device metadata for a user's own "manage sessions" view, not a security boundary.
+    """
+
+    __tablename__ = "sessions"
+    __table_args__ = (
+        Index("ix_sessions_token_hash", "token_hash", unique=True),
+        Index("ix_sessions_user_id", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    csrf_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class IdentityTokenRecord(Base):
+    """A single-use, purpose-bound recovery/verification token.
+
+    Only ``token_hash`` is stored, matching ``sessions``. ``purpose`` keeps a
+    password-reset token from being redeemable at the email-verification
+    endpoint (or vice versa) even if an attacker recovered a raw value.
+    """
+
+    __tablename__ = "identity_tokens"
+    __table_args__ = (
+        Index("ix_identity_tokens_token_hash", "token_hash", unique=True),
+        Index("ix_identity_tokens_user_purpose", "user_id", "purpose"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WorkspaceRecord(Base):
+    """A tenant organization -- the isolation boundary every tenant-owned
+    resource's ``workspace_id`` foreign key ultimately points to.
+    """
+
+    __tablename__ = "workspaces"
+    __table_args__ = (Index("ix_workspaces_slug", "slug", unique=True),)
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    logo_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    default_timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
+    default_locale: Mapped[str] = mapped_column(String(16), nullable=False, default="en-US")
+    default_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
+    fiscal_year_start_month: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    number_format: Mapped[str] = mapped_column(String(32), nullable=False, server_default="1,234.56")
+    date_format: Mapped[str] = mapped_column(String(32), nullable=False, server_default="YYYY-MM-DD")
+    #: Optimistic-concurrency counter -- see ``app.tenancy.store.WorkspaceStore.update``.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ReportPreferencesRecord(Base):
+    """A workspace's defaults for producing a report -- presentation choices
+    only, never a fact about the data (see ``app.tenancy.contracts.ReportPreferences``).
+    """
+
+    __tablename__ = "report_preferences"
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True,
+    )
+    default_template: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    default_output_format: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    default_theme: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    default_narrative_policy: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    evidence_appendix_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    technical_sql_appendix_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuditLogEntryRecord(Base):
+    """An append-only record of a security-relevant change. Never updated or
+    deleted by application code once written (see ``app.audit.store``).
+    """
+
+    __tablename__ = "audit_log_entries"
+    __table_args__ = (
+        Index("ix_audit_log_entries_workspace", "workspace_id", "created_at"),
+        Index("ix_audit_log_entries_actor", "actor_user_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    actor_user_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+    )
+    workspace_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    event_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class WorkspaceMembershipRecord(Base):
+    """One user's standing in one workspace.
+
+    ``uq_workspace_membership_user_workspace`` is what "prevent duplicate
+    user/tenant memberships" actually rests on -- a user has at most one
+    membership row per workspace, active or disabled, ever. There is no
+    reactivation path in this phase: once removed, rejoining is out of
+    scope (see app.tenancy.service module docstring).
+    """
+
+    __tablename__ = "workspace_memberships"
+    __table_args__ = (
+        UniqueConstraint("user_id", "workspace_id", name="uq_workspace_membership_user_workspace"),
+        Index("ix_workspace_memberships_workspace", "workspace_id"),
+        Index("ix_workspace_memberships_user", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    invited_by: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class WorkspaceInvitationRecord(Base):
+    """A pending offer to join a workspace at a given role.
+
+    Bound to a normalized email, not a user id -- the invitee may not have
+    an account yet; acceptance re-checks that the accepting user's own
+    email matches. The partial unique index enforces "no duplicate pending
+    invitation for the same (workspace, email)" at the database level, not
+    just in the service -- a row that has already been accepted or revoked
+    does not block a fresh invitation from being sent again.
+    """
+
+    __tablename__ = "workspace_invitations"
+    __table_args__ = (
+        Index("ix_workspace_invitations_token_hash", "token_hash", unique=True),
+        Index(
+            "ix_workspace_invitations_pending_unique", "workspace_id", "email",
+            unique=True, postgresql_where=text("accepted_at IS NULL AND revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    invited_by: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DataSourceRelationshipRecord(Base):

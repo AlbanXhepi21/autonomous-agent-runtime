@@ -15,8 +15,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.analytics.presentation.templates import ReportTemplateError, ReportTemplateRegistry
+from app.api.dependencies import require_csrf, require_permission
 from app.api.schemas.saved_reports import (
-    DEFAULT_WORKSPACE_ID,
     MetricRequestPayload,
     PublishedDocumentSummary,
     RelativePeriodPayload,
@@ -47,8 +47,10 @@ from app.reports.store import (
     SavedReportStore,
     SavedReportVersionConflictError,
 )
+from app.tenancy.context import TenantContext
+from app.tenancy.permissions import Permission
 
-router = APIRouter(prefix="/api/v1/reports/saved", tags=["saved-reports"])
+router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/reports/saved", tags=["saved-reports"])
 
 
 def _not_found(saved_report_id: UUID) -> HTTPException:
@@ -105,7 +107,7 @@ def _detail(definition: SavedReportDefinition) -> SavedReportResponse:
 
 
 async def _require_definition(
-    store: SavedReportStore, *, workspace_id: str, saved_report_id: UUID,
+    store: SavedReportStore, *, workspace_id: UUID, saved_report_id: UUID,
 ) -> SavedReportDefinition:
     definition = await store.get(workspace_id=workspace_id, saved_report_id=saved_report_id)
     if definition is None:
@@ -113,9 +115,10 @@ async def _require_definition(
     return definition
 
 
-@router.post("", response_model=SavedReportResponse, status_code=201)
+@router.post("", response_model=SavedReportResponse, status_code=201, dependencies=[Depends(require_csrf)])
 async def create_saved_report(
     request: SavedReportCreateRequest,
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     store: SavedReportStore = Depends(get_saved_report_store),
     templates: ReportTemplateRegistry = Depends(get_report_template_registry),
 ) -> SavedReportResponse:
@@ -132,7 +135,7 @@ async def create_saved_report(
         raise HTTPException(status_code=400, detail={"code": "unknown_template", "message": str(error)}) from error
 
     definition = await store.create(
-        workspace_id=request.workspace_id, owner=request.owner, name=request.name,
+        workspace_id=context.workspace.id, owner=request.owner, name=request.name,
         description=request.description, template_id=request.template_id, template_version=template.version,
         metric_requests=_metric_requests(request.metric_requests), default_period=_period(request.default_period),
         narrative_policy=request.narrative_policy, seed_run_id=request.seed_run_id,
@@ -143,31 +146,30 @@ async def create_saved_report(
 
 @router.get("", response_model=SavedReportListResponse)
 async def list_saved_reports(
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
     status: str | None = Query(default=None, pattern="^(active|archived)$"),
-    limit: int = Query(default=30, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=30, ge=1, le=100), offset: int = Query(default=0, ge=0),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: SavedReportStore = Depends(get_saved_report_store),
 ) -> SavedReportListResponse:
-    items, total = await store.list(workspace_id=workspace_id, status=status, limit=limit, offset=offset)
+    items, total = await store.list(workspace_id=context.workspace.id, status=status, limit=limit, offset=offset)
     return SavedReportListResponse(items=[_summary(item) for item in items], total=total, limit=limit, offset=offset)
 
 
 @router.get("/{saved_report_id}", response_model=SavedReportResponse)
 async def get_saved_report(
     saved_report_id: UUID,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: SavedReportStore = Depends(get_saved_report_store),
 ) -> SavedReportResponse:
-    definition = await _require_definition(store, workspace_id=workspace_id, saved_report_id=saved_report_id)
+    definition = await _require_definition(store, workspace_id=context.workspace.id, saved_report_id=saved_report_id)
     return _detail(definition)
 
 
-@router.patch("/{saved_report_id}", response_model=SavedReportResponse)
+@router.patch("/{saved_report_id}", response_model=SavedReportResponse, dependencies=[Depends(require_csrf)])
 async def update_saved_report(
     saved_report_id: UUID,
     request: SavedReportUpdateRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     store: SavedReportStore = Depends(get_saved_report_store),
     templates: ReportTemplateRegistry = Depends(get_report_template_registry),
 ) -> SavedReportResponse:
@@ -198,7 +200,7 @@ async def update_saved_report(
 
     try:
         definition = await store.update(
-            workspace_id=workspace_id, saved_report_id=saved_report_id,
+            workspace_id=context.workspace.id, saved_report_id=saved_report_id,
             expected_version=request.expected_version, changes=changes,
         )
     except SavedReportNotFoundError as error:
@@ -210,18 +212,18 @@ async def update_saved_report(
     return _detail(definition)
 
 
-@router.post("/{saved_report_id}/archive", response_model=SavedReportResponse)
+@router.post("/{saved_report_id}/archive", response_model=SavedReportResponse, dependencies=[Depends(require_csrf)])
 async def archive_saved_report(
     saved_report_id: UUID,
     request: SavedReportArchiveRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     store: SavedReportStore = Depends(get_saved_report_store),
 ) -> SavedReportResponse:
     """Archive rather than delete -- a saved report's execution history outlives it."""
 
     try:
         definition = await store.update(
-            workspace_id=workspace_id, saved_report_id=saved_report_id,
+            workspace_id=context.workspace.id, saved_report_id=saved_report_id,
             expected_version=request.expected_version, changes={"status": "archived"},
         )
     except SavedReportNotFoundError as error:
@@ -234,7 +236,7 @@ async def archive_saved_report(
 @router.get("/{saved_report_id}/resolved-parameters", response_model=ResolvedParametersResponse)
 async def preview_resolved_parameters(
     saved_report_id: UUID,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: SavedReportStore = Depends(get_saved_report_store),
     templates: ReportTemplateRegistry = Depends(get_report_template_registry),
 ) -> ResolvedParametersResponse:
@@ -245,7 +247,7 @@ async def preview_resolved_parameters(
     matches what is deployed. Nothing here touches the analytics database.
     """
 
-    definition = await _require_definition(store, workspace_id=workspace_id, saved_report_id=saved_report_id)
+    definition = await _require_definition(store, workspace_id=context.workspace.id, saved_report_id=saved_report_id)
     resolved = resolve_relative_period(definition.default_period, today=datetime.now(timezone.utc).date())
     try:
         current_version = templates.get(definition.template_id).version
@@ -267,11 +269,11 @@ def _documents(artifacts) -> list[PublishedDocumentSummary]:
                                       size=item.size) for item in artifacts]
 
 
-@router.post("/{saved_report_id}/execute", response_model=SavedReportExecuteResponse)
+@router.post("/{saved_report_id}/execute", response_model=SavedReportExecuteResponse, dependencies=[Depends(require_csrf)])
 async def execute_saved_report(
     saved_report_id: UUID,
     request: SavedReportExecuteRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     store: SavedReportStore = Depends(get_saved_report_store),
     service: SavedReportExecutionService = Depends(get_saved_report_execution_service),
 ) -> SavedReportExecuteResponse:
@@ -283,7 +285,7 @@ async def execute_saved_report(
     happens when a caller explicitly starts one through the normal chat flow.
     """
 
-    definition = await _require_definition(store, workspace_id=workspace_id, saved_report_id=saved_report_id)
+    definition = await _require_definition(store, workspace_id=context.workspace.id, saved_report_id=saved_report_id)
     if definition.narrative_policy == "require_new_investigation":
         raise HTTPException(status_code=409, detail={
             "code": "requires_new_investigation",
@@ -295,18 +297,19 @@ async def execute_saved_report(
         result = await service.execute(definition, mode=request.mode, formats=request.formats)
     except SavedReportExecutionError as error:
         execution = await store.create_execution(
-            saved_report_id=saved_report_id, run_id=f"failed-{saved_report_id}-{datetime.now(timezone.utc).timestamp()}",
+            workspace_id=context.workspace.id, saved_report_id=saved_report_id,
+            run_id=f"failed-{saved_report_id}-{datetime.now(timezone.utc).timestamp()}",
             mode=request.mode, resolved_period=None, formats=request.formats if request.mode == "publish" else None,
         )
-        await store.finish_execution(run_id=execution.run_id, status="failed", error=str(error))
+        await store.finish_execution(workspace_id=context.workspace.id, run_id=execution.run_id, status="failed", error=str(error))
         raise HTTPException(status_code=422, detail={"code": "execution_failed", "message": str(error)}) from error
 
     execution = await store.create_execution(
-        saved_report_id=saved_report_id, run_id=result.run_id, mode=request.mode,
+        workspace_id=context.workspace.id, saved_report_id=saved_report_id, run_id=result.run_id, mode=request.mode,
         resolved_period=(result.resolved.period.start, result.resolved.period.end),
         formats=request.formats if request.mode == "publish" else None,
     )
-    await store.finish_execution(run_id=result.run_id, status="completed", error=None)
+    await store.finish_execution(workspace_id=context.workspace.id, run_id=result.run_id, status="completed", error=None)
 
     return SavedReportExecuteResponse(
         execution_id=str(execution.id), run_id=result.run_id, mode=request.mode, status="completed",
@@ -318,23 +321,22 @@ async def execute_saved_report(
 @router.get("/{saved_report_id}/executions", response_model=SavedReportExecutionListResponse)
 async def list_saved_report_executions(
     saved_report_id: UUID,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
-    limit: int = Query(default=30, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=30, ge=1, le=100), offset: int = Query(default=0, ge=0),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: SavedReportStore = Depends(get_saved_report_store),
     artifact_store: ArtifactStore = Depends(get_artifact_store),
 ) -> SavedReportExecutionListResponse:
     """Every prior run of this saved report, with the artifacts each one produced."""
 
     outcome = await store.list_executions(
-        workspace_id=workspace_id, saved_report_id=saved_report_id, limit=limit, offset=offset,
+        workspace_id=context.workspace.id, saved_report_id=saved_report_id, limit=limit, offset=offset,
     )
     if outcome is None:
         raise _not_found(saved_report_id)
     executions, total = outcome
     items = []
     for execution in executions:
-        artifacts = await artifact_store.list(run_id=execution.run_id) if execution.mode == "publish" else []
+        artifacts = await artifact_store.list(workspace_id=context.workspace.id, run_id=execution.run_id) if execution.mode == "publish" else []
         items.append(SavedReportExecutionResponse(
             id=str(execution.id), run_id=execution.run_id, mode=execution.mode, status=execution.status,
             resolved_period_start=execution.resolved_period_start, resolved_period_end=execution.resolved_period_end,

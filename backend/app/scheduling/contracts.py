@@ -88,7 +88,7 @@ class ScheduledReportDefinition(BaseModel):
 
     id: UUID
     saved_report_id: UUID
-    workspace_id: str = Field(min_length=1, max_length=128)
+    workspace_id: UUID
     schedule: ScheduleConfig
     timezone: str = Field(min_length=1, max_length=64)
     formats: list[DocumentFormat] = Field(min_length=1, max_length=2)

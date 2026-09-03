@@ -61,7 +61,9 @@ class RetentionWorker:
             self._files.discard(artifact.relative_path)
         except OSError as error:
             message = safe_error_message(error)
-            await self._artifacts.record_deletion_failure(artifact.id, message)
+            await self._artifacts.record_deletion_failure(
+                workspace_id=artifact.workspace_id, artifact_id=artifact.id, error=message,
+            )
             attempts = artifact.deletion_attempts + 1
             gave_up = attempts >= self._max_attempts
             log_event(
@@ -71,6 +73,6 @@ class RetentionWorker:
             )
             return RetentionOutcome(artifact.id, "gave_up" if gave_up else "failed", message)
 
-        await self._artifacts.mark_deleted(artifact.id)
+        await self._artifacts.mark_deleted(workspace_id=artifact.workspace_id, artifact_id=artifact.id)
         log_event(_logger, logging.INFO, "artifact_deleted", artifact_id=artifact.id, size=artifact.size)
         return RetentionOutcome(artifact.id, "deleted", None)

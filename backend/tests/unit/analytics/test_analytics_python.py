@@ -1,5 +1,6 @@
 """DA4 bounded SQL-result-to-Python analysis coverage."""
 
+import uuid
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,8 @@ from app.tools.database.analyze import AnalyzeDatasetTool
 from app.tools.database.query import QueryDatabaseTool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 # A first pandas and matplotlib import in a fresh environment spends around four
@@ -51,11 +54,11 @@ print(round(df['revenue'].mean(), 2))
 plt.bar(df['month'], df['revenue'])
 plt.savefig('untrusted-name.png')
 """
-    result = await ToolExecutor(registry, trace_recorder=recorder).execute("analyze_dataset", {"dataset_id": ref.id, "code": code}, run_id="run-1")
+    result = await ToolExecutor(registry, trace_recorder=recorder).execute("analyze_dataset", {"dataset_id": ref.id, "code": code}, run_id="run-1", workspace_id=str(WORKSPACE_ID))
 
     assert result.success and result.output["stdout"] == "20.0\n"
     assert result.output["artifacts"][0]["name"] == "chart-1.png"
-    assert await artifacts.path_for(result.output["artifacts"][0]["id"]) is not None
+    assert await artifacts.path_for(workspace_id=WORKSPACE_ID, artifact_id=result.output["artifacts"][0]["id"]) is not None
     trace = recorder.get_trace("run-1")
     assert trace is not None
     event_types = {event.event_type for event in trace.events}
@@ -80,7 +83,7 @@ async def test_query_result_becomes_run_scoped_python_dataset(tmp_path: Path) ->
     executor = ToolExecutor(registry)
     query = await executor.execute("query_database", {"sql": "SELECT value FROM orders"}, run_id="run-chain")
     assert query.success and query.output["dataset"]["id"] == "dataset_query_001"
-    analysis = await executor.execute("analyze_dataset", {"dataset_id": query.output["dataset"]["id"], "code": "print(sum(row[0] for row in analytics_data['rows']))"}, run_id="run-chain")
+    analysis = await executor.execute("analyze_dataset", {"dataset_id": query.output["dataset"]["id"], "code": "print(sum(row[0] for row in analytics_data['rows']))"}, run_id="run-chain", workspace_id=str(WORKSPACE_ID))
     assert analysis.success and analysis.output["stdout"] == "6\n"
 
 
@@ -92,8 +95,8 @@ async def test_dataset_is_bounded_and_python_cannot_read_secrets_or_import_netwo
     assert ref is not None
     registry = ToolRegistry(); registry.register(tool)
     executor = ToolExecutor(registry)
-    secrets = await executor.execute("analyze_dataset", {"dataset_id": ref.id, "code": "import os\nprint(os.environ)"}, run_id="r")
-    network = await executor.execute("analyze_dataset", {"dataset_id": ref.id, "code": "import socket"}, run_id="r")
+    secrets = await executor.execute("analyze_dataset", {"dataset_id": ref.id, "code": "import os\nprint(os.environ)"}, run_id="r", workspace_id=str(WORKSPACE_ID))
+    network = await executor.execute("analyze_dataset", {"dataset_id": ref.id, "code": "import socket"}, run_id="r", workspace_id=str(WORKSPACE_ID))
     assert not secrets.success and secrets.metadata["failure_category"] == "analytics_python_failed"
     assert not network.success and network.metadata["failure_category"] == "analytics_python_failed"
 
@@ -104,5 +107,5 @@ async def test_analytics_python_timeout_is_safe(tmp_path: Path) -> None:
     ref = datasets.register(run_id="r", query_id="query_001", columns=[{"name": "x"}], rows=[[1]])
     assert ref is not None
     registry = ToolRegistry(); registry.register(tool)
-    result = await ToolExecutor(registry).execute("analyze_dataset", {"dataset_id": ref.id, "code": "while True:\n    pass"}, run_id="r")
+    result = await ToolExecutor(registry).execute("analyze_dataset", {"dataset_id": ref.id, "code": "while True:\n    pass"}, run_id="r", workspace_id=str(WORKSPACE_ID))
     assert not result.success and result.metadata["failure_category"] == "python_timeout"

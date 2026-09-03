@@ -4,6 +4,7 @@ import ast
 from collections import deque
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -13,7 +14,9 @@ from app.analytics.presentation.templates import ReportTemplateRegistry
 from app.api.routes.analytics import router
 from app.composition import get_report_publisher
 from app.orchestration.publishing import ReportPublisher
-from tests.support import BACKEND_ROOT
+from tests.support import BACKEND_ROOT, override_tenant_context
+
+WORKSPACE_ID = uuid4()
 
 
 def _kpi(chart_id: str, items: int, query_id: str) -> dict:
@@ -76,8 +79,8 @@ def _store(chart_specs: list[dict], answer_sources: list[dict], *, status: str =
         answer_caveats=None, created_at=datetime.now(UTC),
     )
     return SimpleNamespace(
-        get_run=lambda run_id: _value(run),
-        get_assistant_message_for_run=lambda run_id: _value(SimpleNamespace(content="Payment failures rose.")),
+        get_run=lambda *, workspace_id, run_id: _value(run),
+        get_assistant_message_for_run=lambda *, workspace_id, run_id: _value(SimpleNamespace(content="Payment failures rose.")),
     )
 
 
@@ -95,6 +98,7 @@ def _client(tmp_path, store) -> TestClient:
     application = FastAPI()
     application.include_router(router)
     application.dependency_overrides = {get_report_publisher: lambda: _publisher(tmp_path, store)}
+    override_tenant_context(application, workspace_id=WORKSPACE_ID)
     return TestClient(application)
 
 
@@ -104,7 +108,7 @@ def _client(tmp_path, store) -> TestClient:
 def test_executive_dashboard_with_sufficient_content_is_publishable(tmp_path) -> None:
     with _client(tmp_path, _store(SUFFICIENT_CHARTS, SUFFICIENT_SOURCES)) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "executive_dashboard"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "executive_dashboard"}
         )
 
     assert response.status_code == 200
@@ -119,7 +123,7 @@ def test_executive_dashboard_with_sufficient_content_is_publishable(tmp_path) ->
 def test_executive_dashboard_with_only_one_chart_reports_missing_content(tmp_path) -> None:
     with _client(tmp_path, _store(ONE_CHART, ONE_SOURCE)) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "executive_dashboard"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "executive_dashboard"}
         )
 
     assert response.status_code == 200
@@ -132,7 +136,7 @@ def test_executive_dashboard_with_only_one_chart_reports_missing_content(tmp_pat
 
 def test_analysis_summary_recommended_for_a_small_run(tmp_path) -> None:
     with _client(tmp_path, _store(ONE_CHART, ONE_SOURCE)) as client:
-        response = client.get("/api/v1/analytics/runs/run-1/report-suitability")
+        response = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-suitability")
 
     assert response.status_code == 200
     body = response.json()
@@ -147,7 +151,7 @@ def test_analysis_summary_recommended_for_a_small_run(tmp_path) -> None:
 def test_no_display_is_assigned_to_more_than_one_slot(tmp_path) -> None:
     with _client(tmp_path, _store(SUFFICIENT_CHARTS, SUFFICIENT_SOURCES)) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
         )
 
     body = response.json()
@@ -158,10 +162,10 @@ def test_no_display_is_assigned_to_more_than_one_slot(tmp_path) -> None:
 def test_preview_assignment_is_deterministic_across_repeated_calls(tmp_path) -> None:
     with _client(tmp_path, _store(SUFFICIENT_CHARTS, SUFFICIENT_SOURCES)) as client:
         first = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
         ).json()
         second = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
         ).json()
 
     assert first["assignment"] == second["assignment"]
@@ -171,7 +175,7 @@ def test_preview_assignment_is_deterministic_across_repeated_calls(tmp_path) -> 
 def test_missing_required_slots_are_reported_when_a_run_has_no_displays(tmp_path) -> None:
     with _client(tmp_path, _store([], [])) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "quarterly_review"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "quarterly_review"}
         )
 
     body = response.json()
@@ -186,7 +190,7 @@ def test_unknown_evidence_is_excluded_from_the_preview(tmp_path) -> None:
     charts = [*SUFFICIENT_CHARTS, fabricated]
     with _client(tmp_path, _store(charts, SUFFICIENT_SOURCES)) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
         )
 
     body = response.json()
@@ -198,7 +202,7 @@ def test_unknown_evidence_is_excluded_from_the_preview(tmp_path) -> None:
 def test_a_run_that_cannot_be_published_cannot_be_previewed_either(tmp_path) -> None:
     with _client(tmp_path, _store(SUFFICIENT_CHARTS, SUFFICIENT_SOURCES, status="running")) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/report-preview", json={"template": "monthly_business_review"}
         )
 
     assert response.status_code == 400
@@ -256,9 +260,9 @@ async def test_publishing_uses_exactly_the_previewed_assignment(tmp_path) -> Non
     store = _store(SUFFICIENT_CHARTS, SUFFICIENT_SOURCES)
     publisher = _publisher(tmp_path, store)
 
-    preview = await publisher.preview(run_id="run-1", template_name="monthly_business_review", period="Jan 2026")
+    preview = await publisher.preview(workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", period="Jan 2026")
     [artifact] = await publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["pdf"], period="Jan 2026",
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["pdf"], period="Jan 2026",
     )
 
     previewed_chart_ids = [block.chart_id for block in preview.report.blocks_of("chart")]
@@ -268,5 +272,5 @@ async def test_publishing_uses_exactly_the_previewed_assignment(tmp_path) -> Non
 
     # Publishing the same request again compiles through the same pure path,
     # so a second preview of it must report the identical assignment.
-    second_preview = await publisher.preview(run_id="run-1", template_name="monthly_business_review", period="Jan 2026")
+    second_preview = await publisher.preview(workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", period="Jan 2026")
     assert second_preview.assignment.model_dump() == preview.assignment.model_dump()

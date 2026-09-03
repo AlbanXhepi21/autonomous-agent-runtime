@@ -2,12 +2,15 @@
 
 import asyncio
 import logging
+import uuid
 
 import pytest
 
 from app.config import Settings
 from app.memory import InMemoryMemoryStore, Memory, MemoryManager, MemoryType
 from tests.support import logged_event
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 def test_postgres_backend_requires_a_database_url() -> None:
@@ -25,11 +28,11 @@ def test_postgres_backend_requires_a_database_url() -> None:
 @pytest.mark.asyncio
 async def test_store_preserves_ids_and_returns_isolated_values() -> None:
     store = InMemoryMemoryStore()
-    memory = Memory(memory_type=MemoryType.LONG_TERM, content="The API uses FastAPI.")
+    memory = Memory(workspace_id=WORKSPACE_ID, memory_type=MemoryType.LONG_TERM, content="The API uses FastAPI.")
 
     created = await store.create(memory)
     created.metadata["changed"] = True
-    retrieved = await store.get(memory.id)
+    retrieved = await store.get(workspace_id=WORKSPACE_ID, memory_id=memory.id)
 
     assert retrieved is not None
     assert retrieved.id == memory.id
@@ -40,17 +43,17 @@ async def test_store_preserves_ids_and_returns_isolated_values() -> None:
 async def test_store_filters_by_memory_type_run_and_session() -> None:
     store = InMemoryMemoryStore()
     await store.create(
-        Memory(memory_type=MemoryType.WORKING, content="Current task", run_id="run-1", session_id="s-1")
+        Memory(workspace_id=WORKSPACE_ID, memory_type=MemoryType.WORKING, content="Current task", run_id="run-1", session_id="s-1")
     )
     await store.create(
-        Memory(memory_type=MemoryType.WORKING, content="Other task", run_id="run-2", session_id="s-1")
+        Memory(workspace_id=WORKSPACE_ID, memory_type=MemoryType.WORKING, content="Other task", run_id="run-2", session_id="s-1")
     )
     await store.create(
-        Memory(memory_type=MemoryType.EPISODIC, content="Past task", run_id="run-1", session_id="s-2")
+        Memory(workspace_id=WORKSPACE_ID, memory_type=MemoryType.EPISODIC, content="Past task", run_id="run-1", session_id="s-2")
     )
 
     memories = await store.list_memories(
-        memory_type=MemoryType.WORKING, run_id="run-1", session_id="s-1"
+        workspace_id=WORKSPACE_ID, memory_type=MemoryType.WORKING, run_id="run-1", session_id="s-1"
     )
 
     assert [memory.content for memory in memories] == ["Current task"]
@@ -59,17 +62,20 @@ async def test_store_filters_by_memory_type_run_and_session() -> None:
 @pytest.mark.asyncio
 async def test_store_is_safe_for_concurrent_creates() -> None:
     store = InMemoryMemoryStore()
-    memories = [Memory(memory_type=MemoryType.WORKING, content=f"item {index}") for index in range(20)]
+    memories = [
+        Memory(workspace_id=WORKSPACE_ID, memory_type=MemoryType.WORKING, content=f"item {index}")
+        for index in range(20)
+    ]
 
     await asyncio.gather(*(store.create(memory) for memory in memories))
 
-    assert len(await store.list_memories()) == 20
+    assert len(await store.list_memories(workspace_id=WORKSPACE_ID)) == 20
 
 
 @pytest.mark.asyncio
 async def test_store_update_preserves_creation_time_and_refreshes_update_time() -> None:
     store = InMemoryMemoryStore()
-    memory = await store.create(Memory(memory_type=MemoryType.EPISODIC, content="Initial"))
+    memory = await store.create(Memory(workspace_id=WORKSPACE_ID, memory_type=MemoryType.EPISODIC, content="Initial"))
 
     updated = await store.update(memory.model_copy(update={"content": "Updated"}))
 
@@ -83,10 +89,10 @@ async def test_store_update_preserves_creation_time_and_refreshes_update_time() 
 async def test_manager_logs_updates_and_deletes(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
     manager = MemoryManager(InMemoryMemoryStore())
-    memory = await manager.add_episodic_memory("Initial")
+    memory = await manager.add_episodic_memory("Initial", workspace_id=WORKSPACE_ID)
 
     updated = await manager.update_memory(memory.model_copy(update={"content": "Revised"}))
-    deleted = await manager.delete_memory(memory.id)
+    deleted = await manager.delete_memory(workspace_id=WORKSPACE_ID, memory_id=memory.id)
 
     assert updated is not None
     assert deleted
@@ -103,18 +109,18 @@ async def test_manager_creates_typed_memories_and_clears_only_run_working_memory
 ) -> None:
     caplog.set_level(logging.INFO)
     manager = MemoryManager(InMemoryMemoryStore())
-    working = await manager.add_working_memory("Investigate error", run_id="run-1")
-    await manager.add_working_memory("Keep this", run_id="run-2")
-    episodic = await manager.add_episodic_memory("Fixed timeout", run_id="run-1")
-    durable = await manager.add_long_term_memory("Uses FastAPI")
+    working = await manager.add_working_memory("Investigate error", workspace_id=WORKSPACE_ID, run_id="run-1")
+    await manager.add_working_memory("Keep this", workspace_id=WORKSPACE_ID, run_id="run-2")
+    episodic = await manager.add_episodic_memory("Fixed timeout", workspace_id=WORKSPACE_ID, run_id="run-1")
+    durable = await manager.add_long_term_memory("Uses FastAPI", workspace_id=WORKSPACE_ID)
 
-    cleared = await manager.clear_working_memory("run-1")
+    cleared = await manager.clear_working_memory(workspace_id=WORKSPACE_ID, run_id="run-1")
 
     assert cleared == 1
-    assert await manager.get_memories(MemoryType.WORKING, run_id="run-1") == []
-    assert [memory.id for memory in await manager.get_memories(MemoryType.WORKING)] != [working.id]
-    assert (await manager.get_memories(MemoryType.EPISODIC))[0].id == episodic.id
-    assert (await manager.get_memories(MemoryType.LONG_TERM))[0].id == durable.id
+    assert await manager.get_memories(MemoryType.WORKING, workspace_id=WORKSPACE_ID, run_id="run-1") == []
+    assert [memory.id for memory in await manager.get_memories(MemoryType.WORKING, workspace_id=WORKSPACE_ID)] != [working.id]
+    assert (await manager.get_memories(MemoryType.EPISODIC, workspace_id=WORKSPACE_ID))[0].id == episodic.id
+    assert (await manager.get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID))[0].id == durable.id
     created = logged_event(caplog.records, "memory_created")
     assert created["run_id"] == "run-1"
     assert created["memory_id"] == str(working.id)

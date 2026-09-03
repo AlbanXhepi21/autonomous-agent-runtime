@@ -123,14 +123,14 @@ class DataSourceStore:
     # -- connections -----------------------------------------------------
 
     async def create_connection(
-        self, *, workspace_id: str, name: str, config: DataSourceConnectionConfig, encrypted_password: str,
+        self, *, workspace_id: UUID, name: str, config: DataSourceConnectionConfig, encrypted_password: str,
     ) -> DataSourceConnection:
         raise NotImplementedError
 
-    async def get_connection(self, *, workspace_id: str, data_source_id: UUID) -> DataSourceConnection | None:
+    async def get_connection(self, *, workspace_id: UUID, data_source_id: UUID) -> DataSourceConnection | None:
         raise NotImplementedError
 
-    async def get_encrypted_password(self, *, workspace_id: str, data_source_id: UUID) -> str | None:
+    async def get_encrypted_password(self, *, workspace_id: UUID, data_source_id: UUID) -> str | None:
         """The one method allowed to read ``encrypted_password`` back out.
 
         Returns ``None`` when the connection is not visible in this
@@ -141,26 +141,26 @@ class DataSourceStore:
         raise NotImplementedError
 
     async def list_connections(
-        self, *, workspace_id: str, status: DataSourceStatus | None, limit: int, offset: int,
+        self, *, workspace_id: UUID, status: DataSourceStatus | None, limit: int, offset: int,
     ) -> tuple[list[DataSourceConnection], int]:
         raise NotImplementedError
 
     async def update_connection_status(
-        self, *, workspace_id: str, data_source_id: UUID, status: DataSourceStatus | None = None,
+        self, *, workspace_id: UUID, data_source_id: UUID, status: DataSourceStatus | None = None,
         health_status: HealthStatus | None = None, last_connection_at: datetime | None = None,
         last_connection_error: str | None = None, last_profiled_at: datetime | None = None,
     ) -> DataSourceConnection:
         raise NotImplementedError
 
     async def update_connection_config(
-        self, *, workspace_id: str, data_source_id: UUID, changes: dict[str, Any],
+        self, *, workspace_id: UUID, data_source_id: UUID, changes: dict[str, Any],
     ) -> DataSourceConnection:
         raise NotImplementedError
 
     # -- catalog: tables and columns --------------------------------------
 
     async def upsert_table(
-        self, *, workspace_id: str, data_source_id: UUID, schema_name: str, technical_name: str,
+        self, *, workspace_id: UUID, data_source_id: UUID, schema_name: str, technical_name: str,
         business_name: str, description: str | None, grain: str | None, freshness_column: str | None,
         columns: list[ColumnInput],
     ) -> DataSourceTableCatalogEntry:
@@ -174,42 +174,42 @@ class DataSourceStore:
 
         raise NotImplementedError
 
-    async def get_table(self, *, workspace_id: str, data_source_id: UUID, table_id: UUID) -> DataSourceTableCatalogEntry | None:
+    async def get_table(self, *, workspace_id: UUID, data_source_id: UUID, table_id: UUID) -> DataSourceTableCatalogEntry | None:
         raise NotImplementedError
 
     async def list_tables(
-        self, *, workspace_id: str, data_source_id: UUID, active_only: bool = False,
+        self, *, workspace_id: UUID, data_source_id: UUID, active_only: bool = False,
     ) -> list[DataSourceTableCatalogEntry] | None:
         """Return ``None`` when the connection itself is not visible here."""
 
         raise NotImplementedError
 
     async def set_table_active(
-        self, *, workspace_id: str, data_source_id: UUID, table_id: UUID, active: bool,
+        self, *, workspace_id: UUID, data_source_id: UUID, table_id: UUID, active: bool,
     ) -> DataSourceTableCatalogEntry:
         raise NotImplementedError
 
     async def approve_table(
-        self, *, workspace_id: str, data_source_id: UUID, table_id: UUID, approved_by: str,
+        self, *, workspace_id: UUID, data_source_id: UUID, table_id: UUID, approved_by: str,
     ) -> DataSourceTableCatalogEntry:
         raise NotImplementedError
 
     # -- catalog: relationships --------------------------------------------
 
     async def create_relationship_candidates(
-        self, *, workspace_id: str, data_source_id: UUID, candidates: list[RelationshipCandidate],
+        self, *, workspace_id: UUID, data_source_id: UUID, candidates: list[RelationshipCandidate],
     ) -> list[DataSourceRelationship]:
         raise NotImplementedError
 
     async def list_relationships(
-        self, *, workspace_id: str, data_source_id: UUID, approval_status: RelationshipApprovalStatus | None = None,
+        self, *, workspace_id: UUID, data_source_id: UUID, approval_status: RelationshipApprovalStatus | None = None,
     ) -> list[DataSourceRelationship] | None:
         """Return ``None`` when the connection itself is not visible here."""
 
         raise NotImplementedError
 
     async def set_relationship_approval(
-        self, *, workspace_id: str, data_source_id: UUID, relationship_id: UUID,
+        self, *, workspace_id: UUID, data_source_id: UUID, relationship_id: UUID,
         approval_status: RelationshipApprovalStatus, approved_by: str | None,
     ) -> DataSourceRelationship:
         raise NotImplementedError
@@ -222,7 +222,7 @@ class PostgresDataSourceStore(DataSourceStore):
     # -- connections -----------------------------------------------------
 
     async def create_connection(
-        self, *, workspace_id: str, name: str, config: DataSourceConnectionConfig, encrypted_password: str,
+        self, *, workspace_id: UUID, name: str, config: DataSourceConnectionConfig, encrypted_password: str,
     ) -> DataSourceConnection:
         stamp = _now()
         record = DataSourceRecord(
@@ -239,14 +239,14 @@ class PostgresDataSourceStore(DataSourceStore):
                 session.add(record)
         return _connection_to_domain(record)
 
-    async def get_connection(self, *, workspace_id: str, data_source_id: UUID) -> DataSourceConnection | None:
+    async def get_connection(self, *, workspace_id: UUID, data_source_id: UUID) -> DataSourceConnection | None:
         async with self._database.session() as session:
             record = await session.get(DataSourceRecord, data_source_id)
         if record is None or record.workspace_id != workspace_id:
             return None
         return _connection_to_domain(record)
 
-    async def get_encrypted_password(self, *, workspace_id: str, data_source_id: UUID) -> str | None:
+    async def get_encrypted_password(self, *, workspace_id: UUID, data_source_id: UUID) -> str | None:
         async with self._database.session() as session:
             record = await session.get(DataSourceRecord, data_source_id)
         if record is None or record.workspace_id != workspace_id:
@@ -254,7 +254,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return record.encrypted_password
 
     async def list_connections(
-        self, *, workspace_id: str, status: DataSourceStatus | None, limit: int, offset: int,
+        self, *, workspace_id: UUID, status: DataSourceStatus | None, limit: int, offset: int,
     ) -> tuple[list[DataSourceConnection], int]:
         async with self._database.session() as session:
             query = select(DataSourceRecord).where(DataSourceRecord.workspace_id == workspace_id)
@@ -267,7 +267,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return [_connection_to_domain(record) for record in records], total
 
     async def update_connection_status(
-        self, *, workspace_id: str, data_source_id: UUID, status: DataSourceStatus | None = None,
+        self, *, workspace_id: UUID, data_source_id: UUID, status: DataSourceStatus | None = None,
         health_status: HealthStatus | None = None, last_connection_at: datetime | None = None,
         last_connection_error: str | None = None, last_profiled_at: datetime | None = None,
     ) -> DataSourceConnection:
@@ -289,7 +289,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return _connection_to_domain(record)
 
     async def update_connection_config(
-        self, *, workspace_id: str, data_source_id: UUID, changes: dict[str, Any],
+        self, *, workspace_id: UUID, data_source_id: UUID, changes: dict[str, Any],
     ) -> DataSourceConnection:
         async with self._database.session() as session:
             async with session.begin():
@@ -318,7 +318,7 @@ class PostgresDataSourceStore(DataSourceStore):
     # -- catalog: tables and columns --------------------------------------
 
     async def upsert_table(
-        self, *, workspace_id: str, data_source_id: UUID, schema_name: str, technical_name: str,
+        self, *, workspace_id: UUID, data_source_id: UUID, schema_name: str, technical_name: str,
         business_name: str, description: str | None, grain: str | None, freshness_column: str | None,
         columns: list[ColumnInput],
     ) -> DataSourceTableCatalogEntry:
@@ -370,7 +370,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return _table_to_domain(table, column_records)
 
     async def get_table(
-        self, *, workspace_id: str, data_source_id: UUID, table_id: UUID,
+        self, *, workspace_id: UUID, data_source_id: UUID, table_id: UUID,
     ) -> DataSourceTableCatalogEntry | None:
         async with self._database.session() as session:
             source = await session.get(DataSourceRecord, data_source_id)
@@ -385,7 +385,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return _table_to_domain(table, list(columns))
 
     async def list_tables(
-        self, *, workspace_id: str, data_source_id: UUID, active_only: bool = False,
+        self, *, workspace_id: UUID, data_source_id: UUID, active_only: bool = False,
     ) -> list[DataSourceTableCatalogEntry] | None:
         async with self._database.session() as session:
             source = await session.get(DataSourceRecord, data_source_id)
@@ -404,7 +404,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return entries
 
     async def set_table_active(
-        self, *, workspace_id: str, data_source_id: UUID, table_id: UUID, active: bool,
+        self, *, workspace_id: UUID, data_source_id: UUID, table_id: UUID, active: bool,
     ) -> DataSourceTableCatalogEntry:
         async with self._database.session() as session:
             async with session.begin():
@@ -421,7 +421,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return _table_to_domain(table, list(columns))
 
     async def approve_table(
-        self, *, workspace_id: str, data_source_id: UUID, table_id: UUID, approved_by: str,
+        self, *, workspace_id: UUID, data_source_id: UUID, table_id: UUID, approved_by: str,
     ) -> DataSourceTableCatalogEntry:
         async with self._database.session() as session:
             async with session.begin():
@@ -441,7 +441,7 @@ class PostgresDataSourceStore(DataSourceStore):
     # -- catalog: relationships --------------------------------------------
 
     async def create_relationship_candidates(
-        self, *, workspace_id: str, data_source_id: UUID, candidates: list[RelationshipCandidate],
+        self, *, workspace_id: UUID, data_source_id: UUID, candidates: list[RelationshipCandidate],
     ) -> list[DataSourceRelationship]:
         async with self._database.session() as session:
             async with session.begin():
@@ -468,7 +468,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return [_relationship_to_domain(record) for record in records]
 
     async def list_relationships(
-        self, *, workspace_id: str, data_source_id: UUID, approval_status: RelationshipApprovalStatus | None = None,
+        self, *, workspace_id: UUID, data_source_id: UUID, approval_status: RelationshipApprovalStatus | None = None,
     ) -> list[DataSourceRelationship] | None:
         async with self._database.session() as session:
             source = await session.get(DataSourceRecord, data_source_id)
@@ -483,7 +483,7 @@ class PostgresDataSourceStore(DataSourceStore):
         return [_relationship_to_domain(record) for record in records]
 
     async def set_relationship_approval(
-        self, *, workspace_id: str, data_source_id: UUID, relationship_id: UUID,
+        self, *, workspace_id: UUID, data_source_id: UUID, relationship_id: UUID,
         approval_status: RelationshipApprovalStatus, approved_by: str | None,
     ) -> DataSourceRelationship:
         async with self._database.session() as session:

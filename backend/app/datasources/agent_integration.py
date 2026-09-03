@@ -13,6 +13,8 @@ Metric execution is deliberately not touched here; see
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from app.analytics.semantics.datasets import AnalyticsDatasetStore
 from app.datasources.runtime import DataSourceRuntime
 from app.datasources.service import DataSourceOnboardingService
@@ -22,7 +24,7 @@ from app.tools.base import Tool
 
 
 async def resolve_workspace_tools(
-    *, workspace_id: str, service: DataSourceOnboardingService, store: DataSourceStore,
+    *, workspace_id: UUID, service: DataSourceOnboardingService, store: DataSourceStore,
     datasets: AnalyticsDatasetStore | None = None,
 ) -> tuple[dict[str, Tool], DataSourceRuntime]:
     """The governed analytics tools for a workspace's one active connection.

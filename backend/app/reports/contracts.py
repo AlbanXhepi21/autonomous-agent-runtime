@@ -114,7 +114,7 @@ class SavedReportDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: UUID
-    workspace_id: str = Field(min_length=1, max_length=128)
+    workspace_id: UUID
     owner: str | None = Field(default=None, max_length=128)
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2_000)

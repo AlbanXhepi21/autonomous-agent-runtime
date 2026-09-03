@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -16,12 +17,6 @@ from app.reports.contracts import (
     RelativePeriodKind,
     SavedReportStatus,
 )
-
-#: Used whenever a caller does not name a workspace. This application has no
-#: workspace/tenant table of its own yet -- every saved-report query is still
-#: filtered by this identifier, so isolation is real and enforced, not merely
-#: assumed for a system that happens to serve one workspace today.
-DEFAULT_WORKSPACE_ID = "default"
 
 
 class MetricRequestPayload(BaseModel):
@@ -43,7 +38,6 @@ class RelativePeriodPayload(BaseModel):
 class SavedReportCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, min_length=1, max_length=128)
     owner: str | None = Field(default=None, max_length=128)
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2_000)
@@ -100,7 +94,7 @@ class SavedReportSummaryResponse(BaseModel):
     """One row of a saved-report list -- no narrative text, for a light payload."""
 
     id: str
-    workspace_id: str
+    workspace_id: UUID
     owner: str | None
     name: str
     description: str | None

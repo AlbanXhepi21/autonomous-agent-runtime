@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useSavedReports } from "@/features/workbench/hooks/use-saved-reports";
 import { SavedReportDetail } from "@/features/workbench/components/saved-report-detail";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 
 /**
  * The saved-reports sidebar: durable recipes, reopened and rerun on demand.
@@ -11,7 +12,8 @@ import { SavedReportDetail } from "@/features/workbench/components/saved-report-
  * executed again, not the documents an execution already produced.
  */
 export function SavedReportsPanel({ refreshKey }: { refreshKey?: string }) {
-  const state = useSavedReports();
+  const workspaceId = useWorkspaceId();
+  const state = useSavedReports(workspaceId);
   const { items, total, statusFilter, error, load, select, close } = state;
 
   useEffect(() => {

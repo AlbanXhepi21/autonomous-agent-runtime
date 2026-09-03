@@ -14,10 +14,12 @@ from app.delivery.service import DeliveryService
 from app.reliability.contracts import FailureCategory
 from app.reliability.retry import RetryPolicy, RetryRule
 
+WORKSPACE_ID = uuid4()
+
 
 def _artifact() -> Artifact:
     return Artifact(
-        id="artifact-1", name="report.pdf", relative_path="artifacts/run/artifact-1/report.pdf",
+        id="artifact-1", workspace_id=WORKSPACE_ID, name="report.pdf", relative_path="artifacts/run/artifact-1/report.pdf",
         artifact_type="report_document", media_type="application/pdf", size=4096, sha256="0" * 64,
         status=ArtifactStatus.READY, run_id="run-1", created_at=datetime.now(UTC),
     )
@@ -29,7 +31,7 @@ class FakeArtifactStore:
 
     artifact: Artifact | None
 
-    async def get(self, artifact_id: str) -> Artifact | None:
+    async def get(self, *, workspace_id, artifact_id: str) -> Artifact | None:
         return self.artifact if self.artifact and self.artifact.id == artifact_id else None
 
 
@@ -38,17 +40,17 @@ class FakeDeliveryStore:
     records: dict[UUID, DeliveryRecord] = field(default_factory=dict)
     attempts: list[dict] = field(default_factory=list)
 
-    async def create(self, *, artifact_id, channel, destination):
+    async def create(self, *, workspace_id, artifact_id, channel, destination):
         now = datetime.now(UTC)
         record = DeliveryRecord(
-            id=uuid4(), artifact_id=artifact_id, channel=channel, destination=destination,
+            id=uuid4(), workspace_id=workspace_id, artifact_id=artifact_id, channel=channel, destination=destination,
             status="pending", attempt_count=0, last_attempt_at=None, provider_metadata={},
             failure_reason=None, created_at=now, updated_at=now,
         )
         self.records[record.id] = record
         return record
 
-    async def record_attempt(self, *, delivery_id, status, provider_metadata, failure_reason):
+    async def record_attempt(self, *, workspace_id, delivery_id, status, provider_metadata, failure_reason):
         self.attempts.append({"delivery_id": delivery_id, "status": status, "failure_reason": failure_reason})
         existing = self.records[delivery_id]
         updated = existing.model_copy(update={
@@ -92,7 +94,7 @@ async def test_delivering_a_ready_artifact_succeeds() -> None:
     provider = FakeProvider(outcomes=[DeliveryAttemptResult(success=True, provider_metadata={"link": "https://x"})])
     service, store = _service(providers={"link": provider})
 
-    record = await service.deliver(artifact_id="artifact-1", channel="link", destination="unused")
+    record = await service.deliver(workspace_id=WORKSPACE_ID, artifact_id="artifact-1", channel="link", destination="unused")
 
     assert record.status == "sent"
     assert record.attempt_count == 1
@@ -105,7 +107,7 @@ async def test_a_missing_artifact_is_refused_before_any_provider_is_called() -> 
     service, _store = _service(artifact=None, providers={"link": provider})
 
     with pytest.raises(DeliveryError):
-        await service.deliver(artifact_id="artifact-1", channel="link", destination="unused")
+        await service.deliver(workspace_id=WORKSPACE_ID, artifact_id="artifact-1", channel="link", destination="unused")
 
     assert provider.calls == []
 
@@ -115,7 +117,7 @@ async def test_an_unconfigured_channel_is_refused() -> None:
     service, _store = _service(providers={})
 
     with pytest.raises(DeliveryError, match="not configured"):
-        await service.deliver(artifact_id="artifact-1", channel="email", destination="a@b.com")
+        await service.deliver(workspace_id=WORKSPACE_ID, artifact_id="artifact-1", channel="email", destination="a@b.com")
 
 
 @pytest.mark.asyncio
@@ -127,7 +129,7 @@ async def test_a_transient_failure_is_retried_then_succeeds() -> None:
     policy = RetryPolicy({("delivery", FailureCategory.DELIVERY_FAILURE): RetryRule(max_attempts=3, initial_delay_seconds=0, max_delay_seconds=0)})
     service, store = _service(providers={"webhook": provider}, retry_policy=policy)
 
-    record = await service.deliver(artifact_id="artifact-1", channel="webhook", destination="https://x")
+    record = await service.deliver(workspace_id=WORKSPACE_ID, artifact_id="artifact-1", channel="webhook", destination="https://x")
 
     assert record.status == "sent"
     assert record.attempt_count == 2
@@ -146,7 +148,7 @@ async def test_exhausting_retries_persists_a_final_failed_record_with_every_atte
     policy = RetryPolicy({("delivery", FailureCategory.DELIVERY_FAILURE): RetryRule(max_attempts=3, initial_delay_seconds=0, max_delay_seconds=0)})
     service, store = _service(providers={"webhook": provider}, retry_policy=policy)
 
-    record = await service.deliver(artifact_id="artifact-1", channel="webhook", destination="https://x")
+    record = await service.deliver(workspace_id=WORKSPACE_ID, artifact_id="artifact-1", channel="webhook", destination="https://x")
 
     assert record.status == "failed"
     assert record.attempt_count == 3
@@ -160,7 +162,7 @@ async def test_a_non_retryable_failure_is_recorded_immediately_without_retrying(
     ])
     service, store = _service(providers={"webhook": provider})
 
-    record = await service.deliver(artifact_id="artifact-1", channel="webhook", destination="https://x")
+    record = await service.deliver(workspace_id=WORKSPACE_ID, artifact_id="artifact-1", channel="webhook", destination="https://x")
 
     assert record.status == "failed"
     assert record.attempt_count == 1

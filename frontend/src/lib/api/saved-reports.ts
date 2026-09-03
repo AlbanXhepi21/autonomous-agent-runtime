@@ -11,36 +11,36 @@ import type {
   SavedReportUpdateRequest,
 } from "@/types/saved-reports";
 
+const base = (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/reports/saved`;
+
 export const savedReportsApi = {
-  create: (payload: SavedReportCreateRequest) =>
-    request<SavedReport>("/api/v1/reports/saved", {
+  create: (workspaceId: string, payload: SavedReportCreateRequest) =>
+    request<SavedReport>(base(workspaceId), {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  list: (status: "active" | "archived" | null = "active", limit = 30, offset = 0) =>
+  list: (workspaceId: string, status: "active" | "archived" | null = "active", limit = 30, offset = 0) =>
     request<SavedReportList>(
-      `/api/v1/reports/saved?limit=${limit}&offset=${offset}${status ? `&status=${status}` : ""}`,
+      `${base(workspaceId)}?limit=${limit}&offset=${offset}${status ? `&status=${status}` : ""}`,
     ),
-  get: (id: string) => request<SavedReport>(`/api/v1/reports/saved/${id}`),
-  update: (id: string, payload: SavedReportUpdateRequest) =>
-    request<SavedReport>(`/api/v1/reports/saved/${id}`, {
+  get: (workspaceId: string, id: string) => request<SavedReport>(`${base(workspaceId)}/${id}`),
+  update: (workspaceId: string, id: string, payload: SavedReportUpdateRequest) =>
+    request<SavedReport>(`${base(workspaceId)}/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  archive: (id: string, payload: SavedReportArchiveRequest) =>
-    request<SavedReport>(`/api/v1/reports/saved/${id}/archive`, {
+  archive: (workspaceId: string, id: string, payload: SavedReportArchiveRequest) =>
+    request<SavedReport>(`${base(workspaceId)}/${id}/archive`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  resolvedParameters: (id: string) =>
-    request<SavedReportResolvedParameters>(`/api/v1/reports/saved/${id}/resolved-parameters`),
-  execute: (id: string, payload: SavedReportExecuteRequest) =>
-    request<SavedReportExecuteResponse>(`/api/v1/reports/saved/${id}/execute`, {
+  resolvedParameters: (workspaceId: string, id: string) =>
+    request<SavedReportResolvedParameters>(`${base(workspaceId)}/${id}/resolved-parameters`),
+  execute: (workspaceId: string, id: string, payload: SavedReportExecuteRequest) =>
+    request<SavedReportExecuteResponse>(`${base(workspaceId)}/${id}/execute`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  executions: (id: string, limit = 20, offset = 0) =>
-    request<SavedReportExecutionList>(
-      `/api/v1/reports/saved/${id}/executions?limit=${limit}&offset=${offset}`,
-    ),
+  executions: (workspaceId: string, id: string, limit = 20, offset = 0) =>
+    request<SavedReportExecutionList>(`${base(workspaceId)}/${id}/executions?limit=${limit}&offset=${offset}`),
 };

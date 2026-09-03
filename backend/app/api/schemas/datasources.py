@@ -9,16 +9,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-DEFAULT_WORKSPACE_ID = "default"
 
 
 class DataSourceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=255)
     host: str = Field(min_length=1, max_length=255)
     port: int = Field(default=5432, ge=1, le=65_535)
@@ -34,7 +32,7 @@ class DataSourceCreateRequest(BaseModel):
 
 class DataSourceResponse(BaseModel):
     id: str
-    workspace_id: str
+    workspace_id: UUID
     name: str
     host: str
     port: int

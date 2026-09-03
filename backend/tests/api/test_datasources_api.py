@@ -44,9 +44,10 @@ from app.datasources.store import (
     DataSourceRelationshipNotFoundError,
     DataSourceTableNotFoundError,
 )
+from tests.support import override_tenant_context
 
-WORKSPACE_A = "workspace-a"
-WORKSPACE_B = "workspace-b"
+WORKSPACE_A = uuid4()
+WORKSPACE_B = uuid4()
 
 
 def _now() -> datetime:
@@ -338,19 +339,20 @@ class FakeOnboardingService:
         )
 
 
-def _client(store: FakeDataSourceStore, service: FakeOnboardingService) -> TestClient:
+def _client(store: FakeDataSourceStore, service: FakeOnboardingService, *, workspace_id=WORKSPACE_A) -> TestClient:
     application = FastAPI()
     application.include_router(router)
     application.dependency_overrides = {
         get_data_source_store: lambda: store,
         get_data_source_onboarding_service: lambda: service,
     }
+    override_tenant_context(application, workspace_id=workspace_id)
     return TestClient(application)
 
 
 def _create_body(**overrides) -> dict:
     body = {
-        "workspace_id": WORKSPACE_A, "name": "Primary Analytics", "host": "db.example.com",
+        "name": "Primary Analytics", "host": "db.example.com",
         "database": "analytics", "username": "ro_user", "password": "super-secret",
         "allowed_schemas": ["public"],
     }
@@ -362,7 +364,7 @@ def test_create_returns_201_and_never_echoes_the_password() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
 
-    response = client.post("/api/v1/datasources", json=_create_body())
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body())
 
     assert response.status_code == 201
     body = response.json()
@@ -375,7 +377,7 @@ def test_create_is_rejected_for_an_unsafe_ssl_mode() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
 
-    response = client.post("/api/v1/datasources", json=_create_body(ssl_mode="disable"))
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body(ssl_mode="disable"))
 
     assert response.status_code == 422
 
@@ -383,10 +385,10 @@ def test_create_is_rejected_for_an_unsafe_ssl_mode() -> None:
 def test_get_and_list_round_trip() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    fetched = client.get(f"/api/v1/datasources/{created['id']}", params={"workspace_id": WORKSPACE_A}).json()
-    listed = client.get("/api/v1/datasources", params={"workspace_id": WORKSPACE_A}).json()
+    fetched = client.get(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}").json()
+    listed = client.get(f"/api/v1/workspaces/{WORKSPACE_A}/datasources").json()
 
     assert fetched["id"] == created["id"]
     assert listed["total"] == 1
@@ -394,10 +396,12 @@ def test_get_and_list_round_trip() -> None:
 
 def test_get_is_404_across_workspaces() -> None:
     store = FakeDataSourceStore()
-    client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    service = FakeOnboardingService(store=store)
+    client_a = _client(store, service, workspace_id=WORKSPACE_A)
+    client_b = _client(store, service, workspace_id=WORKSPACE_B)
+    created = client_a.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    response = client.get(f"/api/v1/datasources/{created['id']}", params={"workspace_id": WORKSPACE_B})
+    response = client_b.get(f"/api/v1/workspaces/{WORKSPACE_B}/datasources/{created['id']}")
 
     assert response.status_code == 404
 
@@ -406,7 +410,7 @@ def test_get_is_404_for_an_unknown_id() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
 
-    response = client.get(f"/api/v1/datasources/{uuid4()}", params={"workspace_id": WORKSPACE_A})
+    response = client.get(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{uuid4()}")
 
     assert response.status_code == 404
 
@@ -414,9 +418,9 @@ def test_get_is_404_for_an_unknown_id() -> None:
 def test_test_connection_succeeds() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    response = client.post(f"/api/v1/datasources/{created['id']}/test-connection", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/test-connection")
 
     assert response.status_code == 200
     assert response.json()["success"] is True
@@ -425,9 +429,9 @@ def test_test_connection_succeeds() -> None:
 def test_test_connection_is_422_when_the_service_refuses_it() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store, refuse=True))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    response = client.post(f"/api/v1/datasources/{created['id']}/test-connection", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/test-connection")
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "connection_refused"
@@ -437,7 +441,7 @@ def test_test_connection_is_404_for_an_unknown_data_source() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
 
-    response = client.post(f"/api/v1/datasources/{uuid4()}/test-connection", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{uuid4()}/test-connection")
 
     assert response.status_code == 404
 
@@ -445,9 +449,9 @@ def test_test_connection_is_404_for_an_unknown_data_source() -> None:
 def test_verify_read_only_succeeds() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    response = client.post(f"/api/v1/datasources/{created['id']}/verify-read-only", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/verify-read-only")
 
     assert response.status_code == 200
     assert response.json()["is_read_only"] is True
@@ -456,9 +460,9 @@ def test_verify_read_only_succeeds() -> None:
 def test_schemas_lists_accessible_tables() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    response = client.get(f"/api/v1/datasources/{created['id']}/schemas", params={"workspace_id": WORKSPACE_A})
+    response = client.get(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/schemas")
 
     assert response.status_code == 200
     assert response.json()["schemas"] == ["public"]
@@ -467,10 +471,10 @@ def test_schemas_lists_accessible_tables() -> None:
 def test_selecting_a_table_returns_the_profiled_catalog_entry() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
     response = client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     )
 
@@ -485,18 +489,18 @@ def test_selecting_a_table_returns_the_profiled_catalog_entry() -> None:
 def test_correcting_a_table_resets_its_approval() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
     table = client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     ).json()
     client.post(
-        f"/api/v1/datasources/{created['id']}/tables/{table['id']}/approve", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables/{table['id']}/approve",
         json={"approved_by": "alice"},
     )
 
     response = client.patch(
-        f"/api/v1/datasources/{created['id']}/tables/{table['id']}", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables/{table['id']}",
         json={
             "business_name": "Customer Orders", "columns": [
                 {"technical_name": "id", "data_type": "uuid", "role": "primary_key"},
@@ -513,14 +517,14 @@ def test_correcting_a_table_resets_its_approval() -> None:
 def test_a_sensitive_column_correction_with_example_values_is_rejected() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
     table = client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     ).json()
 
     response = client.patch(
-        f"/api/v1/datasources/{created['id']}/tables/{table['id']}", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables/{table['id']}",
         json={
             "business_name": "Orders", "columns": [
                 {
@@ -537,18 +541,18 @@ def test_a_sensitive_column_correction_with_example_values_is_rejected() -> None
 def test_setting_a_table_inactive_hides_it_from_the_active_only_list() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
     table = client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     ).json()
 
     client.post(
-        f"/api/v1/datasources/{created['id']}/tables/{table['id']}/active", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables/{table['id']}/active",
         json={"active": False},
     )
     listed = client.get(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A, "active_only": True},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables", params={"active_only": True},
     ).json()
 
     assert listed["items"] == []
@@ -557,30 +561,30 @@ def test_setting_a_table_inactive_hides_it_from_the_active_only_list() -> None:
 def test_relationship_discovery_then_approval_round_trips() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
     client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     )
 
-    discovered = client.post(f"/api/v1/datasources/{created['id']}/relationships/discover", params={"workspace_id": WORKSPACE_A}).json()
+    discovered = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/relationships/discover").json()
     assert len(discovered["items"]) == 1
     relationship_id = discovered["items"][0]["id"]
 
     pending = client.get(
-        f"/api/v1/datasources/{created['id']}/relationships", params={"workspace_id": WORKSPACE_A, "approval_status": "pending"},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/relationships", params={"approval_status": "pending"},
     ).json()
     assert len(pending["items"]) == 1
 
     approved = client.post(
-        f"/api/v1/datasources/{created['id']}/relationships/{relationship_id}/approval", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/relationships/{relationship_id}/approval",
         json={"approval_status": "approved", "approved_by": "alice"},
     )
     assert approved.status_code == 200
     assert approved.json()["approval_status"] == "approved"
 
     pending_after = client.get(
-        f"/api/v1/datasources/{created['id']}/relationships", params={"workspace_id": WORKSPACE_A, "approval_status": "pending"},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/relationships", params={"approval_status": "pending"},
     ).json()
     assert pending_after["items"] == []
 
@@ -588,10 +592,10 @@ def test_relationship_discovery_then_approval_round_trips() -> None:
 def test_relationship_approval_for_an_unknown_relationship_is_404() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
     response = client.post(
-        f"/api/v1/datasources/{created['id']}/relationships/{uuid4()}/approval", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/relationships/{uuid4()}/approval",
         json={"approval_status": "approved", "approved_by": "alice"},
     )
 
@@ -601,9 +605,9 @@ def test_relationship_approval_for_an_unknown_relationship_is_404() -> None:
 def test_activation_before_read_only_verification_is_refused() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
 
-    response = client.post(f"/api/v1/datasources/{created['id']}/activate", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/activate")
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "activation_refused"
@@ -612,14 +616,14 @@ def test_activation_before_read_only_verification_is_refused() -> None:
 def test_activation_without_an_approved_table_is_refused() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
-    client.post(f"/api/v1/datasources/{created['id']}/verify-read-only", params={"workspace_id": WORKSPACE_A})
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
+    client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/verify-read-only")
     client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     )
 
-    response = client.post(f"/api/v1/datasources/{created['id']}/activate", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/activate")
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "activation_refused"
@@ -628,18 +632,18 @@ def test_activation_without_an_approved_table_is_refused() -> None:
 def test_activation_succeeds_once_verified_and_a_table_is_approved() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
-    client.post(f"/api/v1/datasources/{created['id']}/verify-read-only", params={"workspace_id": WORKSPACE_A})
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
+    client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/verify-read-only")
     table = client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     ).json()
     client.post(
-        f"/api/v1/datasources/{created['id']}/tables/{table['id']}/approve", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables/{table['id']}/approve",
         json={"approved_by": "alice"},
     )
 
-    response = client.post(f"/api/v1/datasources/{created['id']}/activate", params={"workspace_id": WORKSPACE_A})
+    response = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/activate")
 
     assert response.status_code == 200
     assert response.json()["status"] == "active"
@@ -648,13 +652,13 @@ def test_activation_succeeds_once_verified_and_a_table_is_approved() -> None:
 def test_freshness_reports_health_and_latest_timestamp() -> None:
     store = FakeDataSourceStore()
     client = _client(store, FakeOnboardingService(store=store))
-    created = client.post("/api/v1/datasources", json=_create_body()).json()
+    created = client.post(f"/api/v1/workspaces/{WORKSPACE_A}/datasources", json=_create_body()).json()
     client.post(
-        f"/api/v1/datasources/{created['id']}/tables", params={"workspace_id": WORKSPACE_A},
+        f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/tables",
         json={"schema_name": "public", "technical_name": "orders", "business_name": "Orders"},
     )
 
-    response = client.get(f"/api/v1/datasources/{created['id']}/freshness", params={"workspace_id": WORKSPACE_A})
+    response = client.get(f"/api/v1/workspaces/{WORKSPACE_A}/datasources/{created['id']}/freshness")
 
     assert response.status_code == 200
     body = response.json()

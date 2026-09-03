@@ -7,6 +7,15 @@ password round trip, a real SSL-enabled connection, and a real live-probe
 read-only verification. Nothing here is mocked.
 
 Skips when TEST_DATABASE_URL is unset, like the other database tests.
+
+Every test here needs exactly one valid workspace to satisfy
+``data_sources.workspace_id``'s foreign key, so this file reuses the
+always-present legacy workspace row seeded by migration
+``20260903_0016_create_legacy_workspace.py`` (fixed id
+``00000000-0000-0000-0000-000000000001``) rather than minting its own --
+no other test in this suite touches ``data_sources`` under that workspace,
+so purging by that workspace id here cannot collide with another file's
+fixtures.
 """
 
 from __future__ import annotations
@@ -14,6 +23,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import timedelta
+from uuid import UUID
 
 import pytest
 from cryptography.fernet import Fernet
@@ -34,7 +44,9 @@ from app.security.credentials import CredentialProvider, SecretReference
 pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
-WORKSPACE = "test-datasources-onboarding"
+#: The fixed legacy workspace id seeded by migration 20260903_0016 -- always
+#: present, so reusable here without minting or cleaning up a workspace row.
+WORKSPACE: UUID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 class _FixedCredentialProvider(CredentialProvider):
@@ -156,11 +168,19 @@ async def test_the_full_onboarding_flow_reaches_activation(service, restricted_r
         description="One row per agent conversation", freshness_column="updated_at",
     )
     assert table.approved_by is None
-    assert {column.technical_name for column in table.columns} == {"id", "title", "created_at", "updated_at"}
+    assert {column.technical_name for column in table.columns} == {"id", "title", "created_at", "updated_at", "workspace_id"}
     assert "updated_at" in table.time_columns
 
     relationships = await service.discover_table_relationships(workspace_id=WORKSPACE, data_source_id=connection.id)
-    assert relationships == []  # only "conversations" selected so far -- no FK target catalogued yet
+    # "conversations" carries a real FK to "workspaces" (the tenant-isolation
+    # migration) -- discovered even though "workspaces" itself was never
+    # selected/catalogued; only actual *approval* of a relationship depends
+    # on both sides being catalogued, not discovery.
+    assert len(relationships) == 1
+    assert relationships[0].source_table == "conversations"
+    assert relationships[0].source_column == "workspace_id"
+    assert relationships[0].target_table == "workspaces"
+    assert relationships[0].discovery_method == "foreign_key"
 
     with pytest.raises(DataSourceOnboardingError, match="approved"):
         await service.activate(workspace_id=WORKSPACE, data_source_id=connection.id)
@@ -244,4 +264,4 @@ async def test_cross_workspace_access_is_refused(service, restricted_role) -> No
     )
 
     with pytest.raises(DataSourceOnboardingError, match="not found"):
-        await service.test_connectivity(workspace_id="some-other-workspace", data_source_id=connection.id)
+        await service.test_connectivity(workspace_id=uuid.uuid4(), data_source_id=connection.id)

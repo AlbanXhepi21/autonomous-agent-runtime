@@ -61,6 +61,12 @@ class AgentState(BaseModel):
 
     goal: str
     run_id: str = Field(default_factory=lambda: str(uuid4()))
+    #: The tenant this run executes on behalf of. ``None`` for an
+    #: unauthenticated/ad hoc run (e.g. a test, or a direct non-tenant-scoped
+    #: caller) -- durable memory and artifact registration become no-ops
+    #: rather than writing to an unscoped bucket, the same "no tenant, no
+    #: persistence" rule applied throughout the memory/artifact stack.
+    workspace_id: str | None = None
     observations: list[Observation] = Field(default_factory=list)
     artifacts: list[Artifact] = Field(default_factory=list)
     task_summary: TaskSummary | None = None

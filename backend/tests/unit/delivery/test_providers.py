@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 
 import httpx
@@ -13,7 +14,7 @@ from app.delivery.providers import LinkDeliveryProvider, WebhookDeliveryProvider
 
 def _artifact() -> Artifact:
     return Artifact(
-        id="artifact-1", name="report.pdf", relative_path="artifacts/run/artifact-1/report.pdf",
+        id="artifact-1", workspace_id=uuid.uuid4(), name="report.pdf", relative_path="artifacts/run/artifact-1/report.pdf",
         artifact_type="report_document", media_type="application/pdf", size=4096, sha256="0" * 64,
         status=ArtifactStatus.READY, run_id="run-1", created_at=datetime.now(UTC),
     )

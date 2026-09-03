@@ -18,7 +18,7 @@ interface StreamHandlers {
  * flag, which together decide whether a dropped connection means the run ended
  * or that the status still needs checking.
  */
-export function useRunStream() {
+export function useRunStream(workspaceId: string) {
   const [eventsByRun, setEventsByRun] = useState<Record<string, PublicRunEvent[]>>({});
   const [loadingTraces, setLoadingTraces] = useState<Record<string, boolean>>({});
   const source = useRef<EventSource | null>(null);
@@ -45,6 +45,7 @@ export function useRunStream() {
     (runId: string, handlers: StreamHandlers) => {
       setEventsByRun((current) => ({ ...current, [runId]: [] }));
       source.current = analyticsApi.connect(
+        workspaceId,
         runId,
         (event) => {
           setEventsByRun((current) => ({
@@ -75,27 +76,30 @@ export function useRunStream() {
         },
       );
     },
-    [close],
+    [close, workspaceId],
   );
 
   /** Replay the stored traces for runs restored from conversation history. */
-  const hydrate = useCallback(async (runs: RunHistory[]) => {
-    setLoadingTraces(Object.fromEntries(runs.map((run) => [run.run_id, true])));
-    const histories = await Promise.all(
-      runs.map(
-        async (run) =>
-          [
-            run.run_id,
-            await analyticsApi
-              .getEvents(run.run_id)
-              .then((result) => result.items)
-              .catch(() => []),
-          ] as const,
-      ),
-    );
-    setEventsByRun(Object.fromEntries(histories));
-    setLoadingTraces({});
-  }, []);
+  const hydrate = useCallback(
+    async (runs: RunHistory[]) => {
+      setLoadingTraces(Object.fromEntries(runs.map((run) => [run.run_id, true])));
+      const histories = await Promise.all(
+        runs.map(
+          async (run) =>
+            [
+              run.run_id,
+              await analyticsApi
+                .getEvents(workspaceId, run.run_id)
+                .then((result) => result.items)
+                .catch(() => []),
+            ] as const,
+        ),
+      );
+      setEventsByRun(Object.fromEntries(histories));
+      setLoadingTraces({});
+    },
+    [workspaceId],
+  );
 
   return { eventsByRun, loadingTraces, open, close, reset, clear, hydrate };
 }

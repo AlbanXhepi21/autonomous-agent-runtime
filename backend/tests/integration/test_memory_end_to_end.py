@@ -1,5 +1,6 @@
 """Deterministic end-to-end memory scenarios; no provider calls are made."""
 
+import uuid
 from typing import Sequence
 
 import pytest
@@ -22,6 +23,8 @@ from app.runtime.summarization import SummaryPolicy, TaskSummarizer
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 from tests.support import ScriptedLLM, make_runner
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 class DurableDecisionExtractor:
@@ -90,15 +93,15 @@ def runner(
 async def test_scenarios_a_to_c_empty_relevant_and_irrelevant_memory_context() -> None:
     empty_store = InMemoryMemoryStore()
     empty_llm = ScriptedLLM([finish()])
-    assert (await runner(empty_llm, empty_store).run("Plan a cache strategy")).completed  # A
+    assert (await runner(empty_llm, empty_store).run("Plan a cache strategy", workspace_id=str(WORKSPACE_ID))).completed  # A
     assert empty_llm.contexts[0]["relevant_memories"] == []
 
     store = InMemoryMemoryStore()
     manager = MemoryManager(store)
-    await manager.add_long_term_memory("Project backend uses FastAPI and PostgreSQL.")
-    await manager.add_long_term_memory("The office plants are watered every Friday.")
+    await manager.add_long_term_memory("Project backend uses FastAPI and PostgreSQL.", workspace_id=WORKSPACE_ID)
+    await manager.add_long_term_memory("The office plants are watered every Friday.", workspace_id=WORKSPACE_ID)
     llm = ScriptedLLM([finish()])
-    await runner(llm, store).run("Recommend a caching strategy for this backend.")  # B/C
+    await runner(llm, store).run("Recommend a caching strategy for this backend.", workspace_id=str(WORKSPACE_ID))  # B/C
 
     assert [item["content"] for item in llm.contexts[0]["relevant_memories"]] == [
         "Project backend uses FastAPI and PostgreSQL."
@@ -121,23 +124,23 @@ async def test_scenarios_e_to_g_durable_write_transient_rejection_and_duplicate_
     store = InMemoryMemoryStore()
     manager = MemoryManager(store)
     writer = MemoryWritingPipeline(manager, extractor=DurableDecisionExtractor())
-    await runner(ScriptedLLM([finish()]), store, writer=writer).run("Choose the cache design")  # E
-    await runner(ScriptedLLM([finish()]), store, writer=writer).run("Repeat the cache decision")  # G
-    assert len(await manager.get_memories(MemoryType.LONG_TERM)) == 1
+    await runner(ScriptedLLM([finish()]), store, writer=writer).run("Choose the cache design", workspace_id=str(WORKSPACE_ID))  # E
+    await runner(ScriptedLLM([finish()]), store, writer=writer).run("Repeat the cache decision", workspace_id=str(WORKSPACE_ID))  # G
+    assert len(await manager.get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID)) == 1
 
     transient_writer = MemoryWritingPipeline(manager)
     await runner(
         ScriptedLLM([calculation(496), finish("calculator returned 497")]), store,
         writer=transient_writer,
-    ).run("Calculate 496 + 1")  # F
-    assert len(await manager.get_memories(MemoryType.LONG_TERM)) == 1
+    ).run("Calculate 496 + 1", workspace_id=str(WORKSPACE_ID))  # F
+    assert len(await manager.get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID)) == 1
 
 
 @pytest.mark.asyncio
 async def test_scenarios_h_to_j_failures_leave_the_agent_and_context_usable() -> None:
     store = InMemoryMemoryStore()
     retrieval_llm = ScriptedLLM([finish()])
-    assert (await runner(retrieval_llm, store, retriever=FailingRetriever()).run("Continue safely")).completed  # H
+    assert (await runner(retrieval_llm, store, retriever=FailingRetriever()).run("Continue safely", workspace_id=str(WORKSPACE_ID))).completed  # H
     assert retrieval_llm.contexts[0]["relevant_memories"] == []
 
     summary_llm = ScriptedLLM([calculation(1), calculation(2), calculation(3), finish()])
@@ -146,4 +149,4 @@ async def test_scenarios_h_to_j_failures_leave_the_agent_and_context_usable() ->
     assert [item["sequence"] for item in summary_llm.contexts[-1]["recent_observations"]] == [1, 2, 3]
 
     failing_writer = MemoryWritingPipeline(MemoryManager(store), extractor=FailingExtractor())
-    assert (await runner(ScriptedLLM([finish()]), store, writer=failing_writer).run("Still complete")).completed  # J
+    assert (await runner(ScriptedLLM([finish()]), store, writer=failing_writer).run("Still complete", workspace_id=str(WORKSPACE_ID))).completed  # J

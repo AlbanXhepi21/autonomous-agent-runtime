@@ -1,10 +1,10 @@
 """Starter tests for agent state and bounded execution."""
 
 import logging
+import uuid
 
 import pytest
 
-from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
 from app.contracts.actions import AgentAction
 from app.core.limits import RuntimeLimits
@@ -23,6 +23,9 @@ from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 from tests.support import ScriptedLLM
 from tests.support import make_runner as build_runner
+from tests.support import run_agent_directly
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 class RepeatingToolLLM(LLMClient):
@@ -135,10 +138,10 @@ async def test_runner_exposes_explicit_working_memory_without_retaining_it_after
     tools.register(CalculatorTool())
     runner = build_runner(llm, tools, memory_manager=manager)
 
-    state = await runner.run("Keep this run-local")
+    state = await runner.run("Keep this run-local", workspace_id=str(WORKSPACE_ID))
 
     assert state.completed
-    assert await manager.get_memories(MemoryType.WORKING, run_id=state.run_id) == []
+    assert await manager.get_memories(MemoryType.WORKING, workspace_id=WORKSPACE_ID, run_id=state.run_id) == []
     assert llm.contexts[0]["working_memory"] == [
         {"content": "Keep this run-local", "metadata": {"kind": "task_goal"}}
     ]
@@ -151,7 +154,7 @@ async def test_runner_retrieves_history_once_and_keeps_it_distinct_from_current_
     caplog.set_level(logging.INFO)
     store = InMemoryMemoryStore()
     manager = MemoryManager(store)
-    await manager.add_long_term_memory("Billing API requires an account ID.")
+    await manager.add_long_term_memory("Billing API requires an account ID.", workspace_id=WORKSPACE_ID)
     llm = ScriptedLLM([AgentAction(action_type="finish", reasoning_summary="Done.", final_answer="Done.")])
     tools = ToolRegistry()
     tools.register(CalculatorTool())
@@ -159,7 +162,7 @@ async def test_runner_retrieves_history_once_and_keeps_it_distinct_from_current_
         llm, tools, memory_manager=manager, memory_retriever=MemoryRetriever(store)
     )
 
-    await runner.run("Find the billing API account requirement")
+    await runner.run("Find the billing API account requirement", workspace_id=str(WORKSPACE_ID))
 
     assert llm.contexts[0]["goal"] == "Find the billing API account requirement"
     assert llm.contexts[0]["relevant_memories"][0]["content"] == "Billing API requires an account ID."
@@ -180,7 +183,7 @@ async def test_memory_retrieval_failure_falls_back_to_empty_history(caplog: pyte
     tools.register(CalculatorTool())
     runner = build_runner(llm, tools, memory_retriever=FailingRetriever())  # type: ignore[arg-type]
 
-    await runner.run("Current goal is authoritative")
+    await runner.run("Current goal is authoritative", workspace_id=str(WORKSPACE_ID))
 
     assert llm.contexts[0]["relevant_memories"] == []
     assert logged_events(caplog, "memory_retrieval_failed")
@@ -480,7 +483,7 @@ async def test_agent_response_includes_safe_execution_summary() -> None:
         RuntimeLimits(),
     )
 
-    response = await run_agent(AgentRunRequest(goal="Use a missing tool"), runner)
+    response = await run_agent_directly(AgentRunRequest(goal="Use a missing tool"), runner)
 
     assert response.run_id
     assert response.tool_call_count == 1
@@ -511,7 +514,7 @@ async def test_agent_response_does_not_report_skill_failures_as_tool_outcomes() 
         RuntimeLimits(),
     )
 
-    response = await run_agent(AgentRunRequest(goal="Use a missing skill"), runner)
+    response = await run_agent_directly(AgentRunRequest(goal="Use a missing skill"), runner)
 
     assert response.recoverable_error_count == 1
     assert response.tools_used == []

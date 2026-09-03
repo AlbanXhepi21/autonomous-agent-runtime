@@ -1,15 +1,19 @@
 """Durable persistence for saved report definitions, against a real database.
 
 Skips when TEST_DATABASE_URL is unset, like the other database tests. Every
-row this suite writes is scoped to workspaces named ``test-saved-reports-*``
-and purged on the way in and out, so a run never sees another run's leftovers
-and never collides with a developer's own local data.
+row this suite writes is scoped to two workspaces minted fresh (via
+``uuid4()``) for this run, whose rows are inserted into the real
+``workspaces`` table -- ``saved_reports.workspace_id`` carries a foreign key
+to it -- and purged, children first, on the way in and out, so a run never
+sees another run's leftovers and never collides with a developer's own local
+data.
 """
 
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime, timezone
+from uuid import UUID, uuid4
 
 import pytest
 from pytest_asyncio import fixture
@@ -17,7 +21,7 @@ from sqlalchemy import delete, select
 
 pytest.importorskip("sqlalchemy")
 
-from app.db.records import SavedReportExecutionRecord, SavedReportRecord
+from app.db.records import SavedReportExecutionRecord, SavedReportRecord, WorkspaceRecord
 from app.db.session import Database
 from app.reports.contracts import RelativePeriod, SavedMetricRequest
 from app.reports.store import (
@@ -29,8 +33,25 @@ from app.reports.store import (
 pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
-WORKSPACE_A = "test-saved-reports-a"
-WORKSPACE_B = "test-saved-reports-b"
+WORKSPACE_A: UUID = uuid4()
+WORKSPACE_B: UUID = uuid4()
+
+
+async def _insert_workspaces() -> None:
+    database = Database(TEST_DATABASE_URL or "")
+    try:
+        stamp = datetime.now(timezone.utc)
+        async with database.session() as session, session.begin():
+            for workspace_id, suffix in ((WORKSPACE_A, "a"), (WORKSPACE_B, "b")):
+                session.add(WorkspaceRecord(
+                    id=workspace_id, name=f"Saved Report Store Test Workspace {suffix.upper()}",
+                    slug=f"test-saved-reports-{suffix}-{workspace_id.hex[:12]}",
+                    logo_ref=None, is_active=True, default_timezone="UTC",
+                    default_locale="en-US", default_currency="USD",
+                    created_at=stamp, updated_at=stamp,
+                ))
+    finally:
+        await database.dispose()
 
 
 async def _purge() -> None:
@@ -52,6 +73,12 @@ async def _purge() -> None:
                 delete(SavedReportRecord)
                 .where(SavedReportRecord.workspace_id.in_([WORKSPACE_A, WORKSPACE_B]))
             )
+            # Parent last: saved_reports.workspace_id has a foreign key to
+            # workspaces, so the minted workspace rows can only go once every
+            # saved report referencing them is gone.
+            await session.execute(
+                delete(WorkspaceRecord).where(WorkspaceRecord.id.in_([WORKSPACE_A, WORKSPACE_B]))
+            )
     finally:
         await database.dispose()
 
@@ -60,7 +87,8 @@ async def _purge() -> None:
 async def store():
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not configured")
-    await _purge()
+    await _purge()  # defensive: clears anything a previously crashed run left behind
+    await _insert_workspaces()
     database = Database(TEST_DATABASE_URL)
     try:
         yield PostgresSavedReportStore(database)
@@ -73,7 +101,7 @@ def _period() -> RelativePeriod:
     return RelativePeriod(kind="last_n_days", days=7)
 
 
-async def _create(store, *, workspace_id: str = WORKSPACE_A, **overrides):
+async def _create(store, *, workspace_id: UUID = WORKSPACE_A, **overrides):
     fields = dict(
         workspace_id=workspace_id, owner=None, name="Weekly Revenue", description=None,
         template_id="analysis_summary", template_version="4",
@@ -146,7 +174,7 @@ async def test_a_definition_from_another_workspace_cannot_be_updated(store) -> N
 async def test_executions_from_another_workspace_are_not_listed(store) -> None:
     created = await _create(store, workspace_id=WORKSPACE_A)
     await store.create_execution(
-        saved_report_id=created.id, run_id="saved-report-isolation-test", mode="preview",
+        workspace_id=WORKSPACE_A, saved_report_id=created.id, run_id="saved-report-isolation-test", mode="preview",
         resolved_period=(date(2026, 1, 1), date(2026, 1, 8)), formats=None,
     )
 
@@ -208,8 +236,6 @@ async def test_a_stale_expected_version_is_refused(store) -> None:
 
 @pytest.mark.asyncio
 async def test_updating_a_missing_definition_is_refused(store) -> None:
-    from uuid import uuid4
-
     with pytest.raises(SavedReportNotFoundError):
         await store.update(
             workspace_id=WORKSPACE_A, saved_report_id=uuid4(), expected_version=1, changes={"name": "x"},
@@ -252,13 +278,15 @@ async def test_an_execution_lifecycle_from_running_to_completed(store) -> None:
     created = await _create(store)
 
     execution = await store.create_execution(
-        saved_report_id=created.id, run_id="saved-report-lifecycle-test", mode="publish",
+        workspace_id=WORKSPACE_A, saved_report_id=created.id, run_id="saved-report-lifecycle-test", mode="publish",
         resolved_period=(date(2026, 1, 1), date(2026, 1, 8)), formats=["pdf"],
     )
     assert execution.status == "running"
     assert execution.completed_at is None
 
-    await store.finish_execution(run_id="saved-report-lifecycle-test", status="completed", error=None)
+    await store.finish_execution(
+        workspace_id=WORKSPACE_A, run_id="saved-report-lifecycle-test", status="completed", error=None,
+    )
 
     executions, total = await store.list_executions(
         workspace_id=WORKSPACE_A, saved_report_id=created.id, limit=30, offset=0,
@@ -275,12 +303,13 @@ async def test_an_execution_lifecycle_from_running_to_completed(store) -> None:
 async def test_a_failed_execution_records_its_error(store) -> None:
     created = await _create(store)
     await store.create_execution(
-        saved_report_id=created.id, run_id="saved-report-failure-test", mode="preview",
+        workspace_id=WORKSPACE_A, saved_report_id=created.id, run_id="saved-report-failure-test", mode="preview",
         resolved_period=None, formats=None,
     )
 
     await store.finish_execution(
-        run_id="saved-report-failure-test", status="failed", error="The compiled metric query failed to validate.",
+        workspace_id=WORKSPACE_A, run_id="saved-report-failure-test", status="failed",
+        error="The compiled metric query failed to validate.",
     )
 
     executions, _total = await store.list_executions(
@@ -294,11 +323,11 @@ async def test_a_failed_execution_records_its_error(store) -> None:
 async def test_execution_history_is_newest_first(store) -> None:
     created = await _create(store)
     await store.create_execution(
-        saved_report_id=created.id, run_id="saved-report-history-1", mode="preview",
+        workspace_id=WORKSPACE_A, saved_report_id=created.id, run_id="saved-report-history-1", mode="preview",
         resolved_period=None, formats=None,
     )
     await store.create_execution(
-        saved_report_id=created.id, run_id="saved-report-history-2", mode="preview",
+        workspace_id=WORKSPACE_A, saved_report_id=created.id, run_id="saved-report-history-2", mode="preview",
         resolved_period=None, formats=None,
     )
 

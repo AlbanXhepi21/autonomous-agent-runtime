@@ -1,6 +1,7 @@
 """Restricted Python analysis over one bounded runtime-managed dataset."""
 
 from typing import Any
+from uuid import UUID
 
 from app.analytics.semantics.datasets import AnalyticsDatasetStore
 from app.artifacts.store import ArtifactStore
@@ -36,9 +37,11 @@ class AnalyzeDatasetTool(Tool):
     def arguments_schema(self) -> dict[str, Any]:
         return {"type": "object", "properties": {"dataset_id": {"type": "string"}, "code": {"type": "string"}}, "required": ["dataset_id", "code"], "additionalProperties": False}
 
-    async def execute_for_run(self, *, run_id: str | None, **arguments: Any) -> dict[str, object]:
+    async def execute_for_run(self, *, run_id: str | None, workspace_id: str | None = None, **arguments: Any) -> dict[str, object]:
         if not run_id:
             raise ToolInputError("Dataset analysis requires an active run.")
+        if not workspace_id:
+            raise ToolInputError("Dataset analysis requires an authenticated workspace.")
         dataset = self._datasets.get(run_id=run_id, dataset_id=arguments["dataset_id"])
         if dataset is None:
             raise ToolInputError("Dataset reference is unavailable, expired, or exceeds Python analysis limits.")
@@ -50,7 +53,7 @@ class AnalyzeDatasetTool(Tool):
         artifacts = []
         for source_path in result.generated_files:
             try:
-                artifact = await self._artifact_store.register(run_id=run_id, source_path=source_path,
+                artifact = await self._artifact_store.register(workspace_id=UUID(workspace_id), run_id=run_id, source_path=source_path,
                     name=f"chart-{len(artifacts) + 1}.png", artifact_type="chart", media_type="image/png",
                     metadata={"source": "analytics_python", "dataset_id": arguments["dataset_id"]})
             except ValueError as error:

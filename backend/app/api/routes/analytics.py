@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.analytics.presentation.charts import ChartSpec
 from app.analytics.presentation.preview import ReportPreview, TemplateSuitabilityOverview
+from app.api.dependencies import require_csrf, require_permission
 from app.api.schemas.analytics import AnswerSource
 from app.api.schemas.analytics import (
     CreateRunRequest,
@@ -36,27 +37,54 @@ from app.orchestration.publishing import ReportPublisher, ReportPublishingError
 from app.orchestration.reruns import rerun_query_id
 from app.orchestration.run_manager import AgentRunManager
 from app.runtime.runner import AgentRunner
+from app.tenancy.context import TenantContext
+from app.tenancy.permissions import Permission
 
-router = APIRouter(prefix="/api/v1/analytics", tags=["analytics-workbench"])
+router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/analytics", tags=["analytics-workbench"])
 
 
-@router.post("/runs", response_model=CreateRunResponse, status_code=202)
-async def create_run(request: CreateRunRequest, runner: AgentRunner = Depends(get_agent_runner),
-                     manager: AgentRunManager = Depends(get_run_manager)) -> CreateRunResponse:
+async def _require_owned_run(store: ConversationStore, *, workspace_id, run_id: str) -> None:
+    """Verify a bare ``run_id`` belongs to the caller's workspace before using it.
+
+    A run still executing in-process (``manager.get(run_id)``) has not
+    necessarily reached the database yet in every code path, but every run
+    reachable through this router was created by ``AgentRunManager.create``,
+    which persists the owning conversation first -- so this check is always
+    meaningful by the time a caller could know the run ID.
+    """
+
+    if await store.get_run(workspace_id=workspace_id, run_id=run_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "unknown_run", "message": "Run not found."})
+
+
+@router.post("/runs", response_model=CreateRunResponse, status_code=202, dependencies=[Depends(require_csrf)])
+async def create_run(
+    request: CreateRunRequest,
+    context: TenantContext = Depends(require_permission(Permission.RUN_ANALYSES)),
+    runner: AgentRunner = Depends(get_agent_runner),
+    manager: AgentRunManager = Depends(get_run_manager),
+) -> CreateRunResponse:
     try:
-        run = await manager.create(request.message, request.conversation_id, runner)
+        run = await manager.create(request.message, request.conversation_id, runner, workspace_id=context.workspace.id)
     except (LookupError, ValueError):
         raise HTTPException(status_code=404, detail={"code": "unknown_conversation", "message": "Conversation not found."})
     return CreateRunResponse(run_id=run.run_id, conversation_id=run.conversation_id, status="running")
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)
-async def get_run(run_id: str, manager: AgentRunManager = Depends(get_run_manager), store: ConversationStore = Depends(get_conversation_store)) -> RunResponse:
+async def get_run(
+    run_id: str,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
+    manager: AgentRunManager = Depends(get_run_manager), store: ConversationStore = Depends(get_conversation_store),
+) -> RunResponse:
     run = manager.get(run_id)
-    if run is not None: return manager.response(run)
-    persisted = await store.get_run(run_id)
+    if run is not None:
+        if run.workspace_id != str(context.workspace.id):
+            raise HTTPException(status_code=404, detail={"code": "unknown_run", "message": "Run not found."})
+        return manager.response(run)
+    persisted = await store.get_run(workspace_id=context.workspace.id, run_id=run_id)
     if persisted is None: raise HTTPException(status_code=404, detail={"code": "unknown_run", "message": "Run not found."})
-    assistant_message = await store.get_assistant_message_for_run(run_id)
+    assistant_message = await store.get_assistant_message_for_run(workspace_id=context.workspace.id, run_id=run_id)
     return RunResponse(run_id=persisted.id, conversation_id=str(persisted.conversation_id), status=persisted.status,
                        created_at=persisted.created_at, started_at=persisted.started_at, finished_at=persisted.completed_at,
                        final_response=assistant_message.content if assistant_message else None, error=persisted.error,
@@ -67,12 +95,17 @@ async def get_run(run_id: str, manager: AgentRunManager = Depends(get_run_manage
 
 
 @router.get("/runs/{run_id}/events")
-async def stream_events(run_id: str, request: Request, last_event_id: str | None = Header(default=None),
-                        manager: AgentRunManager = Depends(get_run_manager), store: ConversationStore = Depends(get_conversation_store)) -> StreamingResponse:
+async def stream_events(
+    run_id: str, request: Request, last_event_id: str | None = Header(default=None),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
+    manager: AgentRunManager = Depends(get_run_manager), store: ConversationStore = Depends(get_conversation_store),
+) -> StreamingResponse:
     run = manager.get(run_id)
     if run is None:
-        if await store.get_run(run_id) is not None:
+        if await store.get_run(workspace_id=context.workspace.id, run_id=run_id) is not None:
             raise HTTPException(status_code=410, detail={"code": "trace_expired", "message": "The run is retained, but its live trace expired after the server restarted."})
+        raise HTTPException(status_code=404, detail={"code": "unknown_run", "message": "Run not found."})
+    if run.workspace_id != str(context.workspace.id):
         raise HTTPException(status_code=404, detail={"code": "unknown_run", "message": "Run not found."})
 
     async def generate():
@@ -96,17 +129,22 @@ async def stream_events(run_id: str, request: Request, last_event_id: str | None
 
 
 @router.get("/runs/{run_id}/events/history", response_model=PublicRunEventListResponse)
-async def get_event_history(run_id: str, manager: AgentRunManager = Depends(get_run_manager)) -> PublicRunEventListResponse:
+async def get_event_history(
+    run_id: str,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
+    manager: AgentRunManager = Depends(get_run_manager),
+) -> PublicRunEventListResponse:
     """Return the same safe public event projection used by SSE for an in-process run."""
     run = manager.get(run_id)
-    if run is None:
+    if run is None or run.workspace_id != str(context.workspace.id):
         raise HTTPException(status_code=404, detail={"code": "trace_unavailable", "message": "Trace is not available for this run."})
     return PublicRunEventListResponse(items=manager.events(run))
 
 
 @router.get("/runs/{run_id}/report-suitability", response_model=TemplateSuitabilityOverview)
 async def get_report_suitability(
-    run_id: str, publisher: ReportPublisher = Depends(get_report_publisher),
+    run_id: str, context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
+    publisher: ReportPublisher = Depends(get_report_publisher),
 ) -> TemplateSuitabilityOverview:
     """Score every template against a run's own displays, and recommend one.
 
@@ -117,14 +155,16 @@ async def get_report_suitability(
     """
 
     try:
-        return await publisher.suitability(run_id=run_id)
+        return await publisher.suitability(workspace_id=context.workspace.id, run_id=run_id)
     except ReportPublishingError as error:
         raise HTTPException(status_code=400, detail={"code": "report_not_available", "message": str(error)})
 
 
-@router.post("/runs/{run_id}/report-preview", response_model=ReportPreview)
+@router.post("/runs/{run_id}/report-preview", response_model=ReportPreview, dependencies=[Depends(require_csrf)])
 async def preview_report(
-    run_id: str, request: ReportPreviewRequest, publisher: ReportPublisher = Depends(get_report_publisher),
+    run_id: str, request: ReportPreviewRequest,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
+    publisher: ReportPublisher = Depends(get_report_publisher),
 ) -> ReportPreview:
     """Compile the exact canonical report a publish of the same request would produce.
 
@@ -135,8 +175,8 @@ async def preview_report(
 
     try:
         return await publisher.preview(
-            run_id=run_id, template_name=request.template, period=request.period, title=request.title,
-            metrics=list(request.metrics), narrative=request.narrative,
+            workspace_id=context.workspace.id, run_id=run_id, template_name=request.template, period=request.period,
+            title=request.title, metrics=list(request.metrics), narrative=request.narrative,
         )
     except ReportPublishingError as error:
         raise HTTPException(status_code=400, detail={"code": "report_not_previewable", "message": str(error)})
@@ -144,6 +184,7 @@ async def preview_report(
 
 @router.get("/report-templates", response_model=ReportTemplateListResponse)
 async def list_report_templates(
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     publisher: ReportPublisher = Depends(get_report_publisher),
 ) -> ReportTemplateListResponse:
     """Return the document shapes a completed run can be published into."""
@@ -163,6 +204,7 @@ async def list_report_templates(
 
 @router.get("/metrics", response_model=MetricListResponse)
 async def list_rerunnable_metrics(
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     registry: MetricRegistry = Depends(get_metric_registry),
 ) -> MetricListResponse:
     """Return the metrics a reader may recompute, and what each one accepts.
@@ -184,17 +226,18 @@ async def list_rerunnable_metrics(
     ])
 
 
-@router.post("/runs/{run_id}/reports", response_model=PublishReportResponse, status_code=201)
+@router.post("/runs/{run_id}/reports", response_model=PublishReportResponse, status_code=201, dependencies=[Depends(require_csrf)])
 async def publish_report(
     run_id: str, request: PublishReportRequest,
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     publisher: ReportPublisher = Depends(get_report_publisher),
 ) -> PublishReportResponse:
     """Assemble a completed run into documents. This never calls the model."""
 
     try:
         documents = await publisher.publish(
-            run_id=run_id, template_name=request.template, formats=list(request.formats),
-            period=request.period, title=request.title,
+            workspace_id=context.workspace.id, run_id=run_id, template_name=request.template,
+            formats=list(request.formats), period=request.period, title=request.title,
             metrics=list(request.metrics), narrative=request.narrative,
         )
     except ReportPublishingError as error:

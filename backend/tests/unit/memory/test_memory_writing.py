@@ -1,5 +1,7 @@
 """Tests for curated, policy-gated memory persistence after completed runs."""
 
+import uuid
+
 import pytest
 
 from app.memory import (
@@ -11,6 +13,8 @@ from app.memory import (
 )
 from app.memory.writing import MemoryWritingPipeline
 from app.runtime.state import AgentState
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 class StaticExtractor:
@@ -38,7 +42,9 @@ def candidate(
 
 async def capture(store: InMemoryMemoryStore, candidates: list[MemoryCandidate]) -> None:
     pipeline = MemoryWritingPipeline(MemoryManager(store), extractor=StaticExtractor(candidates))
-    await pipeline.capture_completed_run(AgentState(goal="goal", run_id="run-1", completed=True))
+    await pipeline.capture_completed_run(
+        AgentState(goal="goal", run_id="run-1", completed=True), workspace_id=WORKSPACE_ID
+    )
 
 
 @pytest.mark.asyncio
@@ -47,7 +53,7 @@ async def test_useful_candidate_is_accepted_as_long_term_memory() -> None:
 
     await capture(store, [candidate("The project uses FastAPI dependency injection for runtime services.")])
 
-    memories = await MemoryManager(store).get_memories(MemoryType.LONG_TERM)
+    memories = await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID)
     assert [memory.content for memory in memories] == [
         "The project uses FastAPI dependency injection for runtime services."
     ]
@@ -64,7 +70,7 @@ async def test_transient_observations_and_tool_status_are_rejected(content: str)
 
     await capture(store, [candidate(content)])
 
-    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM) == []
+    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID) == []
 
 
 @pytest.mark.asyncio
@@ -74,7 +80,7 @@ async def test_duplicate_normalized_content_is_skipped() -> None:
 
     await capture(store, [candidate("The API requires an account identifier for billing!")])
 
-    assert len(await MemoryManager(store).get_memories(MemoryType.LONG_TERM)) == 1
+    assert len(await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID)) == 1
 
 
 @pytest.mark.asyncio
@@ -86,7 +92,7 @@ async def test_episodic_candidate_is_created_with_source_run_id() -> None:
         memory_type=MemoryType.EPISODIC, category=MemoryCategory.RESOLVED_ISSUE,
     )])
 
-    memories = await MemoryManager(store).get_memories(MemoryType.EPISODIC)
+    memories = await MemoryManager(store).get_memories(MemoryType.EPISODIC, workspace_id=WORKSPACE_ID)
     assert memories[0].run_id == "run-1"
 
 
@@ -101,7 +107,7 @@ async def test_proposed_candidate_cannot_bypass_policy_or_persist_private_reason
         candidate("This contains private reasoning and must not become durable memory."),
     ])
 
-    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM) == []
+    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID) == []
 
 
 @pytest.mark.asyncio
@@ -110,10 +116,10 @@ async def test_extraction_failure_does_not_fail_completed_run() -> None:
     pipeline = MemoryWritingPipeline(MemoryManager(store), extractor=FailingExtractor())
     state = AgentState(goal="goal", run_id="run-1", completed=True)
 
-    await pipeline.capture_completed_run(state)
+    await pipeline.capture_completed_run(state, workspace_id=WORKSPACE_ID)
 
     assert state.completed
-    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM) == []
+    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID) == []
 
 
 @pytest.mark.asyncio
@@ -124,7 +130,7 @@ async def test_candidate_reason_is_not_persisted() -> None:
 
     await capture(store, [item])
 
-    stored = (await MemoryManager(store).get_memories(MemoryType.LONG_TERM))[0]
+    stored = (await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID))[0]
     assert "reason" not in stored.metadata
     assert "chain-of-thought" not in stored.model_dump_json()
 
@@ -137,4 +143,4 @@ async def test_candidate_cannot_claim_a_different_source_run() -> None:
 
     await capture(store, [item])
 
-    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM) == []
+    assert await MemoryManager(store).get_memories(MemoryType.LONG_TERM, workspace_id=WORKSPACE_ID) == []

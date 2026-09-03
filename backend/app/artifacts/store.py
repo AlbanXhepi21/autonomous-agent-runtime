@@ -8,6 +8,13 @@ unusable row rather than a download link to a partial file.
 The methods are asynchronous because the durable registry talks to PostgreSQL.
 The in-process implementation needs no I/O to satisfy them, but sharing one
 contract is what lets the provider swap without changing a caller.
+
+Every caller-facing method takes ``workspace_id`` first, matching the
+preferred repository pattern (``get_artifact(tenant_id, artifact_id)``).
+``claim_expired`` is the one deliberate exception: it is a background
+retention-worker sweep that must see every tenant's expired artifacts to do
+its job, not a caller-facing lookup -- the same reasoning
+``ScheduledReportStore.claim_due`` already documents for itself.
 """
 
 from __future__ import annotations
@@ -52,7 +59,7 @@ class ArtifactStore(ABC):
     """Persist and retrieve metadata-backed artifacts without exposing raw paths."""
 
     @abstractmethod
-    async def register(self, *, run_id: str, source_path: str, name: str | None = None,
+    async def register(self, *, workspace_id: UUID, run_id: str, source_path: str, name: str | None = None,
                        artifact_type: str = "file", media_type: str | None = None,
                        metadata: dict[str, object] | None = None,
                        output_format: str | None = None, template_id: str | None = None,
@@ -61,13 +68,29 @@ class ArtifactStore(ABC):
                        retention_policy: ArtifactRetentionPolicy = "standard") -> Artifact: ...
 
     @abstractmethod
-    async def get(self, artifact_id: str) -> Artifact | None: ...
+    async def get(self, *, workspace_id: UUID, artifact_id: str) -> Artifact | None: ...
 
     @abstractmethod
-    async def path_for(self, artifact_id: str) -> Path | None: ...
+    async def get_by_id(self, *, artifact_id: str) -> Artifact | None:
+        """Look up an artifact by ID alone, with no workspace filter.
+
+        A second deliberate exception to the "workspace_id first" rule this
+        module otherwise holds to, alongside ``claim_expired`` -- but for a
+        different reason: the artifact-serving route (``/artifacts/{id}``)
+        has no `{workspace_id}` in its own URL (delivery emails and webhooks
+        embed bare artifact links that must keep working without one), so it
+        cannot ask the scoped ``get`` for a workspace it doesn't know yet.
+        This exists to let that route discover which workspace an artifact
+        belongs to; the caller MUST independently verify the requester has
+        standing in that workspace before treating the result as authorized
+        -- this method grants no authorization by itself.
+        """
 
     @abstractmethod
-    async def list(self, *, run_id: str | None = None) -> list[Artifact]: ...
+    async def path_for(self, *, workspace_id: UUID, artifact_id: str) -> Path | None: ...
+
+    @abstractmethod
+    async def list(self, *, workspace_id: UUID, run_id: str | None = None) -> list[Artifact]: ...
 
     @abstractmethod
     async def claim_expired(
@@ -75,8 +98,9 @@ class ArtifactStore(ABC):
     ) -> list[Artifact]:
         """Atomically claim up to ``limit`` ready, expired, standard-policy artifacts.
 
-        Same safety property as ``ScheduledReportStore.claim_due``: safe for
-        any number of concurrent retention workers, and a claim older than
+        Deliberately cross-tenant -- see the module docstring. Same safety
+        property as ``ScheduledReportStore.claim_due``: safe for any number
+        of concurrent retention workers, and a claim older than
         ``stale_after`` is treated as abandoned and reclaimable.
         ``legal_hold`` and ``permanent`` artifacts are never returned,
         regardless of ``expires_at``. When ``max_attempts`` is given, an
@@ -86,7 +110,7 @@ class ArtifactStore(ABC):
         """
 
     @abstractmethod
-    async def mark_deleted(self, artifact_id: str) -> None:
+    async def mark_deleted(self, *, workspace_id: UUID, artifact_id: str) -> None:
         """Record that an artifact's bytes are gone, without erasing its row.
 
         The record survives as an audit trail -- name, size, hashes and
@@ -95,7 +119,7 @@ class ArtifactStore(ABC):
         """
 
     @abstractmethod
-    async def record_deletion_failure(self, artifact_id: str, error: str) -> None:
+    async def record_deletion_failure(self, *, workspace_id: UUID, artifact_id: str, error: str) -> None:
         """Release the claim, note the failure, and leave the row reclaimable."""
 
 
@@ -105,7 +129,7 @@ class BaseArtifactStore(ArtifactStore):
     def __init__(self, files: WorkspaceArtifactFiles) -> None:
         self._files = files
 
-    async def register(self, *, run_id: str, source_path: str, name: str | None = None,
+    async def register(self, *, workspace_id: UUID, run_id: str, source_path: str, name: str | None = None,
                        artifact_type: str = "file", media_type: str | None = None,
                        metadata: dict[str, object] | None = None,
                        output_format: str | None = None, template_id: str | None = None,
@@ -119,7 +143,8 @@ class BaseArtifactStore(ArtifactStore):
         key = storage_key(run_id=run_id, artifact_id=artifact_id, filename=filename)
 
         pending = Artifact(
-            id=artifact_id, name=filename, relative_path=key, artifact_type=artifact_type.strip() or "file",
+            id=artifact_id, workspace_id=workspace_id, name=filename, relative_path=key,
+            artifact_type=artifact_type.strip() or "file",
             media_type=media_type or mimetypes.guess_type(filename)[0] or "application/octet-stream",
             size=0, sha256="0" * 64, status=ArtifactStatus.PENDING, run_id=run_id,
             created_at=datetime.now(timezone.utc), output_format=output_format,
@@ -176,19 +201,33 @@ class WorkspaceArtifactStore(BaseArtifactStore):
         if existing is not None:
             self._artifacts[artifact_id] = existing.model_copy(update={"status": ArtifactStatus.FAILED})
 
-    async def get(self, artifact_id: str) -> Artifact | None:
+    async def get(self, *, workspace_id: UUID, artifact_id: str) -> Artifact | None:
         try:
             artifact = self._artifacts.get(validated_artifact_id(artifact_id))
         except ValueError:
             return None
-        return artifact if artifact and artifact.status is ArtifactStatus.READY else None
+        if artifact is None or artifact.status is not ArtifactStatus.READY or artifact.workspace_id != workspace_id:
+            return None
+        return artifact
 
-    async def path_for(self, artifact_id: str) -> Path | None:
-        artifact = await self.get(artifact_id)
+    async def get_by_id(self, *, artifact_id: str) -> Artifact | None:
+        try:
+            artifact = self._artifacts.get(validated_artifact_id(artifact_id))
+        except ValueError:
+            return None
+        if artifact is None or artifact.status is not ArtifactStatus.READY:
+            return None
+        return artifact
+
+    async def path_for(self, *, workspace_id: UUID, artifact_id: str) -> Path | None:
+        artifact = await self.get(workspace_id=workspace_id, artifact_id=artifact_id)
         return self._files.path(artifact.relative_path) if artifact else None
 
-    async def list(self, *, run_id: str | None = None) -> list[Artifact]:
-        items = [item for item in self._artifacts.values() if item.status is ArtifactStatus.READY]
+    async def list(self, *, workspace_id: UUID, run_id: str | None = None) -> list[Artifact]:
+        items = [
+            item for item in self._artifacts.values()
+            if item.status is ArtifactStatus.READY and item.workspace_id == workspace_id
+        ]
         if run_id is not None:
             items = [item for item in items if item.run_id == run_id]
         return sorted(items, key=lambda artifact: artifact.created_at, reverse=True)
@@ -211,18 +250,18 @@ class WorkspaceArtifactStore(BaseArtifactStore):
             self._artifacts[artifact.id] = artifact.model_copy(update={"deletion_claimed_at": now})
         return [self._artifacts[artifact.id] for artifact in claimed]
 
-    async def mark_deleted(self, artifact_id: str) -> None:
+    async def mark_deleted(self, *, workspace_id: UUID, artifact_id: str) -> None:
         existing = self._artifacts.get(artifact_id)
-        if existing is None:
+        if existing is None or existing.workspace_id != workspace_id:
             return
         self._artifacts[artifact_id] = existing.model_copy(update={
             "status": ArtifactStatus.DELETED, "deleted_at": datetime.now(timezone.utc),
             "deletion_claimed_at": None,
         })
 
-    async def record_deletion_failure(self, artifact_id: str, error: str) -> None:
+    async def record_deletion_failure(self, *, workspace_id: UUID, artifact_id: str, error: str) -> None:
         existing = self._artifacts.get(artifact_id)
-        if existing is None:
+        if existing is None or existing.workspace_id != workspace_id:
             return
         self._artifacts[artifact_id] = existing.model_copy(update={
             "deletion_attempts": existing.deletion_attempts + 1, "deletion_error": error,

@@ -3,8 +3,12 @@ import type { Approval } from "@/types/api";
 
 export type { Approval };
 
+const base = (workspaceId: string) => `/api/v1/workspaces/${workspaceId}`;
+
 export const approvalsApi = {
-  list: (runId: string) => request<Approval[]>(`/runs/${runId}/approvals`),
-  approve: (id: string) => request<Approval>(`/approvals/${id}/approve`, { method: "POST" }),
-  reject: (id: string) => request<Approval>(`/approvals/${id}/reject`, { method: "POST" }),
+  list: (workspaceId: string, runId: string) => request<Approval[]>(`${base(workspaceId)}/runs/${runId}/approvals`),
+  approve: (workspaceId: string, id: string) =>
+    request<Approval>(`${base(workspaceId)}/approvals/${id}/approve`, { method: "POST" }),
+  reject: (workspaceId: string, id: string) =>
+    request<Approval>(`${base(workspaceId)}/approvals/${id}/reject`, { method: "POST" }),
 };

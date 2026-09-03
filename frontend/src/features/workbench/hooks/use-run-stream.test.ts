@@ -17,7 +17,7 @@ function stubConnect() {
   let emit: (event: PublicRunEvent) => void = () => {};
   let drop: () => void = () => {};
   const close = vi.fn();
-  vi.mocked(analyticsApi.connect).mockImplementation((_runId, onEvent, onError) => {
+  vi.mocked(analyticsApi.connect).mockImplementation((_workspaceId, _runId, onEvent, onError) => {
     emit = onEvent;
     drop = onError;
     return { close } as unknown as EventSource;
@@ -42,7 +42,7 @@ describe("useRunStream", () => {
   it("collects events once each and reports completion", () => {
     const socket = stubConnect();
     const on = handlers();
-    const { result } = renderHook(() => useRunStream());
+    const { result } = renderHook(() => useRunStream("ws-1"));
 
     act(() => result.current.open("run-1", on));
     act(() => socket.emit(event("sql.query_started")));
@@ -56,7 +56,7 @@ describe("useRunStream", () => {
   it("treats a drop before any terminal event as needing a status check", () => {
     const socket = stubConnect();
     const on = handlers();
-    const { result } = renderHook(() => useRunStream());
+    const { result } = renderHook(() => useRunStream("ws-1"));
 
     act(() => result.current.open("run-1", on));
     act(() => socket.drop());
@@ -67,7 +67,7 @@ describe("useRunStream", () => {
   it("ignores a drop after a terminal event, which is the server closing a finished stream", () => {
     const socket = stubConnect();
     const on = handlers();
-    const { result } = renderHook(() => useRunStream());
+    const { result } = renderHook(() => useRunStream("ws-1"));
 
     act(() => result.current.open("run-1", on));
     act(() => socket.emit(event("run.completed")));
@@ -79,7 +79,7 @@ describe("useRunStream", () => {
   it("reports a failed run and closes the connection", () => {
     const socket = stubConnect();
     const on = handlers();
-    const { result } = renderHook(() => useRunStream());
+    const { result } = renderHook(() => useRunStream("ws-1"));
 
     act(() => result.current.open("run-1", on));
     act(() => socket.emit({ ...event("run.failed"), data: { error: "the query was rejected" } }));
@@ -91,7 +91,7 @@ describe("useRunStream", () => {
   it("forgets the terminal run on reset, so the next run checks its own drops", () => {
     const socket = stubConnect();
     const on = handlers();
-    const { result } = renderHook(() => useRunStream());
+    const { result } = renderHook(() => useRunStream("ws-1"));
 
     act(() => result.current.open("run-1", on));
     act(() => socket.emit(event("run.completed")));

@@ -1,14 +1,17 @@
 """Scheduled report persistence and claiming, against a real database.
 
 Skips when TEST_DATABASE_URL is unset, like the other database tests. Rows
-are scoped to workspaces named ``test-scheduled-reports-*`` and purged on the
-way in and out.
+are scoped to two workspaces minted fresh (via ``uuid4()``) for this run,
+whose rows are inserted into the real ``workspaces`` table -- both
+``saved_reports.workspace_id`` and ``scheduled_reports.workspace_id`` carry a
+foreign key to it -- and purged, children first, on the way in and out.
 """
 
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from uuid import UUID, uuid4
 
 import pytest
 from pytest_asyncio import fixture
@@ -16,7 +19,12 @@ from sqlalchemy import delete, select
 
 pytest.importorskip("sqlalchemy")
 
-from app.db.records import SavedReportExecutionRecord, SavedReportRecord, ScheduledReportRecord
+from app.db.records import (
+    SavedReportExecutionRecord,
+    SavedReportRecord,
+    ScheduledReportRecord,
+    WorkspaceRecord,
+)
 from app.db.session import Database
 from app.reports.contracts import RelativePeriod, SavedMetricRequest
 from app.reports.store import PostgresSavedReportStore
@@ -26,8 +34,25 @@ from app.scheduling.store import PostgresScheduledReportStore, ScheduledReportNo
 pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
-WORKSPACE_A = "test-scheduled-reports-a"
-WORKSPACE_B = "test-scheduled-reports-b"
+WORKSPACE_A: UUID = uuid4()
+WORKSPACE_B: UUID = uuid4()
+
+
+async def _insert_workspaces() -> None:
+    database = Database(TEST_DATABASE_URL or "")
+    try:
+        stamp = datetime.now(timezone.utc)
+        async with database.session() as session, session.begin():
+            for workspace_id, suffix in ((WORKSPACE_A, "a"), (WORKSPACE_B, "b")):
+                session.add(WorkspaceRecord(
+                    id=workspace_id, name=f"Scheduled Report Store Test Workspace {suffix.upper()}",
+                    slug=f"test-scheduled-reports-{suffix}-{workspace_id.hex[:12]}",
+                    logo_ref=None, is_active=True, default_timezone="UTC",
+                    default_locale="en-US", default_currency="USD",
+                    created_at=stamp, updated_at=stamp,
+                ))
+    finally:
+        await database.dispose()
 
 
 async def _purge() -> None:
@@ -50,6 +75,12 @@ async def _purge() -> None:
             await session.execute(
                 delete(SavedReportRecord).where(SavedReportRecord.workspace_id.in_([WORKSPACE_A, WORKSPACE_B]))
             )
+            # Parent last: both saved_reports.workspace_id and
+            # scheduled_reports.workspace_id foreign-key to workspaces, so the
+            # minted rows can only go once every child row is gone.
+            await session.execute(
+                delete(WorkspaceRecord).where(WorkspaceRecord.id.in_([WORKSPACE_A, WORKSPACE_B]))
+            )
     finally:
         await database.dispose()
 
@@ -58,7 +89,8 @@ async def _purge() -> None:
 async def rig():
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not configured")
-    await _purge()
+    await _purge()  # defensive: clears anything a previously crashed run left behind
+    await _insert_workspaces()
     database = Database(TEST_DATABASE_URL)
     try:
         yield PostgresSavedReportStore(database), PostgresScheduledReportStore(database)
@@ -67,7 +99,7 @@ async def rig():
         await _purge()
 
 
-async def _saved_report(reports, *, workspace_id: str = WORKSPACE_A):
+async def _saved_report(reports, *, workspace_id: UUID = WORKSPACE_A):
     return await reports.create(
         workspace_id=workspace_id, owner=None, name="Scheduled Source", description=None,
         template_id="analysis_summary", template_version="4",
@@ -77,7 +109,7 @@ async def _saved_report(reports, *, workspace_id: str = WORKSPACE_A):
     )
 
 
-async def _schedule(schedules, saved_report_id, *, workspace_id: str = WORKSPACE_A, next_run_at=None):
+async def _schedule(schedules, saved_report_id, *, workspace_id: UUID = WORKSPACE_A, next_run_at=None):
     return await schedules.create(
         saved_report_id=saved_report_id, workspace_id=workspace_id,
         schedule=ScheduleConfig(kind="daily", hour=6, minute=0), timezone="UTC", formats=["pdf"],
@@ -207,11 +239,12 @@ async def test_record_run_result_completed_resets_consecutive_failures(rig) -> N
     saved = await _saved_report(reports)
     created = await _schedule(schedules, saved.id)
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="failed", next_run_at=None,
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id,
+        ran_at=datetime.now(UTC), result="failed", next_run_at=None,
     )
 
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="completed",
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="completed",
         next_run_at=datetime.now(UTC) + timedelta(days=1),
     )
 
@@ -227,10 +260,12 @@ async def test_record_run_result_failed_increments_consecutive_failures(rig) -> 
     created = await _schedule(schedules, saved.id)
 
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="failed", next_run_at=None,
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id,
+        ran_at=datetime.now(UTC), result="failed", next_run_at=None,
     )
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="failed", next_run_at=None,
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id,
+        ran_at=datetime.now(UTC), result="failed", next_run_at=None,
     )
 
     after = await schedules.get(workspace_id=WORKSPACE_A, scheduled_report_id=created.id)
@@ -243,11 +278,13 @@ async def test_record_run_result_skipped_does_not_change_consecutive_failures(ri
     saved = await _saved_report(reports)
     created = await _schedule(schedules, saved.id)
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="failed", next_run_at=None,
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id,
+        ran_at=datetime.now(UTC), result="failed", next_run_at=None,
     )
 
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="skipped", next_run_at=None,
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id,
+        ran_at=datetime.now(UTC), result="skipped", next_run_at=None,
     )
 
     after = await schedules.get(workspace_id=WORKSPACE_A, scheduled_report_id=created.id)
@@ -262,7 +299,7 @@ async def test_record_run_result_releases_the_claim(rig) -> None:
     await schedules.claim_due(now=datetime.now(UTC), stale_after=timedelta(minutes=15), limit=10)
 
     await schedules.record_run_result(
-        scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="completed",
+        workspace_id=WORKSPACE_A, scheduled_report_id=created.id, ran_at=datetime.now(UTC), result="completed",
         next_run_at=datetime.now(UTC) + timedelta(days=1),
     )
 

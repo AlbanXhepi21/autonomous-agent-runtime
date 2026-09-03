@@ -3,6 +3,7 @@
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -36,6 +37,7 @@ class Artifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=64)
+    workspace_id: UUID
     name: str = Field(min_length=1, max_length=255)
     #: Provider-independent location, relative to the artifact area. Never an
     #: absolute path: the same key must resolve on another machine, and later

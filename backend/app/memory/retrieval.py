@@ -4,6 +4,7 @@ import re
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -19,6 +20,7 @@ _TYPE_WEIGHT = {MemoryType.LONG_TERM: 3, MemoryType.EPISODIC: 2, MemoryType.WORK
 class MemoryRetrievalRequest(BaseModel):
     """Constraints for selecting a small, explainable set of memories."""
 
+    workspace_id: UUID
     query: str = Field(min_length=1)
     memory_types: tuple[MemoryType, ...] = (MemoryType.EPISODIC, MemoryType.LONG_TERM)
     session_id: str | None = None
@@ -71,8 +73,9 @@ class MemoryRetriever:
         memories: list[Memory] = []
         for memory_type in request.memory_types:
             # Fetching the basic type candidate set lets the retriever include global
-            # records for a session while excluding records from every other session.
-            memories.extend(await self._store.list_memories(memory_type=memory_type))
+            # records for a session while excluding records from every other session --
+            # bounded to one workspace first, so a cross-tenant scan never happens.
+            memories.extend(await self._store.list_memories(workspace_id=request.workspace_id, memory_type=memory_type))
         return [
             memory
             for memory in memories

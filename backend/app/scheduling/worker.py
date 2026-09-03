@@ -49,7 +49,7 @@ class DeliveryDispatcher(Protocol):
     something can attempt one.
     """
 
-    async def deliver(self, *, artifact_id: str, channel: str, destination: str) -> object: ...
+    async def deliver(self, *, workspace_id: UUID, artifact_id: str, channel: str, destination: str) -> object: ...
 
 
 _DEFAULT_RETRY_POLICY = RetryPolicy({
@@ -126,12 +126,12 @@ class SchedulerWorker:
             latency_ms = int((time.monotonic() - started) * 1000)
             artifact_ids = [artifact.id for artifact in result.artifacts]
             await self._saved_reports.create_execution(
-                saved_report_id=definition.id, run_id=result.run_id, mode="publish",
-                resolved_period=(result.resolved.period.start, result.resolved.period.end),
+                workspace_id=schedule.workspace_id, saved_report_id=definition.id, run_id=result.run_id,
+                mode="publish", resolved_period=(result.resolved.period.start, result.resolved.period.end),
                 formats=schedule.formats, scheduled_report_id=schedule.id, retry_count=attempt - 1,
             )
             await self._saved_reports.finish_execution(
-                run_id=result.run_id, status="completed", error=None,
+                workspace_id=schedule.workspace_id, run_id=result.run_id, status="completed", error=None,
                 usage_metadata={"latency_ms": latency_ms, "artifact_count": len(result.artifacts)},
                 artifact_ids=artifact_ids,
             )
@@ -147,12 +147,13 @@ class SchedulerWorker:
         assert last_error is not None
         failed_run_id = f"scheduled-failed-{schedule.id}-{now.timestamp()}"
         await self._saved_reports.create_execution(
-            saved_report_id=definition.id, run_id=failed_run_id, mode="publish",
-            resolved_period=None, formats=schedule.formats,
+            workspace_id=schedule.workspace_id, saved_report_id=definition.id, run_id=failed_run_id,
+            mode="publish", resolved_period=None, formats=schedule.formats,
             scheduled_report_id=schedule.id, retry_count=attempt - 1,
         )
         await self._saved_reports.finish_execution(
-            run_id=failed_run_id, status="failed", error=safe_error_message(last_error),
+            workspace_id=schedule.workspace_id, run_id=failed_run_id, status="failed",
+            error=safe_error_message(last_error),
             error_category=FailureCategory.SCHEDULED_REPORT_FAILURE.value,
         )
         await self._reschedule(schedule, now=now, result="failed")
@@ -165,7 +166,7 @@ class SchedulerWorker:
         for artifact_id in artifact_ids:
             try:
                 await self._delivery.deliver(
-                    artifact_id=artifact_id, channel=schedule.delivery_channel,
+                    workspace_id=schedule.workspace_id, artifact_id=artifact_id, channel=schedule.delivery_channel,
                     destination=schedule.delivery_destination,
                 )
             except Exception as error:  # noqa: BLE001 - a delivery failure must not fail the schedule
@@ -178,5 +179,6 @@ class SchedulerWorker:
     ) -> None:
         next_run_at = compute_next_run(schedule.schedule, tz_name=schedule.timezone, after=now)
         await self._schedules.record_run_result(
-            scheduled_report_id=schedule.id, ran_at=now, result=result, next_run_at=next_run_at,
+            workspace_id=schedule.workspace_id, scheduled_report_id=schedule.id, ran_at=now,
+            result=result, next_run_at=next_run_at,
         )

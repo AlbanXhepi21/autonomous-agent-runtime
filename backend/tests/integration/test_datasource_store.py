@@ -1,13 +1,20 @@
 """Data source connection and catalog persistence, against a real database.
 
 Skips when TEST_DATABASE_URL is unset, like the other database tests. Rows
-are scoped to workspaces named ``test-datasources-*`` and purged on the way
-in and out.
+are scoped to two dedicated, freshly minted workspaces (one per side of the
+isolation tests below) and purged on the way in and out. ``data_sources.
+workspace_id`` carries a real foreign key to ``workspaces``, so each run
+mints its own workspace rows -- keyed by a fixed slug, not this run's
+randomly generated id, so a previous run's leftovers (e.g. from a crash
+before teardown) are found and removed before this run inserts its own,
+rather than colliding with them on the slug's unique constraint.
 """
 
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 import pytest
 from pytest_asyncio import fixture
@@ -24,37 +31,86 @@ from app.datasources.store import (
     DataSourceTableNotFoundError,
     PostgresDataSourceStore,
 )
-from app.db.records import DataSourceColumnRecord, DataSourceRecord, DataSourceRelationshipRecord, DataSourceTableRecord
+from app.db.records import (
+    DataSourceColumnRecord,
+    DataSourceRecord,
+    DataSourceRelationshipRecord,
+    DataSourceTableRecord,
+    WorkspaceRecord,
+)
 from app.db.session import Database
 
 pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
-WORKSPACE_A = "test-datasources-a"
-WORKSPACE_B = "test-datasources-b"
+WORKSPACE_SLUG_A = "test-datasources-a"
+WORKSPACE_SLUG_B = "test-datasources-b"
+#: Freshly minted every run -- these are real rows inserted into (and
+#: removed from) ``workspaces`` by the ``store`` fixture below, satisfying
+#: ``data_sources.workspace_id``'s foreign key.
+WORKSPACE_A: UUID = uuid4()
+WORKSPACE_B: UUID = uuid4()
+
+
+def _workspace_record(workspace_id: UUID, slug: str) -> WorkspaceRecord:
+    stamp = datetime.now(timezone.utc)
+    return WorkspaceRecord(
+        id=workspace_id, name=f"Test Workspace ({slug})", slug=slug, logo_ref=None, is_active=True,
+        default_timezone="UTC", default_locale="en-US", default_currency="USD",
+        created_at=stamp, updated_at=stamp,
+    )
+
+
+async def _purge_data_sources(session, workspace_ids: list[UUID]) -> None:
+    if not workspace_ids:
+        return
+    source_ids = (await session.scalars(
+        select(DataSourceRecord.id).where(DataSourceRecord.workspace_id.in_(workspace_ids))
+    )).all()
+    if source_ids:
+        await session.execute(
+            delete(DataSourceRelationshipRecord).where(DataSourceRelationshipRecord.data_source_id.in_(source_ids))
+        )
+        table_ids = (await session.scalars(
+            select(DataSourceTableRecord.id).where(DataSourceTableRecord.data_source_id.in_(source_ids))
+        )).all()
+        if table_ids:
+            await session.execute(
+                delete(DataSourceColumnRecord).where(DataSourceColumnRecord.data_source_table_id.in_(table_ids))
+            )
+        await session.execute(delete(DataSourceTableRecord).where(DataSourceTableRecord.data_source_id.in_(source_ids)))
+    await session.execute(delete(DataSourceRecord).where(DataSourceRecord.workspace_id.in_(workspace_ids)))
 
 
 async def _purge() -> None:
+    """Remove every row this suite could own, including a stale workspace
+    left behind by a run that crashed before teardown -- found by the fixed
+    test slugs so it is cleaned up regardless of which random id it carries.
+    """
+
     database = Database(TEST_DATABASE_URL or "")
     try:
         async with database.session() as session:
             async with session.begin():
-                source_ids = (await session.scalars(
-                    select(DataSourceRecord.id).where(DataSourceRecord.workspace_id.in_([WORKSPACE_A, WORKSPACE_B]))
+                stale_ids = (await session.scalars(
+                    select(WorkspaceRecord.id).where(WorkspaceRecord.slug.in_([WORKSPACE_SLUG_A, WORKSPACE_SLUG_B]))
                 )).all()
-                if source_ids:
-                    await session.execute(
-                        delete(DataSourceRelationshipRecord).where(DataSourceRelationshipRecord.data_source_id.in_(source_ids))
-                    )
-                    table_ids = (await session.scalars(
-                        select(DataSourceTableRecord.id).where(DataSourceTableRecord.data_source_id.in_(source_ids))
-                    )).all()
-                    if table_ids:
-                        await session.execute(
-                            delete(DataSourceColumnRecord).where(DataSourceColumnRecord.data_source_table_id.in_(table_ids))
-                        )
-                    await session.execute(delete(DataSourceTableRecord).where(DataSourceTableRecord.data_source_id.in_(source_ids)))
-                await session.execute(delete(DataSourceRecord).where(DataSourceRecord.workspace_id.in_([WORKSPACE_A, WORKSPACE_B])))
+                workspace_ids = list({*stale_ids, WORKSPACE_A, WORKSPACE_B})
+                await _purge_data_sources(session, workspace_ids)
+                await session.execute(delete(WorkspaceRecord).where(WorkspaceRecord.id.in_(workspace_ids)))
+    finally:
+        await database.dispose()
+
+
+async def _seed_workspaces() -> None:
+    database = Database(TEST_DATABASE_URL or "")
+    try:
+        async with database.session() as session:
+            async with session.begin():
+                session.add_all([
+                    _workspace_record(WORKSPACE_A, WORKSPACE_SLUG_A),
+                    _workspace_record(WORKSPACE_B, WORKSPACE_SLUG_B),
+                ])
     finally:
         await database.dispose()
 
@@ -64,6 +120,7 @@ async def store():
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not configured")
     await _purge()
+    await _seed_workspaces()
     database = Database(TEST_DATABASE_URL)
     try:
         yield PostgresDataSourceStore(database)
@@ -78,7 +135,7 @@ def _config(**overrides) -> DataSourceConnectionConfig:
     return DataSourceConnectionConfig(**fields)
 
 
-async def _connection(store: DataSourceStore, *, workspace_id: str = WORKSPACE_A, **overrides):
+async def _connection(store: DataSourceStore, *, workspace_id: UUID = WORKSPACE_A, **overrides):
     return await store.create_connection(
         workspace_id=workspace_id, name=overrides.pop("name", "Primary Analytics"),
         config=overrides.pop("config", _config()), encrypted_password=overrides.pop("encrypted_password", "ciphertext"),

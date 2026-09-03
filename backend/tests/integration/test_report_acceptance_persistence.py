@@ -15,6 +15,7 @@ import os
 import zipfile
 from hashlib import sha256
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from docx import Document
@@ -34,11 +35,15 @@ from app.db.session import Database
 from app.environment.workspace import Workspace
 from app.orchestration.publishing import ReportPublisher
 from tests.fixtures.payment_failures import PERIOD, RUN_ID, conversation_store
+from tests.support import make_artifact_route_caller
 
 pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 TEMPLATE = "monthly_business_review"
+#: The legacy workspace seeded by migration 20260903_0016 -- always present,
+#: so single-tenant tests can use it as a valid FK target without minting rows.
+WORKSPACE_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 class Deployment:
@@ -104,7 +109,7 @@ async def test_both_artifacts_are_still_downloadable_after_a_restart(workspace_r
     # 1. Generate both artifacts.
     original = Deployment(workspace_root)
     published = await original.publisher().publish(
-        run_id=RUN_ID, template_name=TEMPLATE, formats=["pdf", "docx"], period=PERIOD,
+        workspace_id=WORKSPACE_ID, run_id=RUN_ID, template_name=TEMPLATE, formats=["pdf", "docx"], period=PERIOD,
     )
 
     # 2. Record what was issued.
@@ -129,18 +134,21 @@ async def test_both_artifacts_are_still_downloadable_after_a_restart(workspace_r
         store = restarted.store()
 
         # 5. Download both again, through the ordinary endpoint.
-        listed = await list_artifacts(run_id=RUN_ID, artifact_store=store)
+        user, tenancy = make_artifact_route_caller(workspace_id=WORKSPACE_ID)
+        listed = await list_artifacts(
+            workspace_id=WORKSPACE_ID, run_id=RUN_ID, user=user, artifact_store=store, tenancy=tenancy,
+        )
         assert {item.artifact_id for item in listed} == {
             entry["id"] for entry in recorded.values()
         }
 
         for document_format, entry in recorded.items():
-            record = await store.get(entry["id"])
+            record = await store.get(workspace_id=WORKSPACE_ID, artifact_id=entry["id"])
             assert record is not None, f"the {document_format} record did not survive"
             assert record.status is ArtifactStatus.READY
             assert record.relative_path == entry["key"]
 
-            response = await download_artifact(entry["id"], store)
+            response = await download_artifact(entry["id"], user, store, tenancy)
             assert response.media_type == entry["media_type"]
             assert response.filename == entry["name"]
 
@@ -171,7 +179,7 @@ async def test_a_download_link_survives_being_read_by_several_later_deployments(
 
     original = Deployment(workspace_root)
     published = await original.publisher().publish(
-        run_id=RUN_ID, template_name=TEMPLATE, formats=["pdf"], period=PERIOD,
+        workspace_id=WORKSPACE_ID, run_id=RUN_ID, template_name=TEMPLATE, formats=["pdf"], period=PERIOD,
     )
     artifact_id, expected = published[0].id, published[0].sha256
     await original.shut_down()
@@ -179,7 +187,7 @@ async def test_a_download_link_survives_being_read_by_several_later_deployments(
     for _ in range(3):
         deployment = Deployment(workspace_root)
         try:
-            path = await deployment.store().path_for(artifact_id)
+            path = await deployment.store().path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact_id)
             assert path is not None
             assert digest_of(path).sha256 == expected
         finally:
@@ -194,10 +202,10 @@ async def test_a_missing_file_is_refused_rather_than_served_empty(workspace_root
 
     original = Deployment(workspace_root)
     published = await original.publisher().publish(
-        run_id=RUN_ID, template_name=TEMPLATE, formats=["pdf"], period=PERIOD,
+        workspace_id=WORKSPACE_ID, run_id=RUN_ID, template_name=TEMPLATE, formats=["pdf"], period=PERIOD,
     )
     artifact_id = published[0].id
-    path = await original.store().path_for(artifact_id)
+    path = await original.store().path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact_id)
     assert path is not None
     path.unlink()
     await original.shut_down()
@@ -206,10 +214,11 @@ async def test_a_missing_file_is_refused_rather_than_served_empty(workspace_root
     try:
         store = restarted.store()
         # The record survives, so the loss is visible rather than silent.
-        assert await store.get(artifact_id) is not None
-        assert await store.path_for(artifact_id) is None
+        assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact_id) is not None
+        assert await store.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact_id) is None
+        user, tenancy = make_artifact_route_caller(workspace_id=WORKSPACE_ID)
         with pytest.raises(HTTPException) as refused:
-            await download_artifact(artifact_id, store)
+            await download_artifact(artifact_id, user, store, tenancy)
         assert refused.value.status_code == 404
     finally:
         await restarted.shut_down()

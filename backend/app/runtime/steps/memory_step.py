@@ -7,6 +7,7 @@ run usable rather than ending it.
 
 import logging
 from time import perf_counter
+from uuid import UUID
 
 from app.contracts.runs import CompletedRun
 from app.core.logging import log_event, safe_error_message
@@ -35,10 +36,14 @@ class MemoryStep:
         self._trace_recorder = trace_recorder
         self._logger = logging.getLogger(__name__)
 
-    async def retrieve(self, goal: str, *, run_id: str, session_id: str | None) -> list[Memory]:
-        """Retrieve once per run; a failure leaves the run usable with no history."""
+    async def retrieve(self, goal: str, *, run_id: str, workspace_id: str | None, session_id: str | None) -> list[Memory]:
+        """Retrieve once per run; a failure leaves the run usable with no history.
 
-        if self._retriever is None:
+        No workspace means no tenant to scope a durable-memory read against,
+        so this returns nothing rather than reading unscoped.
+        """
+
+        if self._retriever is None or workspace_id is None:
             return []
         log_event(self._logger, logging.INFO, "memory_retrieval_started", run_id=run_id)
         span = self._trace_recorder.start_span(
@@ -47,7 +52,7 @@ class MemoryStep:
         started_at = perf_counter()
         try:
             result = await self._retriever.retrieve(
-                MemoryRetrievalRequest(query=goal, session_id=session_id)
+                MemoryRetrievalRequest(workspace_id=UUID(workspace_id), query=goal, session_id=session_id)
             )
         except Exception as error:
             self._trace_recorder.finish_span(
@@ -83,34 +88,38 @@ class MemoryStep:
                 )
         return result.memories
 
-    async def record_goal(self, goal: str, *, run_id: str) -> None:
+    async def record_goal(self, goal: str, *, run_id: str, workspace_id: str | None) -> None:
         """Keep the submitted goal as run-local working memory."""
 
-        if self._manager is None:
+        if self._manager is None or workspace_id is None:
             return
-        await self._manager.add_working_memory(goal, run_id=run_id, metadata={"kind": "task_goal"})
+        await self._manager.add_working_memory(
+            goal, workspace_id=UUID(workspace_id), run_id=run_id, metadata={"kind": "task_goal"},
+        )
 
-    async def working(self, run_id: str) -> list[Memory]:
+    async def working(self, run_id: str, *, workspace_id: str | None) -> list[Memory]:
         """Read explicit working memory without exposing store details to context."""
 
-        if self._manager is None:
+        if self._manager is None or workspace_id is None:
             return []
-        return await self._manager.get_memories(MemoryType.WORKING, run_id=run_id)
+        return await self._manager.get_memories(MemoryType.WORKING, workspace_id=UUID(workspace_id), run_id=run_id)
 
-    async def capture(self, state: CompletedRun, *, session_id: str | None) -> None:
+    async def capture(self, state: CompletedRun, *, workspace_id: str | None, session_id: str | None) -> None:
         """Offer a completed run to the curated writing pipeline."""
 
         if self._writer is None:
             return
-        await self._writer.capture_completed_run(state, session_id=session_id)
+        await self._writer.capture_completed_run(
+            state, workspace_id=UUID(workspace_id) if workspace_id is not None else None, session_id=session_id,
+        )
 
-    async def clear(self, run_id: str) -> None:
+    async def clear(self, run_id: str, *, workspace_id: str | None) -> None:
         """Best-effort cleanup that must not change the agent run result."""
 
-        if self._manager is None:
+        if self._manager is None or workspace_id is None:
             return
         try:
-            await self._manager.clear_working_memory(run_id)
+            await self._manager.clear_working_memory(workspace_id=UUID(workspace_id), run_id=run_id)
         except Exception as error:
             log_event(
                 self._logger, logging.WARNING, "working_memory_cleanup_failed", run_id=run_id,

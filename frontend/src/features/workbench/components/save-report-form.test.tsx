@@ -5,6 +5,7 @@ import { savedReportsApi } from "@/lib/api/saved-reports";
 import { ApiError } from "@/lib/api/client";
 import type { MetricParameters } from "@/types/analytics";
 import type { SavedReport } from "@/types/saved-reports";
+import { WorkspaceIdProvider } from "@/features/workbench/workspace-context";
 
 vi.mock("@/lib/api/saved-reports", () => ({
   savedReportsApi: { create: vi.fn() },
@@ -43,7 +44,11 @@ describe("SaveReportForm", () => {
   });
 
   it("explains why saving is unavailable when no metrics have been chosen", () => {
-    render(<SaveReportForm runId="run-1" template="analysis_summary" metrics={[]} narrativeText="" />);
+    render(
+      <WorkspaceIdProvider workspaceId="ws-1">
+        <SaveReportForm runId="run-1" template="analysis_summary" metrics={[]} narrativeText="" />
+      </WorkspaceIdProvider>,
+    );
 
     expect(screen.getByText(/Choose one or more metrics to recompute/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save as report…" })).not.toBeInTheDocument();
@@ -51,7 +56,14 @@ describe("SaveReportForm", () => {
 
   const openForm = () => {
     render(
-      <SaveReportForm runId="run-1" template="analysis_summary" metrics={METRICS} narrativeText="" />,
+      <WorkspaceIdProvider workspaceId="ws-1">
+        <SaveReportForm
+          runId="run-1"
+          template="analysis_summary"
+          metrics={METRICS}
+          narrativeText=""
+        />
+      </WorkspaceIdProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Save as report…" }));
   };
@@ -72,8 +84,8 @@ describe("SaveReportForm", () => {
 
     await waitFor(() =>
       expect(savedReportsApi.create).toHaveBeenCalledWith(
+        "ws-1",
         expect.objectContaining({
-          workspace_id: "default",
           name: "Weekly Revenue",
           template_id: "analysis_summary",
           metric_requests: [{ metric: "revenue", dimensions: [], filters: [], grain: "month" }],
@@ -99,6 +111,7 @@ describe("SaveReportForm", () => {
 
     await waitFor(() =>
       expect(savedReportsApi.create).toHaveBeenCalledWith(
+        "ws-1",
         expect.objectContaining({
           default_period: { kind: "fixed", start: "2026-01-01", end: "2026-04-01" },
         }),
@@ -109,19 +122,19 @@ describe("SaveReportForm", () => {
   it("only allows reusing the original narrative when there is one to reuse", () => {
     openForm();
 
-    expect(
-      screen.getByRole("radio", { name: /Reuse this analysis's prose/ }),
-    ).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Reuse this analysis's prose/ })).toBeDisabled();
   });
 
   it("lets a real narrative be seeded once typed", async () => {
     render(
-      <SaveReportForm
-        runId="run-1"
-        template="analysis_summary"
-        metrics={METRICS}
-        narrativeText="Revenue grew 18% this period."
-      />,
+      <WorkspaceIdProvider workspaceId="ws-1">
+        <SaveReportForm
+          runId="run-1"
+          template="analysis_summary"
+          metrics={METRICS}
+          narrativeText="Revenue grew 18% this period."
+        />
+      </WorkspaceIdProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Save as report…" }));
     fireEvent.change(screen.getByPlaceholderText("Weekly revenue"), { target: { value: "Q1" } });
@@ -130,6 +143,7 @@ describe("SaveReportForm", () => {
 
     await waitFor(() =>
       expect(savedReportsApi.create).toHaveBeenCalledWith(
+        "ws-1",
         expect.objectContaining({
           narrative_policy: "include_original",
           seed_run_id: "run-1",
@@ -140,7 +154,9 @@ describe("SaveReportForm", () => {
   });
 
   it("reports a failure instead of a silent no-op", async () => {
-    vi.mocked(savedReportsApi.create).mockRejectedValue(new ApiError("The saved report could not be created."));
+    vi.mocked(savedReportsApi.create).mockRejectedValue(
+      new ApiError("The saved report could not be created."),
+    );
     openForm();
 
     fireEvent.change(screen.getByPlaceholderText("Weekly revenue"), { target: { value: "Q1" } });

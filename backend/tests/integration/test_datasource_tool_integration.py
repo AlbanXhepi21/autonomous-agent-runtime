@@ -97,7 +97,7 @@ def _column(name: str, *, excluded: bool = False, sensitivity: str = "internal")
 async def runtime(restricted_role):
     url, role_name, password = restricted_role
     connection = DataSourceConnection(
-        id=uuid.uuid4(), workspace_id="test-datasources-tools", name="Tools connection",
+        id=uuid.uuid4(), workspace_id=uuid.uuid4(), name="Tools connection",
         config=DataSourceConnectionConfig(
             host=url.host or "localhost", port=url.port or 5432, database=url.database,
             username=role_name, allowed_schemas=["public"], ssl_mode="require",

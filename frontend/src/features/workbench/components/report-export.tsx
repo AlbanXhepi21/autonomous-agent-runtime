@@ -8,6 +8,7 @@ import { ReportPreviewPanel } from "@/features/workbench/components/report-previ
 import { ReportRefresh } from "@/features/workbench/components/report-refresh";
 import { SaveReportForm } from "@/features/workbench/components/save-report-form";
 import { reportRequestPayload } from "@/features/workbench/report-request";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 import type {
   DocumentFormat,
   MetricParameters,
@@ -38,6 +39,7 @@ export function ReportExport({
   narrativeText?: string;
   onReportSaved?: (id: string) => void;
 }) {
+  const workspaceId = useWorkspaceId();
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [suitability, setSuitability] = useState<TemplateSuitabilityOverview | null>(null);
@@ -53,7 +55,7 @@ export function ReportExport({
 
   useEffect(() => {
     if (!open || templates.length) return;
-    void Promise.all([analyticsApi.reportTemplates(), analyticsApi.reportSuitability(runId)])
+    void Promise.all([analyticsApi.reportTemplates(workspaceId), analyticsApi.reportSuitability(workspaceId, runId)])
       .then(([templateBody, suitabilityBody]) => {
         setTemplates(templateBody.items);
         setSuitability(suitabilityBody);
@@ -62,7 +64,7 @@ export function ReportExport({
         );
       })
       .catch(() => setError("Report templates are unavailable."));
-  }, [open, runId, templates.length]);
+  }, [open, runId, templates.length, workspaceId]);
 
   const selected = templates.find((item) => item.name === template);
   const currentSuitability = suitability?.items.find((item) => item.template_name === template);
@@ -75,7 +77,7 @@ export function ReportExport({
     setDocuments([]);
     setNotice(null);
     try {
-      const result = await analyticsApi.publishReport(runId, {
+      const result = await analyticsApi.publishReport(workspaceId, runId, {
         ...reportRequestPayload({ template, period, metrics, narrative }),
         formats,
       });

@@ -14,36 +14,44 @@ import type {
   TemplateSuitabilityOverview,
 } from "@/types/analytics";
 
+const base = (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/analytics`;
+
 export const analyticsApi = {
-  createRun: (payload: CreateRunRequest) =>
-    request<CreateRunResponse>("/api/v1/analytics/runs", {
+  createRun: (workspaceId: string, payload: CreateRunRequest) =>
+    request<CreateRunResponse>(`${base(workspaceId)}/runs`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getRun: (runId: string) => request<AnalystRun>(`/api/v1/analytics/runs/${runId}`),
-  reportTemplates: () => request<{ items: ReportTemplate[] }>("/api/v1/analytics/report-templates"),
-  rerunMetrics: () => request<{ items: RerunMetric[] }>("/api/v1/analytics/metrics"),
-  reportSuitability: (runId: string) =>
-    request<TemplateSuitabilityOverview>(`/api/v1/analytics/runs/${runId}/report-suitability`),
-  previewReport: (runId: string, payload: ReportPreviewRequest) =>
-    request<ReportPreview>(`/api/v1/analytics/runs/${runId}/report-preview`, {
+  getRun: (workspaceId: string, runId: string) => request<AnalystRun>(`${base(workspaceId)}/runs/${runId}`),
+  reportTemplates: (workspaceId: string) =>
+    request<{ items: ReportTemplate[] }>(`${base(workspaceId)}/report-templates`),
+  rerunMetrics: (workspaceId: string) => request<{ items: RerunMetric[] }>(`${base(workspaceId)}/metrics`),
+  reportSuitability: (workspaceId: string, runId: string) =>
+    request<TemplateSuitabilityOverview>(`${base(workspaceId)}/runs/${runId}/report-suitability`),
+  previewReport: (workspaceId: string, runId: string, payload: ReportPreviewRequest) =>
+    request<ReportPreview>(`${base(workspaceId)}/runs/${runId}/report-preview`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  publishReport: (runId: string, payload: PublishReportRequest) =>
-    request<PublishReportResponse>(`/api/v1/analytics/runs/${runId}/reports`, {
+  publishReport: (workspaceId: string, runId: string, payload: PublishReportRequest) =>
+    request<PublishReportResponse>(`${base(workspaceId)}/runs/${runId}/reports`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getEvents: (runId: string) =>
-    request<{ items: PublicRunEvent[] }>(`/api/v1/analytics/runs/${runId}/events/history`),
-  streamUrl: (runId: string) => eventUrl(`/api/v1/analytics/runs/${runId}/events`),
+  getEvents: (workspaceId: string, runId: string) =>
+    request<{ items: PublicRunEvent[] }>(`${base(workspaceId)}/runs/${runId}/events/history`),
+  streamUrl: (workspaceId: string, runId: string) => eventUrl(`${base(workspaceId)}/runs/${runId}/events`),
   connect(
+    workspaceId: string,
     runId: string,
     onEvent: (event: PublicRunEvent) => void,
     onError: () => void,
   ): EventSource {
-    const source = new EventSource(analyticsApi.streamUrl(runId));
+    // withCredentials: the frontend and backend are different origins in
+    // dev (same host, different port), and EventSource does not attach
+    // cookies cross-origin unless told to -- without this, the session
+    // cookie required by `require_permission` never reaches the request.
+    const source = new EventSource(analyticsApi.streamUrl(workspaceId, runId), { withCredentials: true });
     for (const type of PUBLIC_RUN_EVENT_TYPES)
       source.addEventListener(type, (message) =>
         onEvent(JSON.parse((message as MessageEvent<string>).data) as PublicRunEvent),

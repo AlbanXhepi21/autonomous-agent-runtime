@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,7 +23,17 @@ class PostgresArtifactStore(BaseArtifactStore):
         super().__init__(files)
         self._database = database
 
-    async def get(self, artifact_id: str) -> Artifact | None:
+    async def get(self, *, workspace_id: UUID, artifact_id: str) -> Artifact | None:
+        try:
+            identifier = validated_artifact_id(artifact_id)
+        except ValueError:
+            return None
+        record = await self._read(identifier)
+        if record is None or record.status != ArtifactStatus.READY.value or record.workspace_id != workspace_id:
+            return None
+        return artifact_from_record(record)
+
+    async def get_by_id(self, *, artifact_id: str) -> Artifact | None:
         try:
             identifier = validated_artifact_id(artifact_id)
         except ValueError:
@@ -32,12 +43,14 @@ class PostgresArtifactStore(BaseArtifactStore):
             return None
         return artifact_from_record(record)
 
-    async def path_for(self, artifact_id: str) -> Path | None:
-        artifact = await self.get(artifact_id)
+    async def path_for(self, *, workspace_id: UUID, artifact_id: str) -> Path | None:
+        artifact = await self.get(workspace_id=workspace_id, artifact_id=artifact_id)
         return self._files.path(artifact.relative_path) if artifact else None
 
-    async def list(self, *, run_id: str | None = None) -> list[Artifact]:
-        statement = select(ArtifactRecord).where(ArtifactRecord.status == ArtifactStatus.READY.value)
+    async def list(self, *, workspace_id: UUID, run_id: str | None = None) -> list[Artifact]:
+        statement = select(ArtifactRecord).where(
+            ArtifactRecord.status == ArtifactStatus.READY.value, ArtifactRecord.workspace_id == workspace_id,
+        )
         if run_id is not None:
             statement = statement.where(ArtifactRecord.run_id == run_id)
         statement = statement.order_by(ArtifactRecord.created_at.desc(), ArtifactRecord.id.desc())
@@ -128,12 +141,12 @@ class PostgresArtifactStore(BaseArtifactStore):
             raise RuntimeError("Artifact storage operation failed") from error
         return [artifact_from_record(record) for record in records]
 
-    async def mark_deleted(self, artifact_id: str) -> None:
+    async def mark_deleted(self, *, workspace_id: UUID, artifact_id: str) -> None:
         try:
             async with self._database.session() as session:
                 async with session.begin():
                     record = await session.get(ArtifactRecord, artifact_id)
-                    if record is None:
+                    if record is None or record.workspace_id != workspace_id:
                         return
                     record.status = ArtifactStatus.DELETED.value
                     record.deleted_at = datetime.now(timezone.utc)
@@ -141,12 +154,12 @@ class PostgresArtifactStore(BaseArtifactStore):
         except SQLAlchemyError as error:
             raise RuntimeError("Artifact storage operation failed") from error
 
-    async def record_deletion_failure(self, artifact_id: str, error: str) -> None:
+    async def record_deletion_failure(self, *, workspace_id: UUID, artifact_id: str, error: str) -> None:
         try:
             async with self._database.session() as session:
                 async with session.begin():
                     record = await session.get(ArtifactRecord, artifact_id)
-                    if record is None:
+                    if record is None or record.workspace_id != workspace_id:
                         return
                     record.deletion_attempts += 1
                     record.deletion_error = error
@@ -159,7 +172,7 @@ def record_from_artifact(artifact: Artifact) -> ArtifactRecord:
     """Map a contract onto its row. Public so a backfill can write one directly."""
 
     return ArtifactRecord(
-        id=artifact.id, run_id=artifact.run_id, name=artifact.name,
+        id=artifact.id, workspace_id=artifact.workspace_id, run_id=artifact.run_id, name=artifact.name,
         storage_key=artifact.relative_path, artifact_type=artifact.artifact_type,
         media_type=artifact.media_type, size=artifact.size, sha256=artifact.sha256,
         status=artifact.status.value, output_format=artifact.output_format,
@@ -173,7 +186,7 @@ def record_from_artifact(artifact: Artifact) -> ArtifactRecord:
 
 def artifact_from_record(record: ArtifactRecord) -> Artifact:
     return Artifact(
-        id=record.id, name=record.name, relative_path=record.storage_key,
+        id=record.id, workspace_id=record.workspace_id, name=record.name, relative_path=record.storage_key,
         artifact_type=record.artifact_type, media_type=record.media_type, size=record.size,
         sha256=record.sha256, status=ArtifactStatus(record.status), run_id=record.run_id,
         created_at=record.created_at, output_format=record.output_format,

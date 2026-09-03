@@ -11,6 +11,7 @@ Skips when TEST_DATABASE_URL is unset, like the other database tests.
 from __future__ import annotations
 
 import os
+from uuid import UUID
 
 import pytest
 from pytest_asyncio import fixture
@@ -26,6 +27,9 @@ pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 ARTIFACT_ID = "test-delivery-store-artifact"
+#: The legacy workspace seeded by migration 20260903_0016 -- always present,
+#: so single-tenant tests can use it as a valid FK target without minting rows.
+WORKSPACE_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 async def _purge() -> None:
@@ -54,7 +58,9 @@ async def store():
 async def test_create_succeeds_for_an_artifact_id_with_no_backing_row(store) -> None:
     """No foreign key: the artifact may live in an in-memory store, not this database."""
 
-    record = await store.create(artifact_id=ARTIFACT_ID, channel="webhook", destination="https://example.com/hook")
+    record = await store.create(
+        workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, channel="webhook", destination="https://example.com/hook",
+    )
 
     assert record.artifact_id == ARTIFACT_ID
     assert record.status == "pending"
@@ -63,13 +69,15 @@ async def test_create_succeeds_for_an_artifact_id_with_no_backing_row(store) -> 
 
 @pytest.mark.asyncio
 async def test_record_attempt_increments_attempt_count_and_updates_status(store) -> None:
-    created = await store.create(artifact_id=ARTIFACT_ID, channel="link", destination="n/a")
+    created = await store.create(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, channel="link", destination="n/a")
 
     first = await store.record_attempt(
-        delivery_id=created.id, status="failed", provider_metadata={"status_code": 503}, failure_reason="down",
+        workspace_id=WORKSPACE_ID, delivery_id=created.id, status="failed",
+        provider_metadata={"status_code": 503}, failure_reason="down",
     )
     second = await store.record_attempt(
-        delivery_id=created.id, status="sent", provider_metadata={"status_code": 200}, failure_reason=None,
+        workspace_id=WORKSPACE_ID, delivery_id=created.id, status="sent",
+        provider_metadata={"status_code": 200}, failure_reason=None,
     )
 
     assert first.attempt_count == 1 and first.status == "failed"
@@ -78,13 +86,14 @@ async def test_record_attempt_increments_attempt_count_and_updates_status(store)
 
 @pytest.mark.asyncio
 async def test_get_and_list_reflect_the_latest_state(store) -> None:
-    created = await store.create(artifact_id=ARTIFACT_ID, channel="email", destination="a@b.com")
+    created = await store.create(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, channel="email", destination="a@b.com")
     await store.record_attempt(
-        delivery_id=created.id, status="sent", provider_metadata={"link": "https://x"}, failure_reason=None,
+        workspace_id=WORKSPACE_ID, delivery_id=created.id, status="sent",
+        provider_metadata={"link": "https://x"}, failure_reason=None,
     )
 
-    fetched = await store.get(created.id)
-    listed = await store.list(artifact_id=ARTIFACT_ID)
+    fetched = await store.get(workspace_id=WORKSPACE_ID, delivery_id=created.id)
+    listed = await store.list(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID)
 
     assert fetched is not None and fetched.status == "sent"
     assert len(listed) == 1 and listed[0].id == created.id
@@ -92,13 +101,13 @@ async def test_get_and_list_reflect_the_latest_state(store) -> None:
 
 @pytest.mark.asyncio
 async def test_list_can_filter_by_status(store) -> None:
-    sent = await store.create(artifact_id=ARTIFACT_ID, channel="link", destination="n/a")
-    await store.record_attempt(delivery_id=sent.id, status="sent", provider_metadata={}, failure_reason=None)
-    failed = await store.create(artifact_id=ARTIFACT_ID, channel="webhook", destination="https://example.com")
-    await store.record_attempt(delivery_id=failed.id, status="failed", provider_metadata={}, failure_reason="timeout")
+    sent = await store.create(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, channel="link", destination="n/a")
+    await store.record_attempt(workspace_id=WORKSPACE_ID, delivery_id=sent.id, status="sent", provider_metadata={}, failure_reason=None)
+    failed = await store.create(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, channel="webhook", destination="https://example.com")
+    await store.record_attempt(workspace_id=WORKSPACE_ID, delivery_id=failed.id, status="failed", provider_metadata={}, failure_reason="timeout")
 
-    sent_only = await store.list(artifact_id=ARTIFACT_ID, status="sent")
-    failed_only = await store.list(artifact_id=ARTIFACT_ID, status="failed")
+    sent_only = await store.list(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, status="sent")
+    failed_only = await store.list(workspace_id=WORKSPACE_ID, artifact_id=ARTIFACT_ID, status="failed")
 
     assert [item.id for item in sent_only] == [sent.id]
     assert [item.id for item in failed_only] == [failed.id]

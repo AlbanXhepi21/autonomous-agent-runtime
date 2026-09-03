@@ -10,6 +10,7 @@ either way.
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 from app.artifacts.store import ArtifactStore
 from app.core.logging import log_event
@@ -42,15 +43,19 @@ class DeliveryService:
         self._retry_policy = retry_policy or _DEFAULT_RETRY_POLICY
         self._sleep = sleep
 
-    async def deliver(self, *, artifact_id: str, channel: DeliveryChannel, destination: str) -> DeliveryRecord:
-        artifact = await self._artifacts.get(artifact_id)
+    async def deliver(
+        self, *, workspace_id: UUID, artifact_id: str, channel: DeliveryChannel, destination: str,
+    ) -> DeliveryRecord:
+        artifact = await self._artifacts.get(workspace_id=workspace_id, artifact_id=artifact_id)
         if artifact is None:
             raise DeliveryError(f"Artifact {artifact_id} is not ready for delivery.")
         provider = self._providers.get(channel)
         if provider is None:
             raise DeliveryError(f"{channel} delivery is not configured on this server.")
 
-        record = await self._store.create(artifact_id=artifact_id, channel=channel, destination=destination)
+        record = await self._store.create(
+            workspace_id=workspace_id, artifact_id=artifact_id, channel=channel, destination=destination,
+        )
 
         attempt = 0
         while True:
@@ -60,7 +65,7 @@ class DeliveryService:
                 log_event(_logger, logging.INFO, "artifact_delivered", artifact_id=artifact_id,
                           channel=channel, attempt=attempt)
                 return await self._store.record_attempt(
-                    delivery_id=record.id, status="sent",
+                    workspace_id=workspace_id, delivery_id=record.id, status="sent",
                     provider_metadata=result.provider_metadata, failure_reason=None,
                 )
 
@@ -68,7 +73,7 @@ class DeliveryService:
             # reflects how many times a destination was actually contacted --
             # not just whether the final one succeeded.
             outcome = await self._store.record_attempt(
-                delivery_id=record.id, status="failed",
+                workspace_id=workspace_id, delivery_id=record.id, status="failed",
                 provider_metadata=result.provider_metadata, failure_reason=result.failure_reason,
             )
             failure = RuntimeFailure(

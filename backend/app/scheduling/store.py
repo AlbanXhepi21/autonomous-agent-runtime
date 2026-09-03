@@ -44,22 +44,22 @@ class ScheduledReportStore:
     """Persistence contract for scheduled reports and their due-claim queue."""
 
     async def create(
-        self, *, saved_report_id: UUID, workspace_id: str, schedule: ScheduleConfig, timezone: str,
+        self, *, saved_report_id: UUID, workspace_id: UUID, schedule: ScheduleConfig, timezone: str,
         formats: list[str], delivery_channel: str | None, delivery_destination: str | None,
         next_run_at: datetime,
     ) -> ScheduledReportDefinition:
         raise NotImplementedError
 
-    async def get(self, *, workspace_id: str, scheduled_report_id: UUID) -> ScheduledReportDefinition | None:
+    async def get(self, *, workspace_id: UUID, scheduled_report_id: UUID) -> ScheduledReportDefinition | None:
         raise NotImplementedError
 
     async def list(
-        self, *, workspace_id: str, enabled: bool | None, limit: int, offset: int,
+        self, *, workspace_id: UUID, enabled: bool | None, limit: int, offset: int,
     ) -> tuple[list[ScheduledReportDefinition], int]:
         raise NotImplementedError
 
     async def update(
-        self, *, workspace_id: str, scheduled_report_id: UUID, changes: dict[str, Any],
+        self, *, workspace_id: UUID, scheduled_report_id: UUID, changes: dict[str, Any],
     ) -> ScheduledReportDefinition:
         raise NotImplementedError
 
@@ -68,7 +68,10 @@ class ScheduledReportStore:
     ) -> list[ScheduledReportDefinition]:
         """Atomically claim up to ``limit`` due, unclaimed schedules.
 
-        Safe for any number of concurrent workers polling the same table: the
+        Deliberately cross-tenant -- this is a background worker sweep across
+        every workspace's due schedules, not a caller-facing lookup, the same
+        reasoning ``ArtifactStore.claim_expired`` documents for itself. Safe
+        for any number of concurrent workers polling the same table: the
         candidate rows are locked with ``SELECT ... FOR UPDATE SKIP LOCKED``
         inside one transaction, so two workers racing this call can never both
         select the same row -- one gets it, the other's ``SKIP LOCKED``
@@ -85,7 +88,8 @@ class ScheduledReportStore:
         raise NotImplementedError
 
     async def record_run_result(
-        self, *, scheduled_report_id: UUID, ran_at: datetime, result: str, next_run_at: datetime | None,
+        self, *, workspace_id: UUID, scheduled_report_id: UUID, ran_at: datetime, result: str,
+        next_run_at: datetime | None,
     ) -> None:
         """Release a claim and record what the run produced.
 
@@ -93,6 +97,9 @@ class ScheduledReportStore:
         Consecutive failures resets to zero on a completed run, increments on
         a failed one, and is left unchanged for a skip (no run was actually
         attempted, so it is neither a success nor a failure streak entry).
+        The scheduler worker already holds the schedule it claimed (with its
+        own ``workspace_id``) from ``claim_due``, so this is a direct check
+        rather than a join.
         """
 
         raise NotImplementedError
@@ -103,7 +110,7 @@ class PostgresScheduledReportStore(ScheduledReportStore):
         self._database = database
 
     async def create(
-        self, *, saved_report_id: UUID, workspace_id: str, schedule: ScheduleConfig, timezone: str,
+        self, *, saved_report_id: UUID, workspace_id: UUID, schedule: ScheduleConfig, timezone: str,
         formats: list[str], delivery_channel: str | None, delivery_destination: str | None,
         next_run_at: datetime,
     ) -> ScheduledReportDefinition:
@@ -120,7 +127,7 @@ class PostgresScheduledReportStore(ScheduledReportStore):
                 session.add(record)
         return _to_domain(record)
 
-    async def get(self, *, workspace_id: str, scheduled_report_id: UUID) -> ScheduledReportDefinition | None:
+    async def get(self, *, workspace_id: UUID, scheduled_report_id: UUID) -> ScheduledReportDefinition | None:
         async with self._database.session() as session:
             record = await session.get(ScheduledReportRecord, scheduled_report_id)
         if record is None or record.workspace_id != workspace_id:
@@ -128,7 +135,7 @@ class PostgresScheduledReportStore(ScheduledReportStore):
         return _to_domain(record)
 
     async def list(
-        self, *, workspace_id: str, enabled: bool | None, limit: int, offset: int,
+        self, *, workspace_id: UUID, enabled: bool | None, limit: int, offset: int,
     ) -> tuple[list[ScheduledReportDefinition], int]:
         async with self._database.session() as session:
             query = select(ScheduledReportRecord).where(ScheduledReportRecord.workspace_id == workspace_id)
@@ -141,7 +148,7 @@ class PostgresScheduledReportStore(ScheduledReportStore):
         return [_to_domain(record) for record in records], total
 
     async def update(
-        self, *, workspace_id: str, scheduled_report_id: UUID, changes: dict[str, Any],
+        self, *, workspace_id: UUID, scheduled_report_id: UUID, changes: dict[str, Any],
     ) -> ScheduledReportDefinition:
         async with self._database.session() as session:
             async with session.begin():
@@ -194,12 +201,13 @@ class PostgresScheduledReportStore(ScheduledReportStore):
         return [_to_domain(record) for record in records]
 
     async def record_run_result(
-        self, *, scheduled_report_id: UUID, ran_at: datetime, result: str, next_run_at: datetime | None,
+        self, *, workspace_id: UUID, scheduled_report_id: UUID, ran_at: datetime, result: str,
+        next_run_at: datetime | None,
     ) -> None:
         async with self._database.session() as session:
             async with session.begin():
                 record = await session.get(ScheduledReportRecord, scheduled_report_id)
-                if record is None:
+                if record is None or record.workspace_id != workspace_id:
                     return
                 record.last_run_at = ran_at
                 record.last_result = result

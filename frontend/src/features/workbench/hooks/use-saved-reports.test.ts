@@ -51,7 +51,12 @@ function detail(overrides: Partial<SavedReport> = {}): SavedReport {
 describe("useSavedReports", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(savedReportsApi.list).mockResolvedValue({ items: [summary()], total: 1, limit: 10, offset: 0 });
+    vi.mocked(savedReportsApi.list).mockResolvedValue({
+      items: [summary()],
+      total: 1,
+      limit: 10,
+      offset: 0,
+    });
     vi.mocked(savedReportsApi.get).mockResolvedValue(detail());
     vi.mocked(savedReportsApi.resolvedParameters).mockResolvedValue({
       resolved_period_start: "2026-01-01",
@@ -62,24 +67,29 @@ describe("useSavedReports", () => {
       current_template_version: "4",
       template_version_matches_pin: true,
     });
-    vi.mocked(savedReportsApi.executions).mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+    vi.mocked(savedReportsApi.executions).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    });
   });
 
   it("loads the active list by default", async () => {
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
 
     await act(async () => {
       await result.current.load();
     });
 
-    expect(savedReportsApi.list).toHaveBeenCalledWith("active", 10, 0);
+    expect(savedReportsApi.list).toHaveBeenCalledWith("ws-1", "active", 10, 0);
     expect(result.current.items).toEqual([summary()]);
     expect(result.current.total).toBe(1);
   });
 
   it("reports a failure instead of a silent no-op when listing fails", async () => {
     vi.mocked(savedReportsApi.list).mockRejectedValue(new Error("network down"));
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
 
     await act(async () => {
       await result.current.load();
@@ -89,21 +99,21 @@ describe("useSavedReports", () => {
   });
 
   it("selecting a report fetches its detail, resolved parameters and executions together", async () => {
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
 
     await act(async () => {
       await result.current.select("report-1");
     });
 
-    expect(savedReportsApi.get).toHaveBeenCalledWith("report-1");
-    expect(savedReportsApi.resolvedParameters).toHaveBeenCalledWith("report-1");
-    expect(savedReportsApi.executions).toHaveBeenCalledWith("report-1");
+    expect(savedReportsApi.get).toHaveBeenCalledWith("ws-1", "report-1");
+    expect(savedReportsApi.resolvedParameters).toHaveBeenCalledWith("ws-1", "report-1");
+    expect(savedReportsApi.executions).toHaveBeenCalledWith("ws-1", "report-1");
     expect(result.current.detail?.id).toBe("report-1");
     expect(result.current.resolvedParameters?.template_version_matches_pin).toBe(true);
   });
 
   it("close clears the selection and every piece of loaded detail", async () => {
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
     await act(async () => {
       await result.current.select("report-1");
     });
@@ -116,12 +126,13 @@ describe("useSavedReports", () => {
   });
 
   it("create adds the new report to the front of the list", async () => {
-    vi.mocked(savedReportsApi.create).mockResolvedValue(detail({ id: "report-2", name: "New One" }));
-    const { result } = renderHook(() => useSavedReports());
+    vi.mocked(savedReportsApi.create).mockResolvedValue(
+      detail({ id: "report-2", name: "New One" }),
+    );
+    const { result } = renderHook(() => useSavedReports("ws-1"));
 
     await act(async () => {
       await result.current.create({
-        workspace_id: "default",
         name: "New One",
         template_id: "analysis_summary",
         metric_requests: [{ metric: "revenue", grain: "month" }],
@@ -136,7 +147,7 @@ describe("useSavedReports", () => {
 
   it("update sends the currently selected report's version as expected_version", async () => {
     vi.mocked(savedReportsApi.update).mockResolvedValue(detail({ name: "Renamed", version: 2 }));
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
     await act(async () => {
       await result.current.select("report-1");
     });
@@ -145,7 +156,7 @@ describe("useSavedReports", () => {
       await result.current.update({ name: "Renamed" });
     });
 
-    expect(savedReportsApi.update).toHaveBeenCalledWith("report-1", {
+    expect(savedReportsApi.update).toHaveBeenCalledWith("ws-1", "report-1", {
       expected_version: 1,
       name: "Renamed",
     });
@@ -154,7 +165,7 @@ describe("useSavedReports", () => {
 
   it("a version conflict on update surfaces a specific, actionable message", async () => {
     vi.mocked(savedReportsApi.update).mockRejectedValue(new ApiError("conflict", 409));
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
     await act(async () => {
       await result.current.select("report-1");
     });
@@ -167,8 +178,10 @@ describe("useSavedReports", () => {
   });
 
   it("archive removes the report from the list and clears its slot", async () => {
-    vi.mocked(savedReportsApi.archive).mockResolvedValue(detail({ status: "archived", version: 2 }));
-    const { result } = renderHook(() => useSavedReports());
+    vi.mocked(savedReportsApi.archive).mockResolvedValue(
+      detail({ status: "archived", version: 2 }),
+    );
+    const { result } = renderHook(() => useSavedReports("ws-1"));
     await act(async () => {
       await result.current.select("report-1");
     });
@@ -178,7 +191,7 @@ describe("useSavedReports", () => {
       await result.current.archive();
     });
 
-    expect(savedReportsApi.archive).toHaveBeenCalledWith("report-1", { expected_version: 1 });
+    expect(savedReportsApi.archive).toHaveBeenCalledWith("ws-1", "report-1", { expected_version: 1 });
     expect(result.current.detail?.status).toBe("archived");
   });
 
@@ -193,18 +206,34 @@ describe("useSavedReports", () => {
       preview: null,
       documents: [],
     });
-    vi.mocked(savedReportsApi.executions).mockResolvedValueOnce({
-      items: [], total: 0, limit: 20, offset: 0,
-    }).mockResolvedValueOnce({
-      items: [{
-        id: "exec-1", run_id: "saved-report-run-1", mode: "preview", status: "completed",
-        resolved_period_start: "2026-01-01", resolved_period_end: "2026-01-31",
-        formats: null, error: null, created_at: "2026-01-01T00:00:00Z", completed_at: "2026-01-01T00:00:01Z",
-        artifacts: [],
-      }],
-      total: 1, limit: 20, offset: 0,
-    });
-    const { result } = renderHook(() => useSavedReports());
+    vi.mocked(savedReportsApi.executions)
+      .mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        limit: 20,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "exec-1",
+            run_id: "saved-report-run-1",
+            mode: "preview",
+            status: "completed",
+            resolved_period_start: "2026-01-01",
+            resolved_period_end: "2026-01-31",
+            formats: null,
+            error: null,
+            created_at: "2026-01-01T00:00:00Z",
+            completed_at: "2026-01-01T00:00:01Z",
+            artifacts: [],
+          },
+        ],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      });
+    const { result } = renderHook(() => useSavedReports("ws-1"));
     await act(async () => {
       await result.current.select("report-1");
     });
@@ -213,13 +242,16 @@ describe("useSavedReports", () => {
       await result.current.execute("preview");
     });
 
-    expect(savedReportsApi.execute).toHaveBeenCalledWith("report-1", { mode: "preview", formats: ["pdf"] });
+    expect(savedReportsApi.execute).toHaveBeenCalledWith("ws-1", "report-1", {
+      mode: "preview",
+      formats: ["pdf"],
+    });
     await waitFor(() => expect(result.current.executions).toHaveLength(1));
     expect(result.current.lastResult?.run_id).toBe("saved-report-run-1");
   });
 
   it("execute without a selected report is a no-op", async () => {
-    const { result } = renderHook(() => useSavedReports());
+    const { result } = renderHook(() => useSavedReports("ws-1"));
 
     const outcome = await act(async () => result.current.execute("preview"));
 

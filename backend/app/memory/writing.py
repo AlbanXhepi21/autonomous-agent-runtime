@@ -5,6 +5,7 @@ import re
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Any, Protocol
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -127,10 +128,17 @@ class MemoryWritingPipeline:
         self._policy = policy or MemoryPolicy()
         self._logger = logging.getLogger(__name__)
 
-    async def capture_completed_run(self, state: CompletedRun, *, session_id: str | None = None) -> None:
-        """Best-effort curation; failure must never change a completed run result."""
+    async def capture_completed_run(
+        self, state: CompletedRun, *, workspace_id: UUID | None, session_id: str | None = None,
+    ) -> None:
+        """Best-effort curation; failure must never change a completed run result.
 
-        if not state.completed:
+        A ``None`` workspace (an unauthenticated/ad hoc run) skips persistence
+        entirely, the same "no tenant, no durable memory" rule the runtime
+        applies everywhere else memory is written.
+        """
+
+        if not state.completed or workspace_id is None:
             return
         try:
             candidates = await self._extractor.extract(state)
@@ -148,14 +156,14 @@ class MemoryWritingPipeline:
                 )
                 continue
             try:
-                await self._consider(candidate, session_id=session_id)
+                await self._consider(candidate, workspace_id=workspace_id, session_id=session_id)
             except Exception as error:
                 log_event(
                     self._logger, logging.WARNING, "memory_candidate_rejected", run_id=candidate.source_run_id,
                     reason="persistence_failed", error_type=type(error).__name__, error=safe_error_message(error),
                 )
 
-    async def _consider(self, candidate: MemoryCandidate, *, session_id: str | None) -> None:
+    async def _consider(self, candidate: MemoryCandidate, *, workspace_id: UUID, session_id: str | None) -> None:
         log_event(
             self._logger, logging.INFO, "memory_candidate_created", run_id=candidate.source_run_id,
             memory_type=candidate.memory_type, category=candidate.category, confidence=candidate.confidence,
@@ -166,7 +174,7 @@ class MemoryWritingPipeline:
                 memory_type=candidate.memory_type, category=candidate.category, reason=reason,
             )
             return
-        if await self._is_duplicate(candidate):
+        if await self._is_duplicate(candidate, workspace_id=workspace_id):
             log_event(
                 self._logger, logging.INFO, "memory_duplicate_skipped", run_id=candidate.source_run_id,
                 memory_type=candidate.memory_type, category=candidate.category,
@@ -180,20 +188,21 @@ class MemoryWritingPipeline:
         metadata = {**candidate.metadata, "category": candidate.category}
         if candidate.memory_type is MemoryType.EPISODIC:
             memory = await self._manager.add_episodic_memory(
-                candidate.content, run_id=candidate.source_run_id, session_id=session_id, metadata=metadata,
+                candidate.content, workspace_id=workspace_id, run_id=candidate.source_run_id,
+                session_id=session_id, metadata=metadata,
             )
         else:
             memory = await self._manager.add_long_term_memory(
-                candidate.content, session_id=session_id, metadata=metadata,
+                candidate.content, workspace_id=workspace_id, session_id=session_id, metadata=metadata,
             )
         log_event(
             self._logger, logging.INFO, "memory_persisted", run_id=candidate.source_run_id,
             memory_id=str(memory.id), memory_type=memory.memory_type, category=candidate.category,
         )
 
-    async def _is_duplicate(self, candidate: MemoryCandidate) -> bool:
+    async def _is_duplicate(self, candidate: MemoryCandidate, *, workspace_id: UUID) -> bool:
         normalized = _normalize(candidate.content)
-        memories = await self._manager.get_memories(candidate.memory_type)
+        memories = await self._manager.get_memories(candidate.memory_type, workspace_id=workspace_id)
         return any(_normalize(memory.content) == normalized for memory in memories)
 
 
