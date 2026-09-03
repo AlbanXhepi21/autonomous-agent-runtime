@@ -6,6 +6,7 @@ import { conversationsApi } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/client";
 import { approvalsApi } from "@/lib/api/approvals";
 import { configApi } from "@/lib/api/config";
+import { savedReportsApi } from "@/lib/api/saved-reports";
 import type { PublicRunEvent } from "@/types/analytics";
 
 vi.mock("@/lib/api/analytics", () => ({
@@ -24,6 +25,18 @@ vi.mock("@/lib/api/approvals", () => ({
   approvalsApi: { list: vi.fn(), approve: vi.fn(), reject: vi.fn() },
 }));
 vi.mock("@/lib/api/config", () => ({ configApi: { get: vi.fn() } }));
+vi.mock("@/lib/api/saved-reports", () => ({
+  savedReportsApi: {
+    create: vi.fn(),
+    list: vi.fn(),
+    get: vi.fn(),
+    update: vi.fn(),
+    archive: vi.fn(),
+    resolvedParameters: vi.fn(),
+    execute: vi.fn(),
+    executions: vi.fn(),
+  },
+}));
 
 describe("Workbench", () => {
   const connect = vi.mocked(analyticsApi.connect);
@@ -37,15 +50,21 @@ describe("Workbench", () => {
     });
     vi.mocked(approvalsApi.list).mockResolvedValue([]);
     vi.mocked(configApi.get).mockResolvedValue({ developer_mode: false });
+    vi.mocked(savedReportsApi.list).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 30,
+      offset: 0,
+    });
   });
 
   it("offers the memory inspector only when the server reports developer mode", async () => {
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     await waitFor(() => expect(configApi.get).toHaveBeenCalled());
     expect(screen.queryByText(/memory/i)).not.toBeInTheDocument();
 
     vi.mocked(configApi.get).mockResolvedValue({ developer_mode: true });
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     await waitFor(() => expect(screen.getAllByText(/memory/i).length).toBeGreaterThan(0));
   });
 
@@ -56,14 +75,14 @@ describe("Workbench", () => {
       status: "running",
     });
     connect.mockReturnValue({ close: vi.fn() } as unknown as EventSource);
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), {
       target: { value: "Why did revenue fall?" },
     });
     fireEvent.keyDown(screen.getByLabelText("Ask about your data"), { key: "Enter" });
     expect(await screen.findByText("Why did revenue fall?")).toBeInTheDocument();
     expect(screen.getByText("Analyzing…")).toBeInTheDocument();
-    expect(analyticsApi.createRun).toHaveBeenCalledWith({ message: "Why did revenue fall?" });
+    expect(analyticsApi.createRun).toHaveBeenCalledWith("ws-1", { message: "Why did revenue fall?" });
   });
 
   it("renders completed assistant response after the completion event", async () => {
@@ -89,13 +108,13 @@ describe("Workbench", () => {
       caveats: [],
     });
     connect.mockImplementation(
-      (_id: string, onEvent: (event: PublicRunEvent) => void, onError: () => void) => {
+      (_workspaceId: string, _id: string, onEvent: (event: PublicRunEvent) => void, onError: () => void) => {
         handler = onEvent;
         errorHandler = onError;
         return { close: vi.fn() } as unknown as EventSource;
       },
     );
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), {
       target: { value: "Analyze revenue" },
     });
@@ -146,11 +165,11 @@ describe("Workbench", () => {
       ],
       caveats: [],
     });
-    connect.mockImplementation((_id: string, onEvent: (event: PublicRunEvent) => void) => {
+    connect.mockImplementation((_workspaceId: string, _id: string, onEvent: (event: PublicRunEvent) => void) => {
       handler = onEvent;
       return { close: vi.fn() } as unknown as EventSource;
     });
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), {
       target: { value: "Analyze revenue" },
     });
@@ -173,7 +192,7 @@ describe("Workbench", () => {
     vi.mocked(analyticsApi.createRun).mockRejectedValue(
       new ApiError("The analyst backend is unavailable."),
     );
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), {
       target: { value: "Analyze revenue" },
     });
@@ -223,11 +242,11 @@ describe("Workbench", () => {
         resolved_at: null,
       },
     ]);
-    connect.mockImplementation((_id: string, onEvent: (event: PublicRunEvent) => void) => {
+    connect.mockImplementation((_workspaceId: string, _id: string, onEvent: (event: PublicRunEvent) => void) => {
       handler = onEvent;
       return { close: vi.fn() } as unknown as EventSource;
     });
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     fireEvent.change(screen.getByLabelText("Ask about your data"), {
       target: { value: "Create a report" },
     });
@@ -270,11 +289,11 @@ describe("Workbench", () => {
       messages_offset: 0,
       runs: [],
     });
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     const item = await screen.findByRole("button", { name: "April revenue decline" });
     fireEvent.click(item);
     expect(await screen.findByText("Old answer")).toBeInTheDocument();
-    expect(conversationsApi.get).toHaveBeenCalledWith("old");
+    expect(conversationsApi.get).toHaveBeenCalledWith("ws-1", "old");
   });
 
   it("creates a clean conversation", async () => {
@@ -284,7 +303,7 @@ describe("Workbench", () => {
       created_at: "",
       updated_at: "",
     });
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     fireEvent.click(screen.getByRole("button", { name: /new conversation/i }));
     await waitFor(() => expect(conversationsApi.create).toHaveBeenCalled());
   });
@@ -306,7 +325,7 @@ describe("Workbench", () => {
       .mockResolvedValueOnce({ items: firstPage, total: 10, limit: 8, offset: 0 })
       .mockResolvedValueOnce({ items: secondPage, total: 10, limit: 8, offset: 8 });
     vi.mocked(conversationsApi.remove).mockResolvedValue(undefined);
-    render(<Workbench />);
+    render(<Workbench workspaceId="ws-1" />);
     expect(await screen.findByText("Conversation 0")).toBeInTheDocument();
     expect(screen.queryByText("Conversation 9")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show more (2)" }));
@@ -316,7 +335,7 @@ describe("Workbench", () => {
     );
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Confirm delete" }));
-    await waitFor(() => expect(conversationsApi.remove).toHaveBeenCalledWith("c-0"));
+    await waitFor(() => expect(conversationsApi.remove).toHaveBeenCalledWith("ws-1", "c-0"));
     expect(screen.queryByText("Conversation 0")).not.toBeInTheDocument();
   });
 });

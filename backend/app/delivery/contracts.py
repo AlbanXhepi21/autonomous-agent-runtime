@@ -26,6 +26,10 @@ class DeliveryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: UUID
+    #: No foreign-key parent to inherit scoping from -- artifact_id has none
+    #: either (the artifact backend is switchable) -- so this is carried
+    #: directly, resolved from the artifact's own workspace at creation time.
+    workspace_id: UUID
     artifact_id: str = Field(min_length=1, max_length=64)
     channel: DeliveryChannel
     #: A URL or an address an operator configured -- never a secret itself.

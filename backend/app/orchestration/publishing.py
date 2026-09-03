@@ -13,6 +13,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
+from uuid import UUID
 
 from app.analytics.presentation.assignment import TemplateAssignment, assign_slots
 from app.analytics.presentation.charts import ChartSpec
@@ -67,7 +68,7 @@ def _period_label(metrics: list[MetricParameters]) -> str:
 
 
 async def render_and_register_documents(
-    *, report: CompiledReport, charts: list[ChartSpec], template: ReportTemplate, run_id: str,
+    *, workspace_id: UUID, report: CompiledReport, charts: list[ChartSpec], template: ReportTemplate, run_id: str,
     formats: list[DocumentFormat], workspace: Workspace, artifacts: ArtifactStore,
     directory_name: str = "published", extra_metadata: dict[str, object] | None = None,
 ) -> list[Artifact]:
@@ -105,7 +106,7 @@ async def render_and_register_documents(
         try:
             writer(report, images, path, template.theme)
             artifact = await artifacts.register(
-                run_id=run_id, source_path=path.relative_to(workspace.root).as_posix(),
+                workspace_id=workspace_id, run_id=run_id, source_path=path.relative_to(workspace.root).as_posix(),
                 artifact_type="report_document", media_type=media_type,
                 output_format=document_format, template_id=template.name,
                 template_version=template.version,
@@ -161,7 +162,7 @@ class ReportPublisher:
         return self._templates.list_templates()
 
     async def _resolve_content(
-        self, *, run_id: str, metrics: list[MetricParameters] | None,
+        self, *, workspace_id: UUID, run_id: str, metrics: list[MetricParameters] | None,
         period: str | None, narrative: NarrativeStatus | None,
     ) -> _ResolvedContent:
         """Gather what one run contributes to a report, once, for any consumer.
@@ -172,12 +173,12 @@ class ReportPublisher:
         Either way this only assembles what already exists — it calls no model.
         """
 
-        run = await self._store.get_run(run_id)
+        run = await self._store.get_run(workspace_id=workspace_id, run_id=run_id)
         if run is None:
             raise ReportPublishingError("Run not found.")
         if run.status != "completed":
             raise ReportPublishingError("Only a completed run can be published.")
-        message = await self._store.get_assistant_message_for_run(run_id)
+        message = await self._store.get_assistant_message_for_run(workspace_id=workspace_id, run_id=run_id)
 
         charts = [ChartSpec.model_validate(item) for item in (getattr(run, "chart_specs", None) or [])]
         sources = [AnswerSource.model_validate(item) for item in (getattr(run, "answer_sources", None) or [])]
@@ -205,7 +206,7 @@ class ReportPublisher:
         )
 
     async def _compile(
-        self, *, run_id: str, template_name: str, title: str | None,
+        self, *, workspace_id: UUID, run_id: str, template_name: str, title: str | None,
         metrics: list[MetricParameters] | None, period: str | None, narrative: NarrativeStatus | None,
     ) -> tuple[ReportTemplate, _ResolvedContent, TemplateAssignment, CompiledReport]:
         """Resolve, assign and compile — the one path a preview and a publish share.
@@ -221,7 +222,9 @@ class ReportPublisher:
         except ReportTemplateError as error:
             # A caller naming a template is a bad request, not a server fault.
             raise ReportPublishingError(str(error)) from error
-        content = await self._resolve_content(run_id=run_id, metrics=metrics, period=period, narrative=narrative)
+        content = await self._resolve_content(
+            workspace_id=workspace_id, run_id=run_id, metrics=metrics, period=period, narrative=narrative,
+        )
         assignment = assign_slots(template, content.charts, content.sources)
         content_order = assignment.content_order() if template.slots else None
         report = compile_report(
@@ -234,13 +237,14 @@ class ReportPublisher:
         return template, content, assignment, report
 
     async def preview(
-        self, *, run_id: str, template_name: str, period: str | None = None, title: str | None = None,
-        metrics: list[MetricParameters] | None = None, narrative: NarrativeStatus | None = None,
+        self, *, workspace_id: UUID, run_id: str, template_name: str, period: str | None = None,
+        title: str | None = None, metrics: list[MetricParameters] | None = None,
+        narrative: NarrativeStatus | None = None,
     ) -> ReportPreview:
         """Compile the exact report a publish would produce, without writing one."""
 
         template, _content, assignment, report = await self._compile(
-            run_id=run_id, template_name=template_name, title=title,
+            workspace_id=workspace_id, run_id=run_id, template_name=template_name, title=title,
             metrics=metrics, period=period, narrative=narrative,
         )
         suitability = score_assignment(assignment)
@@ -251,19 +255,21 @@ class ReportPublisher:
             estimated_page_count=estimate_page_count(report),
         )
 
-    async def suitability(self, *, run_id: str) -> TemplateSuitabilityOverview:
+    async def suitability(self, *, workspace_id: UUID, run_id: str) -> TemplateSuitabilityOverview:
         """Score every template against one run's content, and recommend one."""
 
         # Parameter-free: this is "which shape fits what already exists",
         # asked before a caller has chosen a template, a period or a rerun.
-        content = await self._resolve_content(run_id=run_id, metrics=None, period=None, narrative=None)
+        content = await self._resolve_content(
+            workspace_id=workspace_id, run_id=run_id, metrics=None, period=None, narrative=None,
+        )
         items = [
             score_assignment(assign_slots(template, content.charts, content.sources))
             for template in self._templates.list_templates()
         ]
         return TemplateSuitabilityOverview(items=items, recommended_template=recommend_template(items))
 
-    async def publish(self, *, run_id: str, template_name: str, formats: list[DocumentFormat],
+    async def publish(self, *, workspace_id: UUID, run_id: str, template_name: str, formats: list[DocumentFormat],
                       period: str | None = None, title: str | None = None,
                       metrics: list[MetricParameters] | None = None,
                       narrative: NarrativeStatus | None = None) -> list[Artifact]:
@@ -274,11 +280,11 @@ class ReportPublisher:
         """
 
         template, content, _assignment, report = await self._compile(
-            run_id=run_id, template_name=template_name, title=title,
+            workspace_id=workspace_id, run_id=run_id, template_name=template_name, title=title,
             metrics=metrics, period=period, narrative=narrative,
         )
         return await render_and_register_documents(
-            report=report, charts=content.charts, template=template, run_id=run_id, formats=formats,
-            workspace=self._workspace, artifacts=self._artifacts,
+            workspace_id=workspace_id, report=report, charts=content.charts, template=template, run_id=run_id,
+            formats=formats, workspace=self._workspace, artifacts=self._artifacts,
             extra_metadata={"recomputed_metrics": [item.metric for item in (metrics or [])]},
         )

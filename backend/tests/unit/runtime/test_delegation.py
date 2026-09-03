@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.api.routes.agent import run_agent
 from app.api.schemas.agent import AgentRunRequest
 from app.artifacts.store import WorkspaceArtifactStore
 from app.contracts.actions import AgentAction
@@ -28,7 +27,7 @@ from app.tools.filesystem import ListFilesTool, ReadFileTool, WriteFileTool
 from app.tools.python_exec import PythonExecTool
 from app.tools.registry import ToolRegistry
 from app.tools.repository import GetChangedFilesTool, GetRepositoryTreeTool, GitInspectTool, SearchFilesTool
-from tests.support import logged_event, ScriptedLLM, make_runner
+from tests.support import logged_event, ScriptedLLM, make_runner, run_agent_directly
 
 
 def registries() -> tuple[ToolRegistry, SkillRegistry, AgentRegistry]:
@@ -222,7 +221,7 @@ async def test_delegation_boundary_outcomes_are_not_reported_as_tool_outcomes() 
         ]
     )
 
-    response = await run_agent(AgentRunRequest(goal="Check licensing"), runner_for(llm))
+    response = await run_agent_directly(AgentRunRequest(goal="Check licensing"), runner_for(llm))
 
     assert response.tool_outcomes == []
     assert response.tools_used == []

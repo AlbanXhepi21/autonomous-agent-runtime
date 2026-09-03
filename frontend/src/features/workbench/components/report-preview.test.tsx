@@ -1,9 +1,15 @@
+import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportPreviewPanel } from "./report-preview";
 import { analyticsApi } from "@/lib/api/analytics";
 import { ApiError } from "@/lib/api/client";
 import type { ReportPreview } from "@/types/analytics";
+import { WorkspaceIdProvider } from "@/features/workbench/workspace-context";
+
+function withWorkspace(children: ReactNode) {
+  return <WorkspaceIdProvider workspaceId="ws-1">{children}</WorkspaceIdProvider>;
+}
 
 vi.mock("@/lib/api/analytics", () => ({
   analyticsApi: { previewReport: vi.fn() },
@@ -77,7 +83,9 @@ describe("ReportPreviewPanel", () => {
 
   it("renders nothing when no template is selected", () => {
     const { container } = render(
-      <ReportPreviewPanel runId="run-1" template="" period="" metrics={[]} narrative="current" />,
+      withWorkspace(
+        <ReportPreviewPanel runId="run-1" template="" period="" metrics={[]} narrative="current" />,
+      ),
     );
 
     expect(container).toBeEmptyDOMElement();
@@ -88,13 +96,15 @@ describe("ReportPreviewPanel", () => {
     vi.mocked(analyticsApi.previewReport).mockResolvedValue(preview());
 
     render(
-      <ReportPreviewPanel
-        runId="run-1"
-        template="executive_dashboard"
-        period=""
-        metrics={[]}
-        narrative="current"
-      />,
+      withWorkspace(
+        <ReportPreviewPanel
+          runId="run-1"
+          template="executive_dashboard"
+          period=""
+          metrics={[]}
+          narrative="current"
+        />,
+      ),
     );
 
     expect(await screen.findByText("50% complete")).toBeInTheDocument();
@@ -119,13 +129,15 @@ describe("ReportPreviewPanel", () => {
     );
 
     render(
-      <ReportPreviewPanel
-        runId="run-1"
-        template="executive_dashboard"
-        period=""
-        metrics={[]}
-        narrative="current"
-      />,
+      withWorkspace(
+        <ReportPreviewPanel
+          runId="run-1"
+          template="executive_dashboard"
+          period=""
+          metrics={[]}
+          narrative="current"
+        />,
+      ),
     );
 
     expect(await screen.findByText("100% complete")).toBeInTheDocument();
@@ -136,28 +148,33 @@ describe("ReportPreviewPanel", () => {
     vi.mocked(analyticsApi.previewReport).mockResolvedValue(preview());
 
     const { rerender } = render(
-      <ReportPreviewPanel
-        runId="run-1"
-        template="executive_dashboard"
-        period=""
-        metrics={[]}
-        narrative="current"
-      />,
+      withWorkspace(
+        <ReportPreviewPanel
+          runId="run-1"
+          template="executive_dashboard"
+          period=""
+          metrics={[]}
+          narrative="current"
+        />,
+      ),
     );
     await screen.findByText("50% complete");
 
     rerender(
-      <ReportPreviewPanel
-        runId="run-1"
-        template="analysis_summary"
-        period=""
-        metrics={[]}
-        narrative="current"
-      />,
+      withWorkspace(
+        <ReportPreviewPanel
+          runId="run-1"
+          template="analysis_summary"
+          period=""
+          metrics={[]}
+          narrative="current"
+        />,
+      ),
     );
 
     await waitFor(() =>
       expect(analyticsApi.previewReport).toHaveBeenLastCalledWith(
+        "ws-1",
         "run-1",
         expect.objectContaining({ template: "analysis_summary" }),
       ),
@@ -168,13 +185,15 @@ describe("ReportPreviewPanel", () => {
     vi.mocked(analyticsApi.previewReport).mockRejectedValue(new ApiError("Only a completed run can be previewed."));
 
     render(
-      <ReportPreviewPanel
-        runId="run-1"
-        template="executive_dashboard"
-        period=""
-        metrics={[]}
-        narrative="current"
-      />,
+      withWorkspace(
+        <ReportPreviewPanel
+          runId="run-1"
+          template="executive_dashboard"
+          period=""
+          metrics={[]}
+          narrative="current"
+        />,
+      ),
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Only a completed run can be previewed.");

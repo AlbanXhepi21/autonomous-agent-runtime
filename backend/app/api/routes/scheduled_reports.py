@@ -14,8 +14,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.api.dependencies import require_csrf, require_permission
 from app.api.schemas.scheduled_reports import (
-    DEFAULT_WORKSPACE_ID,
     ScheduleConfigPayload,
     ScheduledReportCreateRequest,
     ScheduledReportListResponse,
@@ -27,8 +27,10 @@ from app.reports.store import SavedReportStore
 from app.scheduling.calculator import compute_next_run
 from app.scheduling.contracts import ScheduleConfig, ScheduledReportDefinition
 from app.scheduling.store import ScheduledReportNotFoundError, ScheduledReportStore
+from app.tenancy.context import TenantContext
+from app.tenancy.permissions import Permission
 
-router = APIRouter(prefix="/api/v1/reports/scheduled", tags=["scheduled-reports"])
+router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/reports/scheduled", tags=["scheduled-reports"])
 
 
 def _not_found(scheduled_report_id: UUID) -> HTTPException:
@@ -62,13 +64,14 @@ def _to_response(definition: ScheduledReportDefinition) -> ScheduledReportRespon
     )
 
 
-@router.post("", response_model=ScheduledReportResponse, status_code=201)
+@router.post("", response_model=ScheduledReportResponse, status_code=201, dependencies=[Depends(require_csrf)])
 async def create_scheduled_report(
     request: ScheduledReportCreateRequest,
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     schedules: ScheduledReportStore = Depends(get_scheduled_report_store),
     saved_reports: SavedReportStore = Depends(get_saved_report_store),
 ) -> ScheduledReportResponse:
-    definition = await saved_reports.get(workspace_id=request.workspace_id, saved_report_id=request.saved_report_id)
+    definition = await saved_reports.get(workspace_id=context.workspace.id, saved_report_id=request.saved_report_id)
     if definition is None:
         raise HTTPException(status_code=404, detail={
             "code": "unknown_saved_report", "message": f"Saved report {request.saved_report_id} not found.",
@@ -83,7 +86,7 @@ async def create_scheduled_report(
     schedule = _config(request.schedule)
     next_run_at = compute_next_run(schedule, tz_name=request.timezone, after=datetime.now(timezone.utc))
     created = await schedules.create(
-        saved_report_id=request.saved_report_id, workspace_id=request.workspace_id, schedule=schedule,
+        saved_report_id=request.saved_report_id, workspace_id=context.workspace.id, schedule=schedule,
         timezone=request.timezone, formats=list(request.formats), delivery_channel=request.delivery_channel,
         delivery_destination=request.delivery_destination, next_run_at=next_run_at,
     )
@@ -92,33 +95,33 @@ async def create_scheduled_report(
 
 @router.get("", response_model=ScheduledReportListResponse)
 async def list_scheduled_reports(
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
     enabled: bool | None = Query(default=None),
     limit: int = Query(default=30, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     schedules: ScheduledReportStore = Depends(get_scheduled_report_store),
 ) -> ScheduledReportListResponse:
-    items, total = await schedules.list(workspace_id=workspace_id, enabled=enabled, limit=limit, offset=offset)
+    items, total = await schedules.list(workspace_id=context.workspace.id, enabled=enabled, limit=limit, offset=offset)
     return ScheduledReportListResponse(items=[_to_response(item) for item in items], total=total, limit=limit, offset=offset)
 
 
 @router.get("/{scheduled_report_id}", response_model=ScheduledReportResponse)
 async def get_scheduled_report(
     scheduled_report_id: UUID,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     schedules: ScheduledReportStore = Depends(get_scheduled_report_store),
 ) -> ScheduledReportResponse:
-    definition = await schedules.get(workspace_id=workspace_id, scheduled_report_id=scheduled_report_id)
+    definition = await schedules.get(workspace_id=context.workspace.id, scheduled_report_id=scheduled_report_id)
     if definition is None:
         raise _not_found(scheduled_report_id)
     return _to_response(definition)
 
 
-@router.patch("/{scheduled_report_id}", response_model=ScheduledReportResponse)
+@router.patch("/{scheduled_report_id}", response_model=ScheduledReportResponse, dependencies=[Depends(require_csrf)])
 async def update_scheduled_report(
     scheduled_report_id: UUID,
     request: ScheduledReportUpdateRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     schedules: ScheduledReportStore = Depends(get_scheduled_report_store),
 ) -> ScheduledReportResponse:
     if (request.delivery_channel is None) != (request.delivery_destination is None):
@@ -126,7 +129,7 @@ async def update_scheduled_report(
             "code": "invalid_delivery", "message": "delivery_channel and delivery_destination must be set together.",
         })
 
-    existing = await schedules.get(workspace_id=workspace_id, scheduled_report_id=scheduled_report_id)
+    existing = await schedules.get(workspace_id=context.workspace.id, scheduled_report_id=scheduled_report_id)
     if existing is None:
         raise _not_found(scheduled_report_id)
 
@@ -150,7 +153,7 @@ async def update_scheduled_report(
         changes["enabled"] = request.enabled
 
     try:
-        updated = await schedules.update(workspace_id=workspace_id, scheduled_report_id=scheduled_report_id, changes=changes)
+        updated = await schedules.update(workspace_id=context.workspace.id, scheduled_report_id=scheduled_report_id, changes=changes)
     except ScheduledReportNotFoundError as error:
         raise _not_found(scheduled_report_id) from error
     return _to_response(updated)

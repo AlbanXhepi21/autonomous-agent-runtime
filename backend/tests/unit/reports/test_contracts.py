@@ -17,7 +17,7 @@ from app.reports.contracts import RelativePeriod, SavedMetricRequest, SavedRepor
 def _definition(**overrides) -> SavedReportDefinition:
     now = datetime.now(UTC)
     fields = {
-        "id": uuid4(), "workspace_id": "workspace-a", "owner": None, "name": "Weekly Revenue",
+        "id": uuid4(), "workspace_id": uuid4(), "owner": None, "name": "Weekly Revenue",
         "description": None, "template_id": "executive_dashboard", "template_version": "3",
         "metric_requests": [SavedMetricRequest(metric="revenue")],
         "default_period": RelativePeriod(kind="last_n_days", days=7),

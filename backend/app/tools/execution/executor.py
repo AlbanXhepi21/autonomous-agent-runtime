@@ -87,13 +87,14 @@ class ToolExecutor:
         arguments: Mapping[str, Any] | None = None,
         *,
         run_id: str | None = None,
+        workspace_id: str | None = None,
         iteration: int | None = None,
         subject: SecuritySubject | None = None,
     ) -> ToolResult:
         """Run one tool request and return its safe, structured outcome."""
 
         return await self._execute(
-            tool_name, arguments, run_id=run_id, iteration=iteration, subject=subject,
+            tool_name, arguments, run_id=run_id, workspace_id=workspace_id, iteration=iteration, subject=subject,
             approval_granted=False,
         )
 
@@ -103,6 +104,7 @@ class ToolExecutor:
         arguments: Mapping[str, Any] | None = None,
         *,
         run_id: str | None = None,
+        workspace_id: str | None = None,
         iteration: int | None = None,
         subject: SecuritySubject | None = None,
         approval_token: object | None = None,
@@ -117,7 +119,7 @@ class ToolExecutor:
             )
 
         return await self._execute(
-            tool_name, arguments, run_id=run_id, iteration=iteration, subject=subject,
+            tool_name, arguments, run_id=run_id, workspace_id=workspace_id, iteration=iteration, subject=subject,
             approval_granted=True,
         )
 
@@ -127,6 +129,7 @@ class ToolExecutor:
         arguments: Mapping[str, Any] | None = None,
         *,
         run_id: str | None = None,
+        workspace_id: str | None = None,
         iteration: int | None = None,
         subject: SecuritySubject | None = None,
         approval_granted: bool,
@@ -176,7 +179,7 @@ class ToolExecutor:
         if denial is not None:
             return self._finish(denial, started_at, fields, observers)
 
-        outcome = await self._run(tool, arguments, run_id, fields)
+        outcome = await self._run(tool, arguments, run_id, workspace_id, fields)
         return self._finish(outcome, started_at, fields, observers)
 
     def _record_request(
@@ -283,7 +286,8 @@ class ToolExecutor:
         return None
 
     async def _run(
-        self, tool: Tool, arguments: Mapping[str, Any], run_id: str | None, fields: dict[str, Any]
+        self, tool: Tool, arguments: Mapping[str, Any], run_id: str | None, workspace_id: str | None,
+        fields: dict[str, Any],
     ) -> ToolResult:
         """Execute the tool, converting any failure into a safe structured result."""
 
@@ -292,7 +296,7 @@ class ToolExecutor:
                 runtime_arguments = dict(arguments)
                 if "query_id" in fields:
                     runtime_arguments["query_id"] = fields["query_id"]
-                output = await tool.execute_for_run(run_id=run_id, **runtime_arguments)
+                output = await tool.execute_for_run(run_id=run_id, workspace_id=workspace_id, **runtime_arguments)
             else:
                 output = await tool.execute(**dict(arguments))
             if "query_id" in fields and isinstance(output, Mapping):

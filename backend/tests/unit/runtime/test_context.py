@@ -1,6 +1,7 @@
 """Tests for the intentional model-facing agent context."""
 
 import json
+import uuid
 
 from app.core.limits import RuntimeLimits
 from app.memory.records import Memory, MemoryType
@@ -48,6 +49,7 @@ def test_context_has_explicit_categories_and_preserves_goal() -> None:
 
 def test_context_keeps_historical_memories_distinct_from_observations() -> None:
     memory = Memory(
+        workspace_id=uuid.uuid4(),
         memory_type=MemoryType.LONG_TERM,
         content="The billing API needs an account ID.",
         metadata={"tags": ["billing"]},

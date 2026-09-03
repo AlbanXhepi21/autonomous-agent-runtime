@@ -1,6 +1,7 @@
 """Explicit artifact registration tool; source edits remain ordinary workspace writes."""
 
 from typing import Any
+from uuid import UUID
 
 from app.artifacts.store import ArtifactStore
 from app.tools.base import Tool, ToolInputError
@@ -23,11 +24,13 @@ class RegisterArtifactTool(Tool):
     def arguments_schema(self) -> dict[str, Any]:
         return {"type": "object", "properties": {"source_path": {"type": "string"}, "name": {"type": "string"}, "artifact_type": {"type": "string"}, "media_type": {"type": "string"}, "metadata": {"type": "object"}}, "required": ["source_path"], "additionalProperties": False}
 
-    async def execute_for_run(self, *, run_id: str | None, **arguments: Any) -> dict[str, object]:
+    async def execute_for_run(self, *, run_id: str | None, workspace_id: str | None = None, **arguments: Any) -> dict[str, object]:
         if not run_id:
             raise ToolInputError("Artifact registration requires an active run.")
+        if not workspace_id:
+            raise ToolInputError("Artifact registration requires a tenant workspace.")
         try:
-            artifact = await self._artifact_store.register(run_id=run_id, **arguments)
+            artifact = await self._artifact_store.register(workspace_id=UUID(workspace_id), run_id=run_id, **arguments)
         except ValueError as error:
             raise ToolInputError(str(error)) from error
         return {"artifact": artifact.model_dump(mode="json")}

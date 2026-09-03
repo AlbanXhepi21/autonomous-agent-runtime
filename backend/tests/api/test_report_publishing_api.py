@@ -3,6 +3,7 @@
 import asyncio
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -12,7 +13,9 @@ from app.analytics.presentation.templates import ReportTemplateRegistry
 from app.api.routes.analytics import router
 from app.composition import get_report_publisher
 from app.orchestration.publishing import ReportPublisher
-from tests.support import BACKEND_ROOT  # noqa: F401  (keeps path helpers importable)
+from tests.support import BACKEND_ROOT, override_tenant_context  # noqa: F401  (keeps path helpers importable)
+
+WORKSPACE_ID = uuid4()
 
 CHART = {
     "id": "chart-1", "type": "bar", "title": "Revenue by category", "x_field": "category",
@@ -37,8 +40,8 @@ def _store(status: str = "completed", **overrides):
         created_at=datetime.now(UTC), **overrides,
     )
     return SimpleNamespace(
-        get_run=lambda run_id: _value(run),
-        get_assistant_message_for_run=lambda run_id: _value(
+        get_run=lambda *, workspace_id, run_id: _value(run),
+        get_assistant_message_for_run=lambda *, workspace_id, run_id: _value(
             SimpleNamespace(content="## Finding\nRevenue grew 18%.\n\n- Electronics led.")
         ),
     )
@@ -56,12 +59,13 @@ def _client(tmp_path, store) -> TestClient:
     application = FastAPI()
     application.include_router(router)
     application.dependency_overrides = {get_report_publisher: lambda: publisher}
+    override_tenant_context(application, workspace_id=WORKSPACE_ID)
     return TestClient(application)
 
 
 def test_available_templates_describe_their_sections(tmp_path) -> None:
     with _client(tmp_path, _store()) as client:
-        body = client.get("/api/v1/analytics/report-templates").json()
+        body = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/report-templates").json()
 
     names = [item["name"] for item in body["items"]]
     assert "monthly_business_review" in names
@@ -73,7 +77,7 @@ def test_available_templates_describe_their_sections(tmp_path) -> None:
 def test_a_completed_run_publishes_both_formats(tmp_path) -> None:
     with _client(tmp_path, _store()) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/reports",
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/reports",
             json={"template": "monthly_business_review", "formats": ["pdf", "docx"],
                   "period": "August 2026"},
         )
@@ -102,7 +106,7 @@ def test_each_published_document_is_recorded_with_what_wrote_it(tmp_path) -> Non
     publisher = ReportPublisher(ReportTemplateRegistry(), _store(), store, workspace)
 
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["pdf", "docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["pdf", "docx"],
     ))
 
     assert [item.output_format for item in published] == ["pdf", "docx"]
@@ -118,7 +122,7 @@ def test_each_published_document_is_recorded_with_what_wrote_it(tmp_path) -> Non
         # Nothing machine-specific reaches the record.
         assert artifact.relative_path == f"artifacts/run-1/{artifact.id}/{artifact.name}"
         assert str(tmp_path) not in artifact.relative_path
-        path = asyncio.run(store.path_for(artifact.id))
+        path = asyncio.run(store.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact.id))
         assert path is not None
         written = digest_of(path)
         assert (artifact.size, artifact.sha256) == (written.size, written.sha256)
@@ -127,7 +131,7 @@ def test_each_published_document_is_recorded_with_what_wrote_it(tmp_path) -> Non
 def test_an_unfinished_run_is_not_publishable(tmp_path) -> None:
     with _client(tmp_path, _store(status="running")) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/reports",
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/reports",
             json={"template": "monthly_business_review", "formats": ["pdf"]},
         )
 
@@ -138,7 +142,7 @@ def test_an_unfinished_run_is_not_publishable(tmp_path) -> None:
 def test_an_unknown_template_is_refused(tmp_path) -> None:
     with _client(tmp_path, _store()) as client:
         response = client.post(
-            "/api/v1/analytics/runs/run-1/reports",
+            f"/api/v1/workspaces/{WORKSPACE_ID}/analytics/runs/run-1/reports",
             json={"template": "not_a_template", "formats": ["pdf"]},
         )
 
@@ -155,8 +159,8 @@ def _legacy_store():
                           answer_sources=[SOURCE], created_at=datetime.now(UTC))
     assert not hasattr(run, "answer_caveats")
     return SimpleNamespace(
-        get_run=lambda run_id: _value(run),
-        get_assistant_message_for_run=lambda run_id: _value(
+        get_run=lambda *, workspace_id, run_id: _value(run),
+        get_assistant_message_for_run=lambda *, workspace_id, run_id: _value(
             SimpleNamespace(content="## Finding\nRevenue grew 18%.")
         ),
     )
@@ -170,7 +174,7 @@ def _publish(tmp_path, store, formats=("pdf", "docx")):
     artifacts = WorkspaceArtifactStore(workspace, max_artifact_bytes=10_485_760)
     publisher = ReportPublisher(ReportTemplateRegistry(), store, artifacts, workspace)
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=list(formats),
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=list(formats),
     ))
     return published, artifacts
 
@@ -179,7 +183,7 @@ def _text(artifact, artifacts):
     from docx import Document
     from pypdf import PdfReader
 
-    path = asyncio.run(artifacts.path_for(artifact.id))
+    path = asyncio.run(artifacts.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact.id))
     if artifact.output_format == "pdf":
         raw = "\n".join(page.extract_text() for page in PdfReader(str(path)).pages)
     else:
@@ -320,7 +324,7 @@ def test_a_rerun_replaces_the_figures_and_cites_its_own_evidence(tmp_path) -> No
     publisher, artifacts = _rerun_publisher(tmp_path)
 
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
         period="March 2026", metrics=[_parameters()],
     ))
 
@@ -338,7 +342,7 @@ def test_a_rerun_drops_the_original_prose_by_default(tmp_path) -> None:
     publisher, artifacts = _rerun_publisher(tmp_path)
 
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
         period="March 2026", metrics=[_parameters()],
     ))
 
@@ -351,7 +355,7 @@ def test_a_rerun_may_keep_the_prose_under_a_visible_warning(tmp_path) -> None:
     publisher, artifacts = _rerun_publisher(tmp_path)
 
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
         period="March 2026", metrics=[_parameters()],
         narrative="pinned_to_original_period",
     ))
@@ -368,7 +372,7 @@ def test_the_printed_period_comes_from_the_request_not_the_caller(tmp_path) -> N
     publisher, artifacts = _rerun_publisher(tmp_path)
 
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
         period="Whatever the caller typed", metrics=[_parameters()],
     ))
 
@@ -383,7 +387,7 @@ def test_the_rerun_service_receives_exactly_what_was_asked(tmp_path) -> None:
     publisher, _ = _rerun_publisher(tmp_path, runner)
 
     asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
         metrics=[_parameters(dimensions=["period"],
                              filters=[MetricFilter(field="country", value="Germany")])],
     ))
@@ -405,7 +409,7 @@ def test_publishing_a_rerun_calls_no_model(tmp_path) -> None:
 
     publisher, artifacts = _rerun_publisher(tmp_path)
     published = asyncio.run(publisher.publish(
-        run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+        workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
         metrics=[_parameters()],
     ))
     assert "rerun_001" in _text(published[0], artifacts)
@@ -446,7 +450,7 @@ def test_a_report_may_not_recompute_an_unbounded_number_of_sections(tmp_path) ->
 
     with pytest.raises(ReportPublishingError, match="at most"):
         asyncio.run(publisher.publish(
-            run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+            workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
             metrics=[_parameters() for _ in range(9)],
         ))
 
@@ -466,6 +470,6 @@ def test_a_server_without_the_rerun_service_refuses_rather_than_ignoring(tmp_pat
 
     with pytest.raises(ReportPublishingError, match="not configured"):
         asyncio.run(publisher.publish(
-            run_id="run-1", template_name="monthly_business_review", formats=["docx"],
+            workspace_id=WORKSPACE_ID, run_id="run-1", template_name="monthly_business_review", formats=["docx"],
             metrics=[_parameters()],
         ))

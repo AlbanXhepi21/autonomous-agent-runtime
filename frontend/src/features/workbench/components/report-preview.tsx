@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { analyticsApi } from "@/lib/api/analytics";
 import { ApiError } from "@/lib/api/client";
 import { reportRequestPayload } from "@/features/workbench/report-request";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 import type { MetricParameters, NarrativeStatus, ReportBlock, ReportPreview } from "@/types/analytics";
 
 /** How long to wait after the last edit before asking the server to re-preview. */
@@ -51,6 +52,7 @@ export function ReportPreviewPanel({
   metrics: MetricParameters[];
   narrative: NarrativeStatus;
 }) {
+  const workspaceId = useWorkspaceId();
   const [preview, setPreview] = useState<ReportPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +61,7 @@ export function ReportPreviewPanel({
     let active = true;
     const timer = window.setTimeout(() => {
       void analyticsApi
-        .previewReport(runId, reportRequestPayload({ template, period, metrics, narrative }))
+        .previewReport(workspaceId, runId, reportRequestPayload({ template, period, metrics, narrative }))
         .then((result) => {
           if (!active) return;
           setPreview(result);
@@ -75,7 +77,7 @@ export function ReportPreviewPanel({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [runId, template, period, metrics, narrative]);
+  }, [runId, template, period, metrics, narrative, workspaceId]);
 
   if (!template) return null;
   if (error)

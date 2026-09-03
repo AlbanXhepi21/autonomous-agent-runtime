@@ -8,7 +8,7 @@ import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.analytics.presentation.chart_store import ChartSpecStore
 from app.analytics.presentation.charts import ChartSpec
@@ -30,6 +30,7 @@ class ManagedRun:
     run_id: str
     conversation_id: str
     message: str
+    workspace_id: str | None = None
     created_at: datetime = field(default_factory=_now)
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -53,24 +54,37 @@ class AgentRunManager:
         self._chart_specs = chart_specs
         self._runs: dict[str, ManagedRun] = {}
 
-    async def create(self, message: str, conversation_id: str | None, runner: AgentRunner) -> ManagedRun:
-        state = AgentState(goal=message)
+    async def create(
+        self, message: str, conversation_id: str | None, runner: AgentRunner, *,
+        workspace_id: UUID | None = None,
+    ) -> ManagedRun:
+        state = AgentState(goal=message, workspace_id=str(workspace_id) if workspace_id is not None else None)
         if self._store is None:  # Compatibility for isolated runtime tests only.
-            managed = ManagedRun(run_id=state.run_id, conversation_id=conversation_id or str(uuid4()), message=message)
+            managed = ManagedRun(
+                run_id=state.run_id, conversation_id=conversation_id or str(uuid4()), message=message,
+                workspace_id=state.workspace_id,
+            )
         else:
-            from uuid import UUID
+            if workspace_id is None:
+                raise ValueError("workspace_id is required to persist a run.")
             conversation, _, _ = await self._store.create_run(
-                conversation_id=UUID(conversation_id) if conversation_id else None,
+                workspace_id=workspace_id, conversation_id=UUID(conversation_id) if conversation_id else None,
                 message=message, run_id=state.run_id,
             )
-            managed = ManagedRun(run_id=state.run_id, conversation_id=str(conversation.id), message=message)
+            managed = ManagedRun(
+                run_id=state.run_id, conversation_id=str(conversation.id), message=message,
+                workspace_id=state.workspace_id,
+            )
         self._runs[managed.run_id] = managed
         managed.task = asyncio.create_task(self._execute(managed, runner, state))
         return managed
 
     async def _execute(self, managed: ManagedRun, runner: AgentRunner, state: AgentState) -> None:
         managed.started_at = _now()
-        if self._store is not None: await self._store.start_run(managed.run_id, managed.started_at)
+        if self._store is not None:
+            await self._store.start_run(
+                workspace_id=UUID(managed.workspace_id), run_id=managed.run_id, started_at=managed.started_at,
+            )
         try:
             result = await runner.run(managed.message, state=state)
             managed.final_response = result.final_answer
@@ -91,7 +105,8 @@ class AgentRunManager:
             managed.finished_at = _now()
             if self._store is not None:
                 await self._store.finish_run(
-                    run_id=managed.run_id, status=managed.status, completed_at=managed.finished_at,
+                    workspace_id=UUID(managed.workspace_id), run_id=managed.run_id, status=managed.status,
+                    completed_at=managed.finished_at,
                     metrics=self._metrics(managed.run_id), error=managed.error,
                     chart_specs=[chart.model_dump(mode="json") for chart in managed.charts],
                     answer_sources=_persisted_sources(managed.sources, managed.status),
@@ -113,7 +128,8 @@ class AgentRunManager:
             managed.caveats = list(result.answer_caveats)
         if self._store is not None:
             await self._store.finish_run(
-                run_id=result.run_id, status=status, completed_at=finished_at,
+                workspace_id=UUID(result.workspace_id), run_id=result.run_id, status=status,
+                completed_at=finished_at,
                 metrics=self._metrics(result.run_id), error=error,
                 chart_specs=[chart.model_dump(mode="json") for chart in self._charts_for(result.run_id)],
                 answer_sources=_persisted_sources(result.answer_sources, status),

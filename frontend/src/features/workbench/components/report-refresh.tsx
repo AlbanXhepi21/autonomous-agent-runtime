@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { analyticsApi } from "@/lib/api/analytics";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 import type { MetricParameters, NarrativeStatus, RerunMetric } from "@/types/analytics";
 
 /**
@@ -29,6 +30,7 @@ export function ReportRefresh({
   onChange: (metrics: MetricParameters[]) => void;
   onNarrativeChange: (status: NarrativeStatus) => void;
 }) {
+  const workspaceId = useWorkspaceId();
   const [metrics, setMetrics] = useState<RerunMetric[]>([]);
   const [metric, setMetric] = useState("");
   const [start, setStart] = useState("");
@@ -38,13 +40,13 @@ export function ReportRefresh({
 
   useEffect(() => {
     void analyticsApi
-      .rerunMetrics()
+      .rerunMetrics(workspaceId)
       .then((body) => {
         setMetrics(body.items);
         setMetric((current) => current || (body.items[0]?.name ?? ""));
       })
       .catch(() => setMetrics([]));
-  }, []);
+  }, [workspaceId]);
 
   const selected = metrics.find((item) => item.name === metric);
   const enabled = Boolean(metric && start && end && end > start);

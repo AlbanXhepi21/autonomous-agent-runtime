@@ -33,26 +33,29 @@ class PostgresMemoryStore(MemoryStore):
             raise RuntimeError("Memory storage operation failed") from error
         return _memory_from_record(record)
 
-    async def get(self, memory_id: UUID) -> Memory | None:
-        """Return one memory by UUID, if present."""
+    async def get(self, *, workspace_id: UUID, memory_id: UUID) -> Memory | None:
+        """Return one memory by UUID, if present in this workspace."""
 
         try:
             async with self._database.session() as session:
                 record = await session.get(MemoryRecord, memory_id)
-                return _memory_from_record(record) if record is not None else None
+                if record is None or record.workspace_id != workspace_id:
+                    return None
+                return _memory_from_record(record)
         except SQLAlchemyError as error:
             raise RuntimeError("Memory storage operation failed") from error
 
     async def list_memories(
         self,
         *,
+        workspace_id: UUID,
         memory_type: MemoryType | None = None,
         run_id: str | None = None,
         session_id: str | None = None,
     ) -> list[Memory]:
-        """List matching records in stable creation order."""
+        """List matching records in stable creation order, within one workspace."""
 
-        statement = select(MemoryRecord).order_by(
+        statement = select(MemoryRecord).where(MemoryRecord.workspace_id == workspace_id).order_by(
             MemoryRecord.created_at, MemoryRecord.id
         )
         if memory_type is not None:
@@ -75,7 +78,7 @@ class PostgresMemoryStore(MemoryStore):
             async with self._database.session() as session:
                 async with session.begin():
                     record = await session.get(MemoryRecord, memory.id)
-                    if record is None:
+                    if record is None or record.workspace_id != memory.workspace_id:
                         return None
                     record.memory_type = memory.memory_type.value
                     record.content = memory.content
@@ -88,14 +91,14 @@ class PostgresMemoryStore(MemoryStore):
         except SQLAlchemyError as error:
             raise RuntimeError("Memory storage operation failed") from error
 
-    async def delete(self, memory_id: UUID) -> bool:
-        """Delete a record and report whether it existed."""
+    async def delete(self, *, workspace_id: UUID, memory_id: UUID) -> bool:
+        """Delete a record and report whether it existed in this workspace."""
 
         try:
             async with self._database.session() as session:
                 async with session.begin():
                     record = await session.get(MemoryRecord, memory_id)
-                    if record is None:
+                    if record is None or record.workspace_id != workspace_id:
                         return False
                     await session.delete(record)
                     return True
@@ -111,6 +114,7 @@ class PostgresMemoryStore(MemoryStore):
 def _record_from_memory(memory: Memory) -> MemoryRecord:
     return MemoryRecord(
         id=memory.id,
+        workspace_id=memory.workspace_id,
         memory_type=memory.memory_type.value,
         content=memory.content,
         metadata_=dict(memory.metadata),
@@ -124,6 +128,7 @@ def _record_from_memory(memory: Memory) -> MemoryRecord:
 def _memory_from_record(record: MemoryRecord) -> Memory:
     return Memory(
         id=record.id,
+        workspace_id=record.workspace_id,
         memory_type=MemoryType(record.memory_type),
         content=record.content,
         metadata=dict(record.metadata_),

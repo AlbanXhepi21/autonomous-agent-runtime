@@ -7,6 +7,10 @@ describe("run event stream", () => {
     const listeners: string[] = [];
     class FakeEventSource {
       onerror: (() => void) | null = null;
+      constructor(
+        public url: string,
+        public options?: EventSourceInit,
+      ) {}
       addEventListener(type: string) {
         listeners.push(type);
       }
@@ -14,6 +18,7 @@ describe("run event stream", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
 
     analyticsApi.connect(
+      "ws-1",
       "run-1",
       () => {},
       () => {},
@@ -22,6 +27,31 @@ describe("run event stream", () => {
     // A type the server projects but the stream never registers is delivered in
     // replayed history and dropped live, so the trace differs after a refresh.
     expect([...listeners].sort()).toEqual([...PUBLIC_RUN_EVENT_TYPES].sort());
+    vi.unstubAllGlobals();
+  });
+
+  it("attaches cookies to a cross-origin connection", () => {
+    let capturedOptions: EventSourceInit | undefined;
+    class FakeEventSource {
+      onerror: (() => void) | null = null;
+      constructor(
+        public url: string,
+        options?: EventSourceInit,
+      ) {
+        capturedOptions = options;
+      }
+      addEventListener() {}
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    analyticsApi.connect(
+      "ws-1",
+      "run-1",
+      () => {},
+      () => {},
+    );
+
+    expect(capturedOptions).toEqual({ withCredentials: true });
     vi.unstubAllGlobals();
   });
 });
@@ -34,9 +64,9 @@ describe("analytics API", () => {
         status: 202,
       }),
     );
-    await analyticsApi.createRun({ message: "Analyze orders" });
+    await analyticsApi.createRun("ws-1", { message: "Analyze orders" });
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://api.test/api/v1/analytics/runs",
+      "http://api.test/api/v1/workspaces/ws-1/analytics/runs",
       expect.objectContaining({ method: "POST" }),
     );
     fetchMock.mockRestore();

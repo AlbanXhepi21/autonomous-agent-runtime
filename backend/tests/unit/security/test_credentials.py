@@ -1,5 +1,6 @@
 """V6.5 runtime-side credential boundary coverage."""
 
+import uuid
 from typing import Any
 
 import pytest
@@ -82,7 +83,7 @@ async def test_memory_and_artifacts_reject_obvious_credentials(tmp_path: Any) ->
     workspace = Workspace(tmp_path)
     (tmp_path / ".env").write_text(f"GITHUB_TOKEN={SECRET}")
     with pytest.raises(ValueError, match="Sensitive credential"):
-        await WorkspaceArtifactStore(workspace).register(run_id="run", source_path=".env")
+        await WorkspaceArtifactStore(workspace).register(workspace_id=uuid.uuid4(), run_id="run", source_path=".env")
 
 
 @pytest.mark.asyncio

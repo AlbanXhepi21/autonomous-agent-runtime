@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from pytest_asyncio import fixture
@@ -31,6 +32,9 @@ pytestmark = pytest.mark.postgres
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 RUN_ID = "test-artifact-retention-run"
+#: The legacy workspace seeded by migration 20260903_0016 -- always present,
+#: so single-tenant tests can use it as a valid FK target without minting rows.
+WORKSPACE_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 async def _purge() -> None:
@@ -62,7 +66,7 @@ async def _register(store, workspace, *, name: str, expires_at=None, retention_p
     source = workspace.root / name
     source.write_bytes(b"content")
     return await store.register(
-        run_id=RUN_ID, source_path=name, name=name, media_type="application/pdf",
+        workspace_id=WORKSPACE_ID, run_id=RUN_ID, source_path=name, name=name, media_type="application/pdf",
         expires_at=expires_at, retention_policy=retention_policy,
     )
 
@@ -78,7 +82,7 @@ async def test_an_expired_artifact_is_claimed_and_deleted(rig) -> None:
 
     assert len(outcomes) == 1 and outcomes[0].status == "deleted"
     assert files.path(artifact.relative_path) is None
-    assert await store.get(artifact.id) is None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is None
 
 
 @pytest.mark.asyncio
@@ -123,7 +127,7 @@ async def test_legal_hold_is_never_claimed(rig) -> None:
     claimed = await store.claim_expired(now=now, stale_after=timedelta(minutes=15), limit=10)
 
     assert claimed == []
-    assert await store.get(artifact.id) is not None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None
 
 
 @pytest.mark.asyncio
@@ -148,9 +152,9 @@ async def test_max_attempts_excludes_the_row_from_future_claims(rig) -> None:
     now = datetime.now(UTC)
     artifact = await _register(store, workspace, name="a.pdf", expires_at=now - timedelta(hours=1))
     for _ in range(3):
-        await store.record_deletion_failure(artifact.id, "disk unavailable")
+        await store.record_deletion_failure(workspace_id=WORKSPACE_ID, artifact_id=artifact.id, error="disk unavailable")
 
     claimed = await store.claim_expired(now=now, stale_after=timedelta(minutes=15), limit=10, max_attempts=3)
 
     assert claimed == []
-    assert await store.get(artifact.id) is not None  # the row is still there, just not offered
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None  # the row is still there, just not offered

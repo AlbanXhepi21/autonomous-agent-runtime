@@ -8,14 +8,22 @@ exposes the same helpers as fixtures for tests that prefer injection.
 one place rather than at every construction site.
 """
 
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from collections.abc import Iterable
 from typing import Any
+from uuid import UUID
 
 from app.contracts.actions import AgentAction
+from app.datasources.service import DataSourceOnboardingError
+from app.identity.contracts import User
 from app.llm.contracts import LLMClient
 from app.runtime.runner import AgentRunner
 from app.skills.registry import SkillRegistry
+from app.tenancy.contracts import Membership, MembershipStatus, Role, Workspace
+from app.tenancy.context import TenantContext
+from app.tenancy.permissions import ROLE_PERMISSIONS
 from app.tools.registry import ToolRegistry
 
 #: Resolved here so tests can move between directories without recounting parents.
@@ -68,6 +76,118 @@ def make_runner(
         tool_registry=tool_registry if tool_registry is not None else ToolRegistry(),
         skill_registry=skill_registry if skill_registry is not None else SkillRegistry(),
         **overrides,
+    )
+
+
+def make_tenant_context(*, workspace_id: uuid.UUID | None = None, role: Role = Role.OWNER) -> TenantContext:
+    """Build a self-consistent ``TenantContext`` for tests that call a route
+
+    function directly rather than through an authenticated ``TestClient``.
+    """
+
+    now = datetime.now(timezone.utc)
+    workspace_id = workspace_id or uuid.uuid4()
+    user_id = uuid.uuid4()
+    return TenantContext(
+        user=User(
+            id=user_id, email="test@example.com", display_name="Test User", password_hash="",
+            is_active=True, email_verified=True, created_at=now, updated_at=now,
+        ),
+        workspace=Workspace(
+            id=workspace_id, name="Test Workspace", slug=f"test-{workspace_id}", is_active=True,
+            default_timezone="UTC", default_locale="en-US", default_currency="USD",
+            created_at=now, updated_at=now,
+        ),
+        membership=Membership(
+            id=uuid.uuid4(), user_id=user_id, workspace_id=workspace_id, role=role,
+            status=MembershipStatus.ACTIVE, joined_at=now, created_at=now, updated_at=now,
+        ),
+        role=role,
+        permissions=ROLE_PERMISSIONS[role],
+    )
+
+
+def override_tenant_context(
+    app: Any, *, workspace_id: uuid.UUID | None = None, role: Role = Role.OWNER,
+) -> TenantContext:
+    """Make ``app`` (a FastAPI instance) resolve every tenant-scoped route to
+    one fixed, fully-permissioned ``TenantContext``, bypassing real cookie
+    auth and CSRF entirely.
+
+    Real login/CSRF mechanics are already proven end to end by
+    ``tests/api/test_auth_api.py`` and ``tests/api/test_workspaces_api.py``;
+    business-route tests only need a stable, known tenant to assert against.
+    ``get_tenant_context`` is the one dependency every ``require_permission``
+    closure resolves through (FastAPI matches overrides by the dependency
+    callable, regardless of how deep it is referenced), so overriding it here
+    covers every route in the app no matter which permission it requires.
+    Two calls with different ``workspace_id`` values on two separate ``app``
+    instances simulate two different tenants sharing the same backing fakes.
+    """
+
+    from app.api.dependencies import get_tenant_context, require_csrf
+
+    context = make_tenant_context(workspace_id=workspace_id, role=role)
+    app.dependency_overrides[get_tenant_context] = lambda: context
+    app.dependency_overrides[require_csrf] = lambda: None
+    return context
+
+
+class FakeTenancyService:
+    """The one method ``app.api.routes.artifacts`` calls directly (not through
+    ``get_tenant_context``, since that route has no ``{workspace_id}`` path
+    segment to resolve one from -- see the module docstring there). Returns
+    the same self-consistent ``TenantContext`` ``make_tenant_context`` would
+    build through the normal dependency, so a direct call to
+    ``download_artifact``/``preview_artifact``/``list_artifacts`` sees the
+    same shape of context a real request would.
+    """
+
+    def __init__(self, *, role: Role = Role.OWNER) -> None:
+        self._role = role
+
+    async def get_context(self, *, user: User, workspace_id: uuid.UUID) -> TenantContext:
+        return make_tenant_context(workspace_id=workspace_id, role=self._role)
+
+
+def make_artifact_route_caller(*, workspace_id: uuid.UUID | None = None, role: Role = Role.OWNER):
+    """Return ``(user, tenancy)`` for calling an ``artifacts.py`` route function
+    directly, matching its ``user: User = Depends(get_current_user)`` /
+    ``tenancy: TenancyService = Depends(get_tenancy_service)`` signature --
+    the replacement for passing a bare ``TenantContext`` positionally, which
+    is what these routes took before they were changed to resolve the owning
+    workspace from the artifact itself (see ``app/api/routes/artifacts.py``).
+    """
+
+    context = make_tenant_context(workspace_id=workspace_id, role=role)
+    return context.user, FakeTenancyService(role=role)
+
+
+class _NoDataSourceService:
+    """Stand-in for ``DataSourceOnboardingService`` that always reports no
+    active connection, so ``run_agent`` falls back to the injected runner."""
+
+    async def active_connection_runtime(self, *, workspace_id: UUID) -> Any:
+        raise DataSourceOnboardingError("No active data source for this workspace.")
+
+
+async def run_agent_directly(request: Any, runner: AgentRunner, *, context: TenantContext | None = None) -> Any:
+    """Call the ``/agent/run`` route function without an HTTP layer.
+
+    Supplies a synthetic tenant context and a data-source service that always
+    reports "no active connection", so the route falls back to using
+    ``runner`` exactly as it did before workspace scoping existed.
+    """
+
+    from app.api.routes.agent import run_agent
+
+    return await run_agent(
+        request,
+        context or make_tenant_context(),
+        runner,
+        _NoDataSourceService(),
+        None,
+        None,
     )
 
 

@@ -179,6 +179,6 @@ def conversation_store():
 
     run = completed_run()
     return SimpleNamespace(
-        get_run=lambda run_id: value(run),
-        get_assistant_message_for_run=lambda run_id: value(SimpleNamespace(content=ANSWER)),
+        get_run=lambda *, workspace_id, run_id: value(run),
+        get_assistant_message_for_run=lambda *, workspace_id, run_id: value(SimpleNamespace(content=ANSWER)),
     )

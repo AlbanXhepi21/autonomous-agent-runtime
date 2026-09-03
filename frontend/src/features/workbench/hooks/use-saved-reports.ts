@@ -23,7 +23,7 @@ export const SAVED_REPORT_PAGE_SIZE = 10;
  * (what running it right now would use) and its execution history together,
  * since a reader opening one wants all three at once.
  */
-export function useSavedReports() {
+export function useSavedReports(workspaceId: string) {
   const [items, setItems] = useState<SavedReportSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"active" | "archived">("active");
@@ -37,38 +37,44 @@ export function useSavedReports() {
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState<SavedReportExecuteResponse | null>(null);
 
-  const load = useCallback(async (status: "active" | "archived" = statusFilter) => {
-    try {
-      const page = await savedReportsApi.list(status, SAVED_REPORT_PAGE_SIZE, 0);
-      setStatusFilter(status);
-      setItems(page.items);
-      setTotal(page.total);
-      setError(null);
-    } catch {
-      setError("Saved reports could not be loaded.");
-    }
-  }, [statusFilter]);
+  const load = useCallback(
+    async (status: "active" | "archived" = statusFilter) => {
+      try {
+        const page = await savedReportsApi.list(workspaceId, status, SAVED_REPORT_PAGE_SIZE, 0);
+        setStatusFilter(status);
+        setItems(page.items);
+        setTotal(page.total);
+        setError(null);
+      } catch {
+        setError("Saved reports could not be loaded.");
+      }
+    },
+    [statusFilter, workspaceId],
+  );
 
-  const select = useCallback(async (id: string) => {
-    setSelectedId(id);
-    setBusy(true);
-    setError(null);
-    setLastResult(null);
-    try {
-      const [report, resolved, executionPage] = await Promise.all([
-        savedReportsApi.get(id),
-        savedReportsApi.resolvedParameters(id),
-        savedReportsApi.executions(id),
-      ]);
-      setDetail(report);
-      setResolvedParameters(resolved);
-      setExecutions(executionPage.items);
-    } catch {
-      setError("This saved report could not be opened.");
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const select = useCallback(
+    async (id: string) => {
+      setSelectedId(id);
+      setBusy(true);
+      setError(null);
+      setLastResult(null);
+      try {
+        const [report, resolved, executionPage] = await Promise.all([
+          savedReportsApi.get(workspaceId, id),
+          savedReportsApi.resolvedParameters(workspaceId, id),
+          savedReportsApi.executions(workspaceId, id),
+        ]);
+        setDetail(report);
+        setResolvedParameters(resolved);
+        setExecutions(executionPage.items);
+      } catch {
+        setError("This saved report could not be opened.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [workspaceId],
+  );
 
   const close = useCallback(() => {
     setSelectedId(null);
@@ -78,21 +84,24 @@ export function useSavedReports() {
     setLastResult(null);
   }, []);
 
-  const create = useCallback(async (payload: SavedReportCreateRequest) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const report = await savedReportsApi.create(payload);
-      setItems((current) => [report, ...current]);
-      setTotal((current) => current + 1);
-      return report;
-    } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "The saved report could not be created.");
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const create = useCallback(
+    async (payload: SavedReportCreateRequest) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const report = await savedReportsApi.create(workspaceId, payload);
+        setItems((current) => [report, ...current]);
+        setTotal((current) => current + 1);
+        return report;
+      } catch (cause) {
+        setError(cause instanceof ApiError ? cause.message : "The saved report could not be created.");
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [workspaceId],
+  );
 
   const update = useCallback(
     async (changes: Omit<SavedReportUpdateRequest, "expected_version">) => {
@@ -100,7 +109,7 @@ export function useSavedReports() {
       setBusy(true);
       setError(null);
       try {
-        const updated = await savedReportsApi.update(detail.id, {
+        const updated = await savedReportsApi.update(workspaceId, detail.id, {
           expected_version: detail.version,
           ...changes,
         });
@@ -118,7 +127,7 @@ export function useSavedReports() {
         setBusy(false);
       }
     },
-    [detail],
+    [detail, workspaceId],
   );
 
   const archive = useCallback(async () => {
@@ -126,7 +135,7 @@ export function useSavedReports() {
     setBusy(true);
     setError(null);
     try {
-      const archived = await savedReportsApi.archive(detail.id, { expected_version: detail.version });
+      const archived = await savedReportsApi.archive(workspaceId, detail.id, { expected_version: detail.version });
       setDetail(archived);
       setItems((current) => current.filter((item) => item.id !== archived.id));
       setTotal((current) => Math.max(0, current - 1));
@@ -135,7 +144,7 @@ export function useSavedReports() {
     } finally {
       setBusy(false);
     }
-  }, [detail]);
+  }, [detail, workspaceId]);
 
   const execute = useCallback(
     async (mode: "preview" | "publish", formats: ("pdf" | "docx")[] = ["pdf"]) => {
@@ -143,9 +152,9 @@ export function useSavedReports() {
       setBusy(true);
       setError(null);
       try {
-        const result = await savedReportsApi.execute(detail.id, { mode, formats });
+        const result = await savedReportsApi.execute(workspaceId, detail.id, { mode, formats });
         setLastResult(result);
-        const executionPage = await savedReportsApi.executions(detail.id);
+        const executionPage = await savedReportsApi.executions(workspaceId, detail.id);
         setExecutions(executionPage.items);
         return result;
       } catch (cause) {
@@ -155,7 +164,7 @@ export function useSavedReports() {
         setBusy(false);
       }
     },
-    [detail],
+    [detail, workspaceId],
   );
 
   return {

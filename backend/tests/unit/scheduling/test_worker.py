@@ -25,10 +25,13 @@ from app.scheduling.contracts import ScheduleConfig, ScheduledReportDefinition
 from app.scheduling.worker import SchedulerWorker
 
 
+WORKSPACE_ID = uuid4()
+
+
 def _saved_report(**overrides) -> SavedReportDefinition:
     now = datetime.now(UTC)
     fields = dict(
-        id=uuid4(), workspace_id="workspace-a", owner=None, name="Weekly Revenue", description=None,
+        id=uuid4(), workspace_id=WORKSPACE_ID, owner=None, name="Weekly Revenue", description=None,
         template_id="analysis_summary", template_version="4",
         metric_requests=[SavedMetricRequest(metric="revenue")],
         default_period=RelativePeriod(kind="last_n_days", days=7),
@@ -42,7 +45,7 @@ def _saved_report(**overrides) -> SavedReportDefinition:
 def _schedule(**overrides) -> ScheduledReportDefinition:
     now = datetime.now(UTC)
     fields = dict(
-        id=uuid4(), saved_report_id=uuid4(), workspace_id="workspace-a",
+        id=uuid4(), saved_report_id=uuid4(), workspace_id=WORKSPACE_ID,
         schedule=ScheduleConfig(kind="daily", hour=6, minute=0), timezone="UTC", formats=["pdf"],
         delivery_channel=None, delivery_destination=None, enabled=True, next_run_at=now,
         last_run_at=None, last_result=None, consecutive_failures=0, created_at=now, updated_at=now,
@@ -53,7 +56,8 @@ def _schedule(**overrides) -> ScheduledReportDefinition:
 
 def _artifact(artifact_id: str = "artifact-1") -> Artifact:
     return Artifact(
-        id=artifact_id, name="report.pdf", relative_path=f"artifacts/run/{artifact_id}/report.pdf",
+        id=artifact_id, workspace_id=WORKSPACE_ID, name="report.pdf",
+        relative_path=f"artifacts/run/{artifact_id}/report.pdf",
         artifact_type="report_document", media_type="application/pdf", size=1234, sha256="0" * 64,
         status=ArtifactStatus.READY, run_id="run-1", created_at=datetime.now(UTC),
     )
@@ -107,9 +111,9 @@ class FakeScheduledReportStore:
         claimed, self.due = self.due[:limit], self.due[limit:]
         return claimed
 
-    async def record_run_result(self, *, scheduled_report_id, ran_at, result, next_run_at):
+    async def record_run_result(self, *, workspace_id, scheduled_report_id, ran_at, result, next_run_at):
         self.results.append({
-            "scheduled_report_id": scheduled_report_id, "ran_at": ran_at,
+            "workspace_id": workspace_id, "scheduled_report_id": scheduled_report_id, "ran_at": ran_at,
             "result": result, "next_run_at": next_run_at,
         })
 
@@ -119,7 +123,7 @@ class FakeDelivery:
     calls: list[tuple] = field(default_factory=list)
     should_fail: bool = False
 
-    async def deliver(self, *, artifact_id, channel, destination):
+    async def deliver(self, *, workspace_id, artifact_id, channel, destination):
         self.calls.append((artifact_id, channel, destination))
         if self.should_fail:
             raise RuntimeError("delivery unavailable")

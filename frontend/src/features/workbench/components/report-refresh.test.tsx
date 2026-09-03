@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportRefresh } from "./report-refresh";
 import { analyticsApi } from "@/lib/api/analytics";
 import type { MetricParameters } from "@/types/analytics";
+import { WorkspaceIdProvider } from "@/features/workbench/workspace-context";
 
 vi.mock("@/lib/api/analytics", () => ({
   analyticsApi: { rerunMetrics: vi.fn() },
@@ -34,12 +35,14 @@ function setup(
   const onChange = vi.fn();
   const onNarrativeChange = vi.fn();
   render(
-    <ReportRefresh
-      value={value}
-      narrative={narrative}
-      onChange={onChange}
-      onNarrativeChange={onNarrativeChange}
-    />,
+    <WorkspaceIdProvider workspaceId="ws-1">
+      <ReportRefresh
+        value={value}
+        narrative={narrative}
+        onChange={onChange}
+        onNarrativeChange={onNarrativeChange}
+      />
+    </WorkspaceIdProvider>,
   );
   return { onChange, onNarrativeChange };
 }
@@ -115,12 +118,14 @@ describe("ReportRefresh", () => {
     vi.mocked(analyticsApi.rerunMetrics).mockResolvedValue({ items: [] });
 
     const { container } = render(
-      <ReportRefresh
-        value={[]}
-        narrative="excluded_from_refreshed_report"
-        onChange={vi.fn()}
-        onNarrativeChange={vi.fn()}
-      />,
+      <WorkspaceIdProvider workspaceId="ws-1">
+        <ReportRefresh
+          value={[]}
+          narrative="excluded_from_refreshed_report"
+          onChange={vi.fn()}
+          onNarrativeChange={vi.fn()}
+        />
+      </WorkspaceIdProvider>,
     );
 
     await waitFor(() => expect(container).toBeEmptyDOMElement());

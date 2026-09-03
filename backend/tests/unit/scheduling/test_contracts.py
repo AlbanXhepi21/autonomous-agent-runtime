@@ -53,7 +53,7 @@ def test_unknown_fields_are_rejected() -> None:
 def _definition(**overrides) -> ScheduledReportDefinition:
     now = datetime.now(UTC)
     fields = {
-        "id": uuid4(), "saved_report_id": uuid4(), "workspace_id": "workspace-a",
+        "id": uuid4(), "saved_report_id": uuid4(), "workspace_id": uuid4(),
         "schedule": ScheduleConfig(kind="daily", hour=6, minute=0), "timezone": "UTC",
         "formats": ["pdf"], "delivery_channel": None, "delivery_destination": None,
         "enabled": True, "next_run_at": now, "last_run_at": None, "last_result": None,

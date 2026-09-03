@@ -15,6 +15,7 @@ import asyncio
 import zipfile
 from hashlib import sha256
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from docx import Document
@@ -36,6 +37,7 @@ from tests.fixtures.payment_failures import (
 )
 
 TEMPLATE = "monthly_business_review"
+WORKSPACE_ID = uuid4()
 
 #: The eight sections the deliverable must carry. ``cover`` prints the title
 #: page rather than a heading, so it is verified by its content below.
@@ -57,13 +59,13 @@ def _publish(tmp_path: Path, formats=("pdf", "docx")) -> tuple[list[Artifact], W
         ReportTemplateRegistry(), conversation_store(), artifacts, workspace,
     )
     published = asyncio.run(publisher.publish(
-        run_id=RUN_ID, template_name=TEMPLATE, formats=list(formats), period=PERIOD,
+        workspace_id=WORKSPACE_ID, run_id=RUN_ID, template_name=TEMPLATE, formats=list(formats), period=PERIOD,
     ))
     return published, artifacts
 
 
 def _path(artifact: Artifact, artifacts: WorkspaceArtifactStore) -> Path:
-    resolved = asyncio.run(artifacts.path_for(artifact.id))
+    resolved = asyncio.run(artifacts.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact.id))
     assert resolved is not None, f"{artifact.name} did not resolve to a file"
     return resolved
 

@@ -1,4 +1,13 @@
-"""PostgreSQL repository for visible conversation and run history."""
+"""PostgreSQL repository for visible conversation and run history.
+
+Every method takes ``workspace_id`` first, matching the preferred repository
+pattern (``get_run(tenant_id, run_id)``): a conversation carries its own
+``workspace_id`` column, and ``messages``/``agent_runs`` -- both required
+children of a conversation -- verify tenant ownership by joining to it
+rather than carrying their own copy of the column. A row from another
+workspace is treated exactly like a row that does not exist, never surfaced
+and never distinguished from a genuine 404.
+"""
 
 from __future__ import annotations
 
@@ -41,18 +50,18 @@ def should_generate_title(title: str, has_messages: bool) -> bool:
 class ConversationStore:
     """Persistence contract for conversation history; never reads or writes memory."""
 
-    async def create_conversation(self, title: str = DEFAULT_CONVERSATION_TITLE) -> ConversationRecord: raise NotImplementedError
-    async def list_conversations(self, *, limit: int, offset: int) -> tuple[list[ConversationRecord], int]: raise NotImplementedError
-    async def get_conversation(self, conversation_id: UUID) -> ConversationRecord | None: raise NotImplementedError
-    async def update_title(self, conversation_id: UUID, title: str) -> ConversationRecord | None: raise NotImplementedError
-    async def delete_conversation(self, conversation_id: UUID) -> bool: raise NotImplementedError
-    async def list_messages(self, conversation_id: UUID, *, limit: int, offset: int) -> tuple[list[MessageRecord], int]: raise NotImplementedError
-    async def list_runs(self, conversation_id: UUID) -> list[AgentRunRecord]: raise NotImplementedError
-    async def get_run(self, run_id: str) -> AgentRunRecord | None: raise NotImplementedError
-    async def get_assistant_message_for_run(self, run_id: str) -> MessageRecord | None: raise NotImplementedError
-    async def create_run(self, *, conversation_id: UUID | None, message: str, run_id: str) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]: raise NotImplementedError
-    async def start_run(self, run_id: str, started_at: datetime) -> None: raise NotImplementedError
-    async def finish_run(self, *, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, answer_sources: list[dict[str, object]] | None, answer_caveats: list[str] | None, error: str | None, assistant_content: str | None) -> None: raise NotImplementedError
+    async def create_conversation(self, *, workspace_id: UUID, title: str = DEFAULT_CONVERSATION_TITLE) -> ConversationRecord: raise NotImplementedError
+    async def list_conversations(self, *, workspace_id: UUID, limit: int, offset: int) -> tuple[list[ConversationRecord], int]: raise NotImplementedError
+    async def get_conversation(self, *, workspace_id: UUID, conversation_id: UUID) -> ConversationRecord | None: raise NotImplementedError
+    async def update_title(self, *, workspace_id: UUID, conversation_id: UUID, title: str) -> ConversationRecord | None: raise NotImplementedError
+    async def delete_conversation(self, *, workspace_id: UUID, conversation_id: UUID) -> bool: raise NotImplementedError
+    async def list_messages(self, *, workspace_id: UUID, conversation_id: UUID, limit: int, offset: int) -> tuple[list[MessageRecord], int]: raise NotImplementedError
+    async def list_runs(self, *, workspace_id: UUID, conversation_id: UUID) -> list[AgentRunRecord]: raise NotImplementedError
+    async def get_run(self, *, workspace_id: UUID, run_id: str) -> AgentRunRecord | None: raise NotImplementedError
+    async def get_assistant_message_for_run(self, *, workspace_id: UUID, run_id: str) -> MessageRecord | None: raise NotImplementedError
+    async def create_run(self, *, workspace_id: UUID, conversation_id: UUID | None, message: str, run_id: str) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]: raise NotImplementedError
+    async def start_run(self, *, workspace_id: UUID, run_id: str, started_at: datetime) -> None: raise NotImplementedError
+    async def finish_run(self, *, workspace_id: UUID, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, answer_sources: list[dict[str, object]] | None, answer_caveats: list[str] | None, error: str | None, assistant_content: str | None) -> None: raise NotImplementedError
 
 
 class PostgresConversationStore(ConversationStore):
@@ -63,74 +72,91 @@ class PostgresConversationStore(ConversationStore):
 
         await self._database.dispose()
 
-    async def create_conversation(self, title: str = DEFAULT_CONVERSATION_TITLE) -> ConversationRecord:
-        record = ConversationRecord(id=uuid4(), title=title, created_at=now(), updated_at=now())
+    async def create_conversation(self, *, workspace_id: UUID, title: str = DEFAULT_CONVERSATION_TITLE) -> ConversationRecord:
+        record = ConversationRecord(id=uuid4(), workspace_id=workspace_id, title=title, created_at=now(), updated_at=now())
         await self._commit(lambda session: session.add(record))
         return record
 
-    async def list_conversations(self, *, limit: int, offset: int) -> tuple[list[ConversationRecord], int]:
+    async def list_conversations(self, *, workspace_id: UUID, limit: int, offset: int) -> tuple[list[ConversationRecord], int]:
         from sqlalchemy import func
         async with self._database.session() as session:
-            total = await session.scalar(select(func.count()).select_from(ConversationRecord)) or 0
-            records = (await session.scalars(select(ConversationRecord).order_by(ConversationRecord.updated_at.desc(), ConversationRecord.id.desc()).limit(limit).offset(offset))).all()
+            query = select(ConversationRecord).where(ConversationRecord.workspace_id == workspace_id)
+            total = await session.scalar(select(func.count()).select_from(ConversationRecord).where(ConversationRecord.workspace_id == workspace_id)) or 0
+            records = (await session.scalars(query.order_by(ConversationRecord.updated_at.desc(), ConversationRecord.id.desc()).limit(limit).offset(offset))).all()
         return records, total
 
-    async def get_conversation(self, conversation_id: UUID) -> ConversationRecord | None:
-        async with self._database.session() as session: return await session.get(ConversationRecord, conversation_id)
+    async def get_conversation(self, *, workspace_id: UUID, conversation_id: UUID) -> ConversationRecord | None:
+        async with self._database.session() as session:
+            record = await session.get(ConversationRecord, conversation_id)
+        return record if record is not None and record.workspace_id == workspace_id else None
 
-    async def update_title(self, conversation_id: UUID, title: str) -> ConversationRecord | None:
+    async def update_title(self, *, workspace_id: UUID, conversation_id: UUID, title: str) -> ConversationRecord | None:
         async with self._database.session() as session:
             async with session.begin():
                 record = await session.get(ConversationRecord, conversation_id)
-                if record is None: return None
+                if record is None or record.workspace_id != workspace_id: return None
                 record.title, record.updated_at = title, now()
                 return record
 
-    async def delete_conversation(self, conversation_id: UUID) -> bool:
+    async def delete_conversation(self, *, workspace_id: UUID, conversation_id: UUID) -> bool:
         # Runs and messages are history scoped to the conversation; runtime artifacts are not touched.
         async with self._database.session() as session:
             async with session.begin():
                 record = await session.get(ConversationRecord, conversation_id)
-                if record is None: return False
+                if record is None or record.workspace_id != workspace_id: return False
                 await session.execute(delete(AgentRunRecord).where(AgentRunRecord.conversation_id == conversation_id))
                 await session.execute(delete(MessageRecord).where(MessageRecord.conversation_id == conversation_id))
                 await session.delete(record)
         return True
 
-    async def list_messages(self, conversation_id: UUID, *, limit: int, offset: int) -> tuple[list[MessageRecord], int]:
+    async def list_messages(self, *, workspace_id: UUID, conversation_id: UUID, limit: int, offset: int) -> tuple[list[MessageRecord], int]:
         from sqlalchemy import func
+        if await self.get_conversation(workspace_id=workspace_id, conversation_id=conversation_id) is None:
+            return [], 0
         async with self._database.session() as session:
             total = await session.scalar(select(func.count()).select_from(MessageRecord).where(MessageRecord.conversation_id == conversation_id)) or 0
             records = (await session.scalars(select(MessageRecord).where(MessageRecord.conversation_id == conversation_id).order_by(MessageRecord.created_at, MessageRecord.id).limit(limit).offset(offset))).all()
         return records, total
 
-    async def list_runs(self, conversation_id: UUID) -> list[AgentRunRecord]:
+    async def list_runs(self, *, workspace_id: UUID, conversation_id: UUID) -> list[AgentRunRecord]:
+        if await self.get_conversation(workspace_id=workspace_id, conversation_id=conversation_id) is None:
+            return []
         async with self._database.session() as session:
             return (await session.scalars(select(AgentRunRecord).where(AgentRunRecord.conversation_id == conversation_id).order_by(AgentRunRecord.created_at, AgentRunRecord.id))).all()
 
-    async def get_run(self, run_id: str) -> AgentRunRecord | None:
-        async with self._database.session() as session:
-            return await session.get(AgentRunRecord, run_id)
+    async def get_run(self, *, workspace_id: UUID, run_id: str) -> AgentRunRecord | None:
+        """A bare ``run_id`` has no workspace of its own -- verified by joining
+        to the owning conversation's ``workspace_id`` in the same query.
+        """
 
-    async def get_assistant_message_for_run(self, run_id: str) -> MessageRecord | None:
+        async with self._database.session() as session:
+            return await session.scalar(
+                select(AgentRunRecord)
+                .join(ConversationRecord, AgentRunRecord.conversation_id == ConversationRecord.id)
+                .where(AgentRunRecord.id == run_id, ConversationRecord.workspace_id == workspace_id)
+            )
+
+    async def get_assistant_message_for_run(self, *, workspace_id: UUID, run_id: str) -> MessageRecord | None:
         """Return the durable visible answer produced by a completed run."""
 
         async with self._database.session() as session:
             return await session.scalar(
                 select(MessageRecord)
-                .where(MessageRecord.run_id == run_id, MessageRecord.role == "assistant")
+                .join(ConversationRecord, MessageRecord.conversation_id == ConversationRecord.id)
+                .where(MessageRecord.run_id == run_id, MessageRecord.role == "assistant", ConversationRecord.workspace_id == workspace_id)
                 .order_by(MessageRecord.created_at.desc(), MessageRecord.id.desc())
                 .limit(1)
             )
 
-    async def create_run(self, *, conversation_id: UUID | None, message: str, run_id: str) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]:
+    async def create_run(self, *, workspace_id: UUID, conversation_id: UUID | None, message: str, run_id: str) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]:
         async with self._database.session() as session:
             async with session.begin():
                 stamp = now()
                 conversation = await session.get(ConversationRecord, conversation_id) if conversation_id else None
-                if conversation_id and conversation is None: raise LookupError("Conversation not found")
+                if conversation_id and (conversation is None or conversation.workspace_id != workspace_id):
+                    raise LookupError("Conversation not found")
                 if conversation is None:
-                    conversation = ConversationRecord(id=uuid4(), title=generate_title(message), created_at=stamp, updated_at=stamp)
+                    conversation = ConversationRecord(id=uuid4(), workspace_id=workspace_id, title=generate_title(message), created_at=stamp, updated_at=stamp)
                     session.add(conversation)
                 elif should_generate_title(
                     conversation.title,
@@ -150,16 +176,24 @@ class PostgresConversationStore(ConversationStore):
                 session.add(run)
             return conversation, user_message, run
 
-    async def start_run(self, run_id: str, started_at: datetime) -> None:
+    async def start_run(self, *, workspace_id: UUID, run_id: str, started_at: datetime) -> None:
         async with self._database.session() as session:
             async with session.begin():
-                record = await session.get(AgentRunRecord, run_id)
+                record = await session.scalar(
+                    select(AgentRunRecord)
+                    .join(ConversationRecord, AgentRunRecord.conversation_id == ConversationRecord.id)
+                    .where(AgentRunRecord.id == run_id, ConversationRecord.workspace_id == workspace_id)
+                )
                 if record: record.started_at = started_at
 
-    async def finish_run(self, *, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, answer_sources: list[dict[str, object]] | None, answer_caveats: list[str] | None, error: str | None, assistant_content: str | None) -> None:
+    async def finish_run(self, *, workspace_id: UUID, run_id: str, status: str, completed_at: datetime, metrics: dict[str, object] | None, chart_specs: list[dict[str, object]] | None, answer_sources: list[dict[str, object]] | None, answer_caveats: list[str] | None, error: str | None, assistant_content: str | None) -> None:
         async with self._database.session() as session:
             async with session.begin():
-                run = await session.get(AgentRunRecord, run_id)
+                run = await session.scalar(
+                    select(AgentRunRecord)
+                    .join(ConversationRecord, AgentRunRecord.conversation_id == ConversationRecord.id)
+                    .where(AgentRunRecord.id == run_id, ConversationRecord.workspace_id == workspace_id)
+                )
                 if run is None: return
                 run.status, run.completed_at, run.metrics, run.error = status, completed_at, metrics, error
                 run.chart_specs, run.answer_sources = chart_specs, answer_sources

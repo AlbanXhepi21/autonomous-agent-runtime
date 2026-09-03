@@ -8,6 +8,7 @@ one implementation. ``tests/integration/test_postgres_artifacts.py`` runs the
 durability half of this against a real database.
 """
 
+import uuid
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,8 @@ from app.artifacts.postgres import PostgresArtifactStore
 from app.artifacts.store import WorkspaceArtifactStore
 from app.config import Settings
 from app.environment.workspace import Workspace
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 class FailingFiles(WorkspaceArtifactFiles):
@@ -40,8 +43,8 @@ async def test_a_registered_artifact_records_the_bytes_that_landed(tmp_path: Pat
     (tmp_path / "report.md").write_text("# Report\n")
     store = _store(tmp_path)
 
-    artifact = await store.register(run_id="run-one", source_path="report.md")
-    path = await store.path_for(artifact.id)
+    artifact = await store.register(workspace_id=WORKSPACE_ID, run_id="run-one", source_path="report.md")
+    path = await store.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact.id)
 
     assert artifact.status is ArtifactStatus.READY
     assert path is not None
@@ -59,10 +62,10 @@ async def test_a_failed_write_leaves_no_retrievable_record(tmp_path: Path) -> No
     )
 
     with pytest.raises(ValueError, match="could not be written"):
-        await store.register(run_id="run-one", source_path="report.md")
+        await store.register(workspace_id=WORKSPACE_ID, run_id="run-one", source_path="report.md")
 
     # The row survives so the failure is visible, but nothing hands it out.
-    assert await store.list(run_id="run-one") == []
+    assert await store.list(workspace_id=WORKSPACE_ID, run_id="run-one") == []
 
 
 @pytest.mark.asyncio
@@ -71,15 +74,15 @@ async def test_a_record_whose_file_vanished_resolves_to_no_path(tmp_path: Path) 
 
     (tmp_path / "report.md").write_text("# Report\n")
     store = _store(tmp_path)
-    artifact = await store.register(run_id="run-one", source_path="report.md")
+    artifact = await store.register(workspace_id=WORKSPACE_ID, run_id="run-one", source_path="report.md")
 
-    path = await store.path_for(artifact.id)
+    path = await store.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact.id)
     assert path is not None
     path.unlink()
 
     # The record is still ready — the bytes are what went missing.
-    assert await store.get(artifact.id) is not None
-    assert await store.path_for(artifact.id) is None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None
+    assert await store.path_for(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is None
 
 
 @pytest.mark.asyncio
@@ -88,11 +91,11 @@ async def test_one_run_never_resolves_another_runs_artifacts(tmp_path: Path) -> 
     (tmp_path / "two.txt").write_text("two")
     store = _store(tmp_path)
 
-    first = await store.register(run_id="first", source_path="one.txt")
-    second = await store.register(run_id="second", source_path="two.txt")
+    first = await store.register(workspace_id=WORKSPACE_ID, run_id="first", source_path="one.txt")
+    second = await store.register(workspace_id=WORKSPACE_ID, run_id="second", source_path="two.txt")
 
-    assert [item.id for item in await store.list(run_id="first")] == [first.id]
-    assert [item.id for item in await store.list(run_id="second")] == [second.id]
+    assert [item.id for item in await store.list(workspace_id=WORKSPACE_ID, run_id="first")] == [first.id]
+    assert [item.id for item in await store.list(workspace_id=WORKSPACE_ID, run_id="second")] == [second.id]
     assert first.relative_path.startswith("artifacts/first/")
     assert second.relative_path.startswith("artifacts/second/")
 
@@ -104,7 +107,7 @@ async def test_a_run_identifier_cannot_escape_the_artifact_area(tmp_path: Path) 
 
     for hostile in ("../escape", "a/b", "..", ""):
         with pytest.raises(ValueError):
-            await store.register(run_id=hostile, source_path="one.txt")
+            await store.register(workspace_id=WORKSPACE_ID, run_id=hostile, source_path="one.txt")
 
 
 def test_a_storage_key_is_provider_independent(tmp_path: Path) -> None:
@@ -121,8 +124,8 @@ def test_a_storage_key_is_provider_independent(tmp_path: Path) -> None:
 async def test_an_unresolvable_identifier_is_refused_rather_than_searched(tmp_path: Path) -> None:
     store = _store(tmp_path)
 
-    assert await store.get("../../etc/passwd") is None
-    assert await store.path_for("not-a-uuid") is None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id="../../etc/passwd") is None
+    assert await store.path_for(workspace_id=WORKSPACE_ID, artifact_id="not-a-uuid") is None
 
 
 def test_files_written_before_records_existed_are_recoverable(tmp_path: Path) -> None:

@@ -22,19 +22,20 @@ import { useAgentRun } from "./hooks/use-agent-run";
 import { useApprovals } from "./hooks/use-approvals";
 import { useConversations } from "./hooks/use-conversations";
 import { useWorkbenchConfig } from "./hooks/use-workbench-config";
+import { WorkspaceIdProvider } from "./workspace-context";
 
-export function Workbench() {
-  const conversations = useConversations();
+export function Workbench({ workspaceId }: { workspaceId: string }) {
+  const conversations = useConversations(workspaceId);
   const config = useWorkbenchConfig();
   const { load: loadConversations, setConversationId } = conversations;
 
-  const approvals = useApprovals();
+  const approvals = useApprovals(workspaceId);
   const { loadPending } = approvals;
 
   const onRunSettled = useCallback(() => void loadConversations(), [loadConversations]);
   const onApprovalRequired = useCallback((runId: string) => loadPending(runId), [loadPending]);
 
-  const run = useAgentRun({ onRunSettled, onApprovalRequired });
+  const run = useAgentRun({ workspaceId, onRunSettled, onApprovalRequired });
 
   /** The display opened in the explore panel, with the run whose evidence it cites. */
   const [exploring, setExploring] = useState<{ chart: ChartSpec; runId: string } | null>(null);
@@ -54,7 +55,7 @@ export function Workbench() {
   const switchConversation = async (id: string) => {
     approvals.setApproval(null);
     try {
-      const conversation = await conversationsApi.get(id);
+      const conversation = await conversationsApi.get(workspaceId, id);
       setConversationId(conversation.id);
       await run.restore(
         conversation.messages.map((message) => ({
@@ -83,6 +84,7 @@ export function Workbench() {
     run.submit(message, conversations.conversationId, setConversationId);
 
   return (
+    <WorkspaceIdProvider workspaceId={workspaceId}>
     <main className="workbench">
       <aside className="sidebar">
         <div>
@@ -295,5 +297,6 @@ export function Workbench() {
         />
       )}
     </main>
+    </WorkspaceIdProvider>
   );
 }

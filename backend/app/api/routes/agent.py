@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.analytics.semantics.datasets import AnalyticsDatasetStore
+from app.api.dependencies import require_csrf, require_permission
 from app.api.schemas.agent import AgentRunRequest, AgentRunResponse, ToolOutcomeSummary
 from app.composition import (
     build_agent_runner,
@@ -15,43 +16,46 @@ from app.datasources.agent_integration import resolve_workspace_tools
 from app.datasources.service import DataSourceOnboardingError, DataSourceOnboardingService
 from app.datasources.store import DataSourceStore
 from app.runtime.runner import AgentRunner
+from app.tenancy.context import TenantContext
+from app.tenancy.permissions import Permission
 from app.tools.contracts import ToolResult
 
-router = APIRouter(prefix="/agent", tags=["agent"])
+router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/agent", tags=["agent"])
 
 
-@router.post("/run", response_model=AgentRunResponse)
+@router.post("/run", response_model=AgentRunResponse, dependencies=[Depends(require_csrf)])
 async def run_agent(
     request: AgentRunRequest,
+    context: TenantContext = Depends(require_permission(Permission.RUN_ANALYSES)),
     runner: AgentRunner = Depends(get_agent_runner),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
     store: DataSourceStore = Depends(get_data_source_store),
     datasets: AnalyticsDatasetStore = Depends(get_analytics_dataset_store),
 ) -> AgentRunResponse:
-    """Run the runtime for one submitted goal.
+    """Run the runtime for one submitted goal, scoped to the caller's workspace.
 
-    When ``request.workspace_id`` is set, ``runner`` is rebuilt with its
-    analytics tools scoped to that workspace's one active data source instead
-    of the demo database; everything else about the run (LLM client, limits,
-    memory, security policy) stays the same as the injected default. Omitted,
-    ``runner`` is used exactly as provided -- unchanged from before this
-    existed, including for callers (tests) that build and pass their own.
+    When the workspace has an active data source, the run's analytics tools
+    are scoped to it instead of the built-in demo database; everything else
+    about the run (LLM client, limits, memory, security policy) stays the
+    same as the injected default. Without one, the demo database is used --
+    unchanged capability from before tenant auth existed on this route, and
+    a known, separately-tracked limitation (see docs/TENANCY.md). Memory and
+    artifact registration during the run are always scoped to the
+    authenticated workspace, regardless of which analytics tools are active.
     """
 
+    workspace_id = context.workspace.id
     runtime = None
-    if request.workspace_id is not None:
-        try:
-            analytics_tools, runtime = await resolve_workspace_tools(
-                workspace_id=request.workspace_id, service=service, store=store, datasets=datasets,
-            )
-        except DataSourceOnboardingError as error:
-            raise HTTPException(
-                status_code=400, detail={"code": "no_active_data_source", "message": str(error)},
-            ) from error
+    try:
+        analytics_tools, runtime = await resolve_workspace_tools(
+            workspace_id=workspace_id, service=service, store=store, datasets=datasets,
+        )
         runner = build_agent_runner(analytics_tools)
+    except DataSourceOnboardingError:
+        pass  # No active data source for this workspace -- fall back to the injected default runner.
 
     try:
-        state = await runner.run(request.goal, session_id=request.session_id)
+        state = await runner.run(request.goal, session_id=request.session_id, workspace_id=str(workspace_id))
     finally:
         if runtime is not None:
             await runtime.database.dispose()

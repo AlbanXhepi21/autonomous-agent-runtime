@@ -11,8 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.delivery.contracts import DeliveryChannel
 from app.scheduling.contracts import ScheduleKind
 
-DEFAULT_WORKSPACE_ID = "default"
-
 
 class ScheduleConfigPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -27,7 +25,6 @@ class ScheduleConfigPayload(BaseModel):
 class ScheduledReportCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, min_length=1, max_length=128)
     saved_report_id: UUID
     schedule: ScheduleConfigPayload
     timezone: str = Field(min_length=1, max_length=64)
@@ -56,7 +53,7 @@ class ScheduledReportUpdateRequest(BaseModel):
 class ScheduledReportResponse(BaseModel):
     id: str
     saved_report_id: str
-    workspace_id: str
+    workspace_id: UUID
     schedule: ScheduleConfigPayload
     timezone: str
     formats: list[str]
@@ -87,6 +84,7 @@ class DeliveryTriggerRequest(BaseModel):
 
 class DeliveryResponse(BaseModel):
     id: str
+    workspace_id: UUID
     artifact_id: str
     channel: str
     destination: str

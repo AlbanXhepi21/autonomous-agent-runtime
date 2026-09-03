@@ -46,7 +46,7 @@ export type AnalystRun = Always<Schemas["RunResponse"]>;
 export type RunHistory = Always<Schemas["RunHistoryResponse"]>;
 
 export type Conversation = Always<Schemas["ConversationResponse"]>;
-export type ConversationMessage = Always<Schemas["MessageResponse"]>;
+export type ConversationMessage = Always<Schemas["app__api__schemas__analytics__MessageResponse"]>;
 export type ConversationList = Always<Schemas["ConversationListResponse"]>;
 export type ConversationDetail = Always<Schemas["ConversationDetailResponse"]>;
 
@@ -102,3 +102,45 @@ export type SavedReportDocument = Always<Schemas["PublishedDocumentSummary"]>;
 export type SavedReportExecuteResponse = Always<Schemas["SavedReportExecuteResponse"]>;
 export type SavedReportExecution = Always<Schemas["SavedReportExecutionResponse"]>;
 export type SavedReportExecutionList = Always<Schemas["SavedReportExecutionListResponse"]>;
+
+// -- authentication -----------------------------------------------------------
+
+export type RegisterRequest = Schemas["RegisterRequest"];
+export type LoginRequest = Schemas["LoginRequest"];
+export type ForgotPasswordRequest = Schemas["ForgotPasswordRequest"];
+export type ResetPasswordRequest = Schemas["ResetPasswordRequest"];
+export type AuthUser = Always<Schemas["UserResponse"]>;
+export type AuthMessage = Always<Schemas["app__api__schemas__auth__MessageResponse"]>;
+
+// -- tenancy --------------------------------------------------------------------
+
+export type Role = Schemas["Role"];
+export type MembershipStatus = Schemas["MembershipStatus"];
+export type Workspace = Always<Schemas["WorkspaceResponse"]>;
+export type WorkspaceList = Always<Schemas["WorkspaceListResponse"]>;
+export type WorkspaceCreateRequest = Schemas["WorkspaceCreateRequest"];
+export type WorkspaceUpdateRequest = Schemas["WorkspaceUpdateRequest"];
+export type Membership = Always<Schemas["MembershipResponse"]>;
+export type MembershipList = Always<Schemas["MembershipListResponse"]>;
+export type Invitation = Always<Schemas["InvitationResponse"]>;
+export type InviteMemberRequest = Schemas["InviteMemberRequest"];
+export type AcceptInvitationRequest = Schemas["AcceptInvitationRequest"];
+export type ChangeRoleRequest = Schemas["ChangeRoleRequest"];
+export type TransferOwnershipRequest = Schemas["TransferOwnershipRequest"];
+export type ChangePasswordRequest = Schemas["ChangePasswordRequest"];
+
+export type ReportPreferences = Always<Schemas["ReportPreferencesResponse"]>;
+export type ReportPreferencesUpdateRequest = Schemas["ReportPreferencesUpdateRequest"];
+/** Mirrors `app.reports.contracts.NarrativePolicy` -- the same three values used by saved reports. */
+export type NarrativePolicyDefault = NonNullable<ReportPreferences["default_narrative_policy"]>;
+
+export type AuditLogEntry = Always<Schemas["AuditLogEntryResponse"]>;
+export type AuditLogList = Always<Schemas["AuditLogListResponse"]>;
+
+// -- user settings --------------------------------------------------------------
+
+export type UserSettings = Always<Schemas["UserSettingsResponse"]>;
+export type UserSettingsUpdateRequest = Schemas["UserSettingsUpdateRequest"];
+export type RequestEmailChangeRequest = Schemas["RequestEmailChangeRequest"];
+export type ConfirmEmailChangeRequest = Schemas["ConfirmEmailChangeRequest"];
+export type VerifyEmailConfirmRequest = Schemas["VerifyEmailConfirmRequest"];

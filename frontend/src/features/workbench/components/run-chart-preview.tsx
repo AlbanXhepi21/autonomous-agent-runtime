@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { artifactsApi, type Artifact } from "@/lib/api/artifacts";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 
 export function RunChartPreview({ runId }: { runId: string }) {
+  const workspaceId = useWorkspaceId();
   const [chart, setChart] = useState<Artifact | null>(null);
 
   useEffect(() => {
     let active = true;
     void artifactsApi
-      .list(runId)
+      .list(workspaceId, runId)
       .then((items) => {
         if (active)
           setChart(
@@ -23,7 +25,7 @@ export function RunChartPreview({ runId }: { runId: string }) {
     return () => {
       active = false;
     };
-  }, [runId]);
+  }, [runId, workspaceId]);
 
   if (!chart) return null;
   return (

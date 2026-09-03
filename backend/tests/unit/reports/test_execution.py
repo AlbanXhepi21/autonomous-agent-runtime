@@ -52,7 +52,7 @@ class _FakeRerunService:
 def _definition(**overrides) -> SavedReportDefinition:
     now = datetime.now(UTC)
     fields = {
-        "id": uuid4(), "workspace_id": "workspace-a", "owner": None, "name": "Weekly Revenue",
+        "id": uuid4(), "workspace_id": uuid4(), "owner": None, "name": "Weekly Revenue",
         "description": None, "template_id": "analysis_summary", "template_version": "4",
         "metric_requests": [SavedMetricRequest(metric="revenue"), SavedMetricRequest(metric="orders")],
         "default_period": RelativePeriod(kind="last_n_days", days=7),

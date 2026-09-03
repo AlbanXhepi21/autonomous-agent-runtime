@@ -1,22 +1,25 @@
 import { request } from "@/lib/api/client";
 import type { Conversation, ConversationDetail, ConversationList } from "@/types/conversations";
 
+const base = (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/conversations`;
+
 export const conversationsApi = {
-  create: (title = "New conversation") =>
-    request<Conversation>("/api/v1/conversations", {
+  create: (workspaceId: string, title = "New conversation") =>
+    request<Conversation>(base(workspaceId), {
       method: "POST",
       body: JSON.stringify({ title }),
     }),
-  list: (limit = 30, offset = 0) =>
-    request<ConversationList>(`/api/v1/conversations?limit=${limit}&offset=${offset}`),
-  get: (id: string, messageLimit = 100, messageOffset = 0) =>
+  list: (workspaceId: string, limit = 30, offset = 0) =>
+    request<ConversationList>(`${base(workspaceId)}?limit=${limit}&offset=${offset}`),
+  get: (workspaceId: string, id: string, messageLimit = 100, messageOffset = 0) =>
     request<ConversationDetail>(
-      `/api/v1/conversations/${id}?message_limit=${messageLimit}&message_offset=${messageOffset}`,
+      `${base(workspaceId)}/${id}?message_limit=${messageLimit}&message_offset=${messageOffset}`,
     ),
-  rename: (id: string, title: string) =>
-    request<Conversation>(`/api/v1/conversations/${id}`, {
+  rename: (workspaceId: string, id: string, title: string) =>
+    request<Conversation>(`${base(workspaceId)}/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ title }),
     }),
-  remove: (id: string) => request<void>(`/api/v1/conversations/${id}`, { method: "DELETE" }),
+  remove: (workspaceId: string, id: string) =>
+    request<void>(`${base(workspaceId)}/${id}`, { method: "DELETE" }),
 };

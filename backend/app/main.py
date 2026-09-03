@@ -9,6 +9,7 @@ from app.api.routes.agent import router as agent_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.approvals import router as approval_router
 from app.api.routes.artifacts import router as artifact_router
+from app.api.routes.auth import router as auth_router
 from app.api.routes.config import router as config_router
 from app.api.routes.conversations import router as conversations_router
 from app.api.routes.datasources import router as datasources_router
@@ -18,10 +19,17 @@ from app.api.routes.reports import router as saved_reports_router
 from app.api.routes.scheduled_reports import router as scheduled_reports_router
 from app.api.routes.schema import router as schema_router
 from app.api.routes.traces import router as trace_router
+from app.api.routes.users import router as users_router
+from app.api.routes.workspaces import invitations_router
+from app.api.routes.workspaces import router as workspaces_router
 from app.composition import get_settings, shutdown
 from app.core.logging import configure_logging
 
 ROUTERS = (
+    auth_router,
+    users_router,
+    workspaces_router,
+    invitations_router,
     agent_router,
     artifact_router,
     approval_router,
@@ -63,7 +71,7 @@ def create_app() -> FastAPI:
         allow_origins=list(settings.frontend_origin_items),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type", "Last-Event-ID"],
+        allow_headers=["Content-Type", "Last-Event-ID", "X-CSRF-Token"],
     )
     for router in ROUTERS:
         application.include_router(router)

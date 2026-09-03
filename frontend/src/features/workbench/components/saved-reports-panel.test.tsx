@@ -1,8 +1,14 @@
+import type { ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SavedReportsPanel } from "./saved-reports-panel";
 import { savedReportsApi } from "@/lib/api/saved-reports";
 import type { SavedReportSummary } from "@/types/saved-reports";
+import { WorkspaceIdProvider } from "@/features/workbench/workspace-context";
+
+function withWorkspace(children: ReactNode) {
+  return <WorkspaceIdProvider workspaceId="ws-1">{children}</WorkspaceIdProvider>;
+}
 
 vi.mock("@/lib/api/saved-reports", () => ({
   savedReportsApi: {
@@ -59,7 +65,7 @@ describe("SavedReportsPanel", () => {
   });
 
   it("lists saved reports once loaded", async () => {
-    render(<SavedReportsPanel />);
+    render(withWorkspace(<SavedReportsPanel />));
 
     expect(await screen.findByText("Weekly Revenue")).toBeInTheDocument();
     expect(screen.getByText("Saved Reports")).toBeInTheDocument();
@@ -68,32 +74,32 @@ describe("SavedReportsPanel", () => {
 
   it("says when there are none, rather than showing an empty list silently", async () => {
     vi.mocked(savedReportsApi.list).mockResolvedValue({ items: [], total: 0, limit: 10, offset: 0 });
-    render(<SavedReportsPanel />);
+    render(withWorkspace(<SavedReportsPanel />));
 
     expect(await screen.findByText("No saved reports yet.")).toBeInTheDocument();
   });
 
   it("switching to Archived asks the API for archived reports", async () => {
-    render(<SavedReportsPanel />);
+    render(withWorkspace(<SavedReportsPanel />));
     await screen.findByText("Weekly Revenue");
 
     fireEvent.click(screen.getByRole("button", { name: "Archived" }));
 
-    await waitFor(() => expect(savedReportsApi.list).toHaveBeenCalledWith("archived", 10, 0));
+    await waitFor(() => expect(savedReportsApi.list).toHaveBeenCalledWith("ws-1", "archived", 10, 0));
   });
 
   it("selecting an item opens its detail panel", async () => {
-    render(<SavedReportsPanel />);
+    render(withWorkspace(<SavedReportsPanel />));
     await screen.findByText("Weekly Revenue");
 
     fireEvent.click(screen.getByRole("button", { name: "Weekly Revenue" }));
 
-    await waitFor(() => expect(savedReportsApi.get).toHaveBeenCalledWith("report-1"));
+    await waitFor(() => expect(savedReportsApi.get).toHaveBeenCalledWith("ws-1", "report-1"));
     expect(await screen.findAllByText("Weekly Revenue")).toHaveLength(2);
   });
 
   it("closing the detail panel returns to just the list", async () => {
-    render(<SavedReportsPanel />);
+    render(withWorkspace(<SavedReportsPanel />));
     await screen.findByText("Weekly Revenue");
     fireEvent.click(screen.getByRole("button", { name: "Weekly Revenue" }));
     await screen.findByLabelText("Saved report: Weekly Revenue");
@@ -106,10 +112,10 @@ describe("SavedReportsPanel", () => {
   });
 
   it("re-fetches the list whenever refreshKey changes", async () => {
-    const { rerender } = render(<SavedReportsPanel refreshKey="0" />);
+    const { rerender } = render(withWorkspace(<SavedReportsPanel refreshKey="0" />));
     await waitFor(() => expect(savedReportsApi.list).toHaveBeenCalledTimes(1));
 
-    rerender(<SavedReportsPanel refreshKey="1" />);
+    rerender(withWorkspace(<SavedReportsPanel refreshKey="1" />));
 
     await waitFor(() => expect(savedReportsApi.list).toHaveBeenCalledTimes(2));
   });

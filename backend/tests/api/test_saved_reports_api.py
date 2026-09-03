@@ -34,6 +34,9 @@ from app.reports.store import (
     SavedReportStore,
     SavedReportVersionConflictError,
 )
+from tests.support import override_tenant_context
+
+WORKSPACE_ID = uuid4()
 
 
 @dataclass
@@ -75,7 +78,11 @@ class FakeSavedReportStore(SavedReportStore):
         self.reports[saved_report_id] = updated
         return updated
 
-    async def create_execution(self, *, saved_report_id, run_id, mode, resolved_period, formats):
+    async def create_execution(self, *, workspace_id, saved_report_id, run_id, mode, resolved_period, formats,
+                                scheduled_report_id=None, retry_count=0):
+        report = self.reports.get(saved_report_id)
+        if report is None or report.workspace_id != workspace_id:
+            raise SavedReportNotFoundError(str(saved_report_id))
         execution = SavedReportExecution(
             id=uuid4(), saved_report_id=saved_report_id, run_id=run_id, mode=mode, status="running",
             resolved_period_start=resolved_period[0] if resolved_period else None,
@@ -85,9 +92,13 @@ class FakeSavedReportStore(SavedReportStore):
         self.executions[run_id] = execution
         return execution
 
-    async def finish_execution(self, *, run_id, status, error):
+    async def finish_execution(self, *, workspace_id, run_id, status, error, error_category=None,
+                                usage_metadata=None, artifact_ids=None):
         existing = self.executions.get(run_id)
         if existing is None:
+            return
+        report = self.reports.get(existing.saved_report_id)
+        if report is None or report.workspace_id != workspace_id:
             return
         self.executions[run_id] = existing.model_copy(
             update={"status": status, "error": error, "completed_at": datetime.now(UTC)}
@@ -114,8 +125,10 @@ def _create_body(**overrides) -> dict[str, Any]:
     return body
 
 
-def _client(tmp_path) -> TestClient:
-    store = FakeSavedReportStore()
+def _client(
+    tmp_path, *, store: "FakeSavedReportStore | None" = None, workspace_id: UUID = WORKSPACE_ID,
+) -> TestClient:
+    store = store if store is not None else FakeSavedReportStore()
     templates = ReportTemplateRegistry()
     workspace = Workspace(tmp_path)
     artifacts = WorkspaceArtifactStore(workspace, max_artifact_bytes=10_485_760)
@@ -130,6 +143,7 @@ def _client(tmp_path) -> TestClient:
         get_saved_report_execution_service: lambda: service,
         get_artifact_store: lambda: artifacts,
     }
+    override_tenant_context(application, workspace_id=workspace_id)
     return TestClient(application)
 
 
@@ -156,7 +170,7 @@ class _FakeRerunService:
 
 def test_create_returns_the_full_definition_with_a_pinned_template_version(tmp_path) -> None:
     with _client(tmp_path) as client:
-        response = client.post("/api/v1/reports/saved", json=_create_body())
+        response = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body())
 
     assert response.status_code == 201
     body = response.json()
@@ -164,12 +178,12 @@ def test_create_returns_the_full_definition_with_a_pinned_template_version(tmp_p
     assert body["template_version"] == ReportTemplateRegistry().get("analysis_summary").version
     assert body["version"] == 1
     assert body["status"] == "active"
-    assert body["workspace_id"] == "default"
+    assert body["workspace_id"] == str(WORKSPACE_ID)
 
 
 def test_create_rejects_an_unknown_template(tmp_path) -> None:
     with _client(tmp_path) as client:
-        response = client.post("/api/v1/reports/saved", json=_create_body(template_id="not_a_template"))
+        response = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body(template_id="not_a_template"))
 
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "unknown_template"
@@ -178,7 +192,7 @@ def test_create_rejects_an_unknown_template(tmp_path) -> None:
 def test_create_rejects_include_original_without_a_seed(tmp_path) -> None:
     with _client(tmp_path) as client:
         response = client.post(
-            "/api/v1/reports/saved", json=_create_body(narrative_policy="include_original"),
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body(narrative_policy="include_original"),
         )
 
     assert response.status_code == 422
@@ -186,17 +200,17 @@ def test_create_rejects_include_original_without_a_seed(tmp_path) -> None:
 
 def test_create_rejects_a_client_supplied_figure(tmp_path) -> None:
     with _client(tmp_path) as client:
-        response = client.post("/api/v1/reports/saved", json=_create_body(revenue=163))
+        response = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body(revenue=163))
 
     assert response.status_code == 422
 
 
 def test_list_and_get_round_trip(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
-        listed = client.get("/api/v1/reports/saved").json()
-        fetched = client.get(f"/api/v1/reports/saved/{created['id']}").json()
+        listed = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved").json()
+        fetched = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}").json()
 
     assert listed["total"] == 1
     assert listed["items"][0]["id"] == created["id"]
@@ -205,27 +219,32 @@ def test_list_and_get_round_trip(tmp_path) -> None:
 
 def test_get_is_404_for_an_unknown_id(tmp_path) -> None:
     with _client(tmp_path) as client:
-        response = client.get(f"/api/v1/reports/saved/{uuid4()}")
+        response = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{uuid4()}")
 
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "unknown_saved_report"
 
 
 def test_get_is_404_across_workspaces(tmp_path) -> None:
-    with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body(workspace_id="workspace-a")).json()
+    shared_store = FakeSavedReportStore()
+    other_workspace_id = uuid4()
+    with (
+        _client(tmp_path, store=shared_store, workspace_id=WORKSPACE_ID) as client_a,
+        _client(tmp_path, store=shared_store, workspace_id=other_workspace_id) as client_b,
+    ):
+        created = client_a.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
-        response = client.get(f"/api/v1/reports/saved/{created['id']}", params={"workspace_id": "workspace-b"})
+        response = client_b.get(f"/api/v1/workspaces/{other_workspace_id}/reports/saved/{created['id']}")
 
     assert response.status_code == 404
 
 
 def test_patch_applies_a_partial_edit_and_bumps_version(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
         response = client.patch(
-            f"/api/v1/reports/saved/{created['id']}",
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}",
             json={"expected_version": 1, "name": "Renamed Report"},
         )
 
@@ -238,11 +257,11 @@ def test_patch_applies_a_partial_edit_and_bumps_version(tmp_path) -> None:
 
 def test_patch_with_a_stale_version_is_a_409(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
-        client.patch(f"/api/v1/reports/saved/{created['id']}", json={"expected_version": 1, "name": "First"})
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
+        client.patch(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}", json={"expected_version": 1, "name": "First"})
 
         response = client.patch(
-            f"/api/v1/reports/saved/{created['id']}", json={"expected_version": 1, "name": "Conflict"},
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}", json={"expected_version": 1, "name": "Conflict"},
         )
 
     assert response.status_code == 409
@@ -251,10 +270,10 @@ def test_patch_with_a_stale_version_is_a_409(tmp_path) -> None:
 
 def test_patch_cannot_supply_a_figure(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
         response = client.patch(
-            f"/api/v1/reports/saved/{created['id']}", json={"expected_version": 1, "revenue": 163},
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}", json={"expected_version": 1, "revenue": 163},
         )
 
     assert response.status_code == 422
@@ -262,12 +281,12 @@ def test_patch_cannot_supply_a_figure(tmp_path) -> None:
 
 def test_archive_sets_status_and_is_excluded_from_active_listing(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
         archived = client.post(
-            f"/api/v1/reports/saved/{created['id']}/archive", json={"expected_version": 1},
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/archive", json={"expected_version": 1},
         ).json()
-        active_list = client.get("/api/v1/reports/saved", params={"status": "active"}).json()
+        active_list = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", params={"status": "active"}).json()
 
     assert archived["status"] == "archived"
     assert active_list["total"] == 0
@@ -276,11 +295,11 @@ def test_archive_sets_status_and_is_excluded_from_active_listing(tmp_path) -> No
 def test_resolved_parameters_does_not_execute_anything(tmp_path) -> None:
     with _client(tmp_path) as client:
         created = client.post(
-            "/api/v1/reports/saved",
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved",
             json=_create_body(default_period={"kind": "fixed", "start": "2026-01-01", "end": "2026-01-08"}),
         ).json()
 
-        response = client.get(f"/api/v1/reports/saved/{created['id']}/resolved-parameters")
+        response = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/resolved-parameters")
 
     assert response.status_code == 200
     body = response.json()
@@ -292,10 +311,10 @@ def test_resolved_parameters_does_not_execute_anything(tmp_path) -> None:
 
 def test_execute_preview_returns_a_report_and_persists_no_document(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
         response = client.post(
-            f"/api/v1/reports/saved/{created['id']}/execute", json={"mode": "preview"},
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute", json={"mode": "preview"},
         )
 
     assert response.status_code == 200
@@ -308,10 +327,10 @@ def test_execute_preview_returns_a_report_and_persists_no_document(tmp_path) -> 
 
 def test_execute_publish_returns_a_downloadable_document(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
         response = client.post(
-            f"/api/v1/reports/saved/{created['id']}/execute",
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute",
             json={"mode": "publish", "formats": ["pdf"]},
         )
 
@@ -325,10 +344,10 @@ def test_execute_publish_returns_a_downloadable_document(tmp_path) -> None:
 
 def test_two_executions_of_the_same_saved_report_mint_different_run_ids(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
 
-        first = client.post(f"/api/v1/reports/saved/{created['id']}/execute", json={"mode": "preview"}).json()
-        second = client.post(f"/api/v1/reports/saved/{created['id']}/execute", json={"mode": "preview"}).json()
+        first = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute", json={"mode": "preview"}).json()
+        second = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute", json={"mode": "preview"}).json()
 
     assert first["run_id"] != second["run_id"]
 
@@ -336,10 +355,10 @@ def test_two_executions_of_the_same_saved_report_mint_different_run_ids(tmp_path
 def test_require_new_investigation_refuses_execution_without_a_model_call(tmp_path) -> None:
     with _client(tmp_path) as client:
         created = client.post(
-            "/api/v1/reports/saved", json=_create_body(narrative_policy="require_new_investigation"),
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body(narrative_policy="require_new_investigation"),
         ).json()
 
-        response = client.post(f"/api/v1/reports/saved/{created['id']}/execute", json={"mode": "preview"})
+        response = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute", json={"mode": "preview"})
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "requires_new_investigation"
@@ -347,13 +366,13 @@ def test_require_new_investigation_refuses_execution_without_a_model_call(tmp_pa
 
 def test_executions_are_listed_with_their_artifacts(tmp_path) -> None:
     with _client(tmp_path) as client:
-        created = client.post("/api/v1/reports/saved", json=_create_body()).json()
-        client.post(f"/api/v1/reports/saved/{created['id']}/execute", json={"mode": "preview"})
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
+        client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute", json={"mode": "preview"})
         client.post(
-            f"/api/v1/reports/saved/{created['id']}/execute", json={"mode": "publish", "formats": ["pdf"]},
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute", json={"mode": "publish", "formats": ["pdf"]},
         )
 
-        response = client.get(f"/api/v1/reports/saved/{created['id']}/executions")
+        response = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/executions")
 
     assert response.status_code == 200
     body = response.json()
@@ -366,6 +385,6 @@ def test_executions_are_listed_with_their_artifacts(tmp_path) -> None:
 
 def test_executions_are_404_for_an_unknown_saved_report(tmp_path) -> None:
     with _client(tmp_path) as client:
-        response = client.get(f"/api/v1/reports/saved/{uuid4()}/executions")
+        response = client.get(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{uuid4()}/executions")
 
     assert response.status_code == 404

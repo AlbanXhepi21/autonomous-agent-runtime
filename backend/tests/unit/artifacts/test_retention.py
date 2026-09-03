@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -11,6 +12,8 @@ from app.artifacts.files import WorkspaceArtifactFiles
 from app.artifacts.retention import RetentionWorker
 from app.artifacts.store import WorkspaceArtifactStore
 from app.environment.workspace import Workspace
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 @pytest.fixture
@@ -25,7 +28,7 @@ async def _register(store, files, workspace, *, name: str, expires_at=None, rete
     source = workspace.root / name
     source.write_bytes(b"content")
     return await store.register(
-        run_id="retention-test-run", source_path=name, name=name, media_type="application/pdf",
+        workspace_id=WORKSPACE_ID, run_id="retention-test-run", source_path=name, name=name, media_type="application/pdf",
         expires_at=expires_at, retention_policy=retention_policy,
     )
 
@@ -70,7 +73,7 @@ async def test_a_deleted_artifact_is_no_longer_servable(rig) -> None:
 
     await worker.run_once()
 
-    assert await store.get(artifact.id) is None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is None
 
 
 @pytest.mark.asyncio
@@ -83,7 +86,7 @@ async def test_a_not_yet_expired_artifact_is_untouched(rig) -> None:
     outcomes = await worker.run_once()
 
     assert outcomes == []
-    assert await store.get(artifact.id) is not None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None
 
 
 @pytest.mark.asyncio
@@ -95,7 +98,7 @@ async def test_an_artifact_with_no_expiry_is_never_claimed(rig) -> None:
     outcomes = await worker.run_once()
 
     assert outcomes == []
-    assert await store.get(artifact.id) is not None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None
 
 
 @pytest.mark.asyncio
@@ -110,7 +113,7 @@ async def test_legal_hold_is_never_claimed_even_when_expired(rig) -> None:
     outcomes = await worker.run_once()
 
     assert outcomes == []
-    assert await store.get(artifact.id) is not None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None
 
 
 @pytest.mark.asyncio
@@ -125,7 +128,7 @@ async def test_permanent_is_never_claimed_even_when_expired(rig) -> None:
     outcomes = await worker.run_once()
 
     assert outcomes == []
-    assert await store.get(artifact.id) is not None
+    assert await store.get(workspace_id=WORKSPACE_ID, artifact_id=artifact.id) is not None
 
 
 @pytest.mark.asyncio

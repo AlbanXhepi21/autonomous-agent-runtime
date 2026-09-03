@@ -66,7 +66,7 @@ class DataSourceOnboardingService:
         self._schema_cache_ttl_seconds = schema_cache_ttl_seconds
         self._freshness_stale_after = freshness_stale_after
 
-    async def _runtime_for(self, *, workspace_id: str, data_source_id: UUID) -> tuple[DataSourceConnection, DataSourceRuntime]:
+    async def _runtime_for(self, *, workspace_id: UUID, data_source_id: UUID) -> tuple[DataSourceConnection, DataSourceRuntime]:
         connection = await self._store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
         if connection is None:
             raise DataSourceOnboardingError("Data source not found.")
@@ -92,7 +92,7 @@ class DataSourceOnboardingService:
     # -- step 1: create -----------------------------------------------------
 
     async def create_connection(
-        self, *, workspace_id: str, name: str, config: DataSourceConnectionConfig, password: str,
+        self, *, workspace_id: UUID, name: str, config: DataSourceConnectionConfig, password: str,
     ) -> DataSourceConnection:
         encrypted = self._cipher.encrypt(password)
         return await self._store.create_connection(
@@ -101,7 +101,7 @@ class DataSourceOnboardingService:
 
     # -- step 2: test connectivity -------------------------------------------
 
-    async def test_connectivity(self, *, workspace_id: str, data_source_id: UUID) -> ConnectionTestResult:
+    async def test_connectivity(self, *, workspace_id: UUID, data_source_id: UUID) -> ConnectionTestResult:
         _connection, runtime = await self._runtime_for(workspace_id=workspace_id, data_source_id=data_source_id)
         try:
             result = await test_connection(runtime)
@@ -116,7 +116,7 @@ class DataSourceOnboardingService:
 
     # -- step 3: verify read-only behavior -----------------------------------
 
-    async def verify_read_only_behavior(self, *, workspace_id: str, data_source_id: UUID) -> ReadOnlyVerification:
+    async def verify_read_only_behavior(self, *, workspace_id: UUID, data_source_id: UUID) -> ReadOnlyVerification:
         _connection, runtime = await self._runtime_for(workspace_id=workspace_id, data_source_id=data_source_id)
         try:
             verification = await verify_read_only(runtime)
@@ -133,7 +133,7 @@ class DataSourceOnboardingService:
 
     # -- step 4: list accessible schemas -------------------------------------
 
-    async def list_accessible_schemas(self, *, workspace_id: str, data_source_id: UUID) -> DatabaseSchemaSummary:
+    async def list_accessible_schemas(self, *, workspace_id: UUID, data_source_id: UUID) -> DatabaseSchemaSummary:
         _connection, runtime = await self._runtime_for(workspace_id=workspace_id, data_source_id=data_source_id)
         try:
             return await runtime.inspector.list_tables()
@@ -143,7 +143,7 @@ class DataSourceOnboardingService:
     # -- steps 5-6: select a table and profile it in the same call ----------
 
     async def select_and_profile_table(
-        self, *, workspace_id: str, data_source_id: UUID, schema_name: str, technical_name: str,
+        self, *, workspace_id: UUID, data_source_id: UUID, schema_name: str, technical_name: str,
         business_name: str, description: str | None = None, grain: str | None = None,
         freshness_column: str | None = None,
     ) -> DataSourceTableCatalogEntry:
@@ -189,7 +189,7 @@ class DataSourceOnboardingService:
     # -- step 7: discover candidate relationships ----------------------------
 
     async def discover_table_relationships(
-        self, *, workspace_id: str, data_source_id: UUID,
+        self, *, workspace_id: UUID, data_source_id: UUID,
     ) -> list[DataSourceRelationship]:
         tables = await self._store.list_tables(workspace_id=workspace_id, data_source_id=data_source_id, active_only=True)
         if tables is None:
@@ -205,7 +205,7 @@ class DataSourceOnboardingService:
 
     # -- step 9: activate -----------------------------------------------------
 
-    async def activate(self, *, workspace_id: str, data_source_id: UUID) -> DataSourceConnection:
+    async def activate(self, *, workspace_id: UUID, data_source_id: UUID) -> DataSourceConnection:
         connection = await self._store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
         if connection is None:
             raise DataSourceOnboardingError("Data source not found.")
@@ -224,7 +224,7 @@ class DataSourceOnboardingService:
 
     # -- agent integration: the one connection a run should use -------------
 
-    async def active_connection_runtime(self, *, workspace_id: str) -> tuple[DataSourceConnection, DataSourceRuntime]:
+    async def active_connection_runtime(self, *, workspace_id: UUID) -> tuple[DataSourceConnection, DataSourceRuntime]:
         """The connection an agent run against this workspace should use.
 
         Raises DataSourceOnboardingError when the workspace has no active
@@ -239,7 +239,7 @@ class DataSourceOnboardingService:
 
     # -- freshness --------------------------------------------------------
 
-    async def check_freshness(self, *, workspace_id: str, data_source_id: UUID) -> FreshnessSnapshot:
+    async def check_freshness(self, *, workspace_id: UUID, data_source_id: UUID) -> FreshnessSnapshot:
         tables = await self._store.list_tables(workspace_id=workspace_id, data_source_id=data_source_id, active_only=True)
         if tables is None:
             raise DataSourceOnboardingError("Data source not found.")

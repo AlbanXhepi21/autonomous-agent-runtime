@@ -30,7 +30,7 @@ function groupConversations(conversations: Conversation[]) {
  * hook does not own, so `remove` reports whether that happened and the caller
  * decides what to reset.
  */
-export function useConversations() {
+export function useConversations(workspaceId: string) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -41,23 +41,26 @@ export function useConversations() {
 
   const groups = useMemo(() => groupConversations(conversations), [conversations]);
 
-  const load = useCallback(async (offset = 0, append = false) => {
-    try {
-      const page = await conversationsApi.list(CONVERSATION_PAGE_SIZE, offset);
-      setTotal(page.total);
-      setConversations((current) =>
-        append
-          ? [
-              ...current,
-              ...page.items.filter((item) => !current.some((existing) => existing.id === item.id)),
-            ]
-          : page.items,
-      );
-      setError(null);
-    } catch {
-      setError("Conversation history could not be loaded.");
-    }
-  }, []);
+  const load = useCallback(
+    async (offset = 0, append = false) => {
+      try {
+        const page = await conversationsApi.list(workspaceId, CONVERSATION_PAGE_SIZE, offset);
+        setTotal(page.total);
+        setConversations((current) =>
+          append
+            ? [
+                ...current,
+                ...page.items.filter((item) => !current.some((existing) => existing.id === item.id)),
+              ]
+            : page.items,
+        );
+        setError(null);
+      } catch {
+        setError("Conversation history could not be loaded.");
+      }
+    },
+    [workspaceId],
+  );
 
   const showMore = useCallback(async () => {
     setLoadingMore(true);
@@ -70,7 +73,7 @@ export function useConversations() {
 
   const create = useCallback(async () => {
     try {
-      const conversation = await conversationsApi.create();
+      const conversation = await conversationsApi.create(workspaceId);
       setConversationId(conversation.id);
       setTotal((current) => current + 1);
       setConversations((current) =>
@@ -82,22 +85,25 @@ export function useConversations() {
     } catch {
       setError("A new conversation could not be created.");
     }
-  }, []);
+  }, [workspaceId]);
 
-  const rename = useCallback(async (conversation: Conversation) => {
-    const title = window.prompt("Rename conversation", conversation.title)?.trim();
-    if (!title || title === conversation.title) return;
-    try {
-      const updated = await conversationsApi.rename(conversation.id, title);
-      setConversations((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-    } catch {
-      setError("Conversation could not be renamed.");
-    } finally {
-      setMenuId(null);
-    }
-  }, []);
+  const rename = useCallback(
+    async (conversation: Conversation) => {
+      const title = window.prompt("Rename conversation", conversation.title)?.trim();
+      if (!title || title === conversation.title) return;
+      try {
+        const updated = await conversationsApi.rename(workspaceId, conversation.id, title);
+        setConversations((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
+      } catch {
+        setError("Conversation could not be renamed.");
+      } finally {
+        setMenuId(null);
+      }
+    },
+    [workspaceId],
+  );
 
   /** Returns true when the deleted conversation was the one on screen. */
   const remove = useCallback(
@@ -107,7 +113,7 @@ export function useConversations() {
         return false;
       }
       try {
-        await conversationsApi.remove(conversation.id);
+        await conversationsApi.remove(workspaceId, conversation.id);
         setConversations((current) => current.filter((item) => item.id !== conversation.id));
         setTotal((current) => Math.max(0, current - 1));
         setMenuId(null);
@@ -121,7 +127,7 @@ export function useConversations() {
       }
       return false;
     },
-    [confirmDeleteId, conversationId],
+    [confirmDeleteId, conversationId, workspaceId],
   );
 
   return {

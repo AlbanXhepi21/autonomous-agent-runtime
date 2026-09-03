@@ -4,6 +4,7 @@ import { ReportExport } from "./report-export";
 import { analyticsApi } from "@/lib/api/analytics";
 import { ApiError } from "@/lib/api/client";
 import type { ReportPreview } from "@/types/analytics";
+import { WorkspaceIdProvider } from "@/features/workbench/workspace-context";
 
 vi.mock("@/lib/api/analytics", () => ({
   analyticsApi: {
@@ -96,7 +97,11 @@ describe("ReportExport", () => {
   });
 
   const openPanel = async () => {
-    render(<ReportExport runId="run-1" />);
+    render(
+      <WorkspaceIdProvider workspaceId="ws-1">
+        <ReportExport runId="run-1" />
+      </WorkspaceIdProvider>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Export report" }));
     await screen.findByText("Headline metrics and the month's movements.");
   };
@@ -113,7 +118,7 @@ describe("ReportExport", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
 
     await waitFor(() =>
-      expect(analyticsApi.publishReport).toHaveBeenCalledWith("run-1", {
+      expect(analyticsApi.publishReport).toHaveBeenCalledWith("ws-1", "run-1", {
         template: "monthly_business_review",
         formats: ["pdf"],
       }),
@@ -133,6 +138,7 @@ describe("ReportExport", () => {
 
     await waitFor(() =>
       expect(analyticsApi.publishReport).toHaveBeenCalledWith(
+        "ws-1",
         "run-1",
         expect.objectContaining({ period: "August 2026" }),
       ),
@@ -147,6 +153,7 @@ describe("ReportExport", () => {
 
     await waitFor(() =>
       expect(analyticsApi.publishReport).toHaveBeenCalledWith(
+        "ws-1",
         "run-1",
         expect.objectContaining({ formats: ["pdf", "docx"] }),
       ),

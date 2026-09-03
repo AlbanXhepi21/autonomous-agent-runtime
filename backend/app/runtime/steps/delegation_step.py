@@ -147,6 +147,7 @@ class DelegationStep:
                     constraints=action.constraints,
                     expected_output=action.expected_output,
                 ),
+                workspace_id=state.workspace_id,
             )
             if self._agent_registry is None:
                 raise UnknownAgentError("No specialist agent registry is configured.")
@@ -265,6 +266,7 @@ class DelegationStep:
                         constraints=item.constraints,
                         expected_output=item.expected_output,
                     ),
+                    workspace_id=state.workspace_id,
                 )
                 for item in action.delegations
             ]

@@ -5,7 +5,10 @@ naming the operations, and one PostgreSQL implementation behind it. Every
 operation that reads or writes a specific definition is scoped by
 ``workspace_id`` in the query itself -- a row from another workspace is
 treated exactly like a row that does not exist, never surfaced and never
-distinguished from a genuine 404.
+distinguished from a genuine 404. ``saved_report_executions`` is a child
+resource: it carries no ``workspace_id`` of its own and is verified by
+joining to its parent ``saved_reports`` row, the same pattern
+``app.conversations.store`` uses for messages and runs.
 """
 
 from __future__ import annotations
@@ -75,7 +78,7 @@ class SavedReportStore:
     """Persistence contract for saved report definitions and their executions."""
 
     async def create(
-        self, *, workspace_id: str, owner: str | None, name: str, description: str | None,
+        self, *, workspace_id: UUID, owner: str | None, name: str, description: str | None,
         template_id: str, template_version: str, metric_requests: list[SavedMetricRequest],
         default_period: RelativePeriod, narrative_policy: str,
         seed_run_id: str | None, seed_narrative: str | None, seed_narrative_period: str | None,
@@ -83,15 +86,15 @@ class SavedReportStore:
         raise NotImplementedError
 
     async def list(
-        self, *, workspace_id: str, status: str | None, limit: int, offset: int,
+        self, *, workspace_id: UUID, status: str | None, limit: int, offset: int,
     ) -> tuple[list[SavedReportDefinition], int]:
         raise NotImplementedError
 
-    async def get(self, *, workspace_id: str, saved_report_id: UUID) -> SavedReportDefinition | None:
+    async def get(self, *, workspace_id: UUID, saved_report_id: UUID) -> SavedReportDefinition | None:
         raise NotImplementedError
 
     async def update(
-        self, *, workspace_id: str, saved_report_id: UUID, expected_version: int, changes: dict[str, Any],
+        self, *, workspace_id: UUID, saved_report_id: UUID, expected_version: int, changes: dict[str, Any],
     ) -> SavedReportDefinition:
         """Apply a partial update, enforcing optimistic concurrency.
 
@@ -103,21 +106,23 @@ class SavedReportStore:
         raise NotImplementedError
 
     async def create_execution(
-        self, *, saved_report_id: UUID, run_id: str, mode: str,
+        self, *, workspace_id: UUID, saved_report_id: UUID, run_id: str, mode: str,
         resolved_period: tuple[date, date] | None, formats: list[str] | None,
         scheduled_report_id: UUID | None = None, retry_count: int = 0,
     ) -> SavedReportExecution:
         raise NotImplementedError
 
     async def finish_execution(
-        self, *, run_id: str, status: str, error: str | None,
+        self, *, workspace_id: UUID, run_id: str, status: str, error: str | None,
         error_category: str | None = None, usage_metadata: dict[str, Any] | None = None,
         artifact_ids: list[str] | None = None,
     ) -> None:
+        """Verified through the execution's parent saved report, not by ``run_id`` alone."""
+
         raise NotImplementedError
 
     async def list_executions(
-        self, *, workspace_id: str, saved_report_id: UUID, limit: int, offset: int,
+        self, *, workspace_id: UUID, saved_report_id: UUID, limit: int, offset: int,
     ) -> tuple[list[SavedReportExecution], int] | None:
         """Return ``None`` when the definition is not visible in this workspace."""
 
@@ -129,7 +134,7 @@ class PostgresSavedReportStore(SavedReportStore):
         self._database = database
 
     async def create(
-        self, *, workspace_id: str, owner: str | None, name: str, description: str | None,
+        self, *, workspace_id: UUID, owner: str | None, name: str, description: str | None,
         template_id: str, template_version: str, metric_requests: list[SavedMetricRequest],
         default_period: RelativePeriod, narrative_policy: str,
         seed_run_id: str | None, seed_narrative: str | None, seed_narrative_period: str | None,
@@ -150,7 +155,7 @@ class PostgresSavedReportStore(SavedReportStore):
         return _to_domain(record)
 
     async def list(
-        self, *, workspace_id: str, status: str | None, limit: int, offset: int,
+        self, *, workspace_id: UUID, status: str | None, limit: int, offset: int,
     ) -> tuple[list[SavedReportDefinition], int]:
         async with self._database.session() as session:
             query = select(SavedReportRecord).where(SavedReportRecord.workspace_id == workspace_id)
@@ -167,7 +172,7 @@ class PostgresSavedReportStore(SavedReportStore):
             )).all()
         return [_to_domain(record) for record in records], total
 
-    async def get(self, *, workspace_id: str, saved_report_id: UUID) -> SavedReportDefinition | None:
+    async def get(self, *, workspace_id: UUID, saved_report_id: UUID) -> SavedReportDefinition | None:
         async with self._database.session() as session:
             record = await session.get(SavedReportRecord, saved_report_id)
         if record is None or record.workspace_id != workspace_id:
@@ -175,7 +180,7 @@ class PostgresSavedReportStore(SavedReportStore):
         return _to_domain(record)
 
     async def update(
-        self, *, workspace_id: str, saved_report_id: UUID, expected_version: int, changes: dict[str, Any],
+        self, *, workspace_id: UUID, saved_report_id: UUID, expected_version: int, changes: dict[str, Any],
     ) -> SavedReportDefinition:
         async with self._database.session() as session:
             async with session.begin():
@@ -209,32 +214,37 @@ class PostgresSavedReportStore(SavedReportStore):
         return _to_domain(record)
 
     async def create_execution(
-        self, *, saved_report_id: UUID, run_id: str, mode: str,
+        self, *, workspace_id: UUID, saved_report_id: UUID, run_id: str, mode: str,
         resolved_period: tuple[date, date] | None, formats: list[str] | None,
         scheduled_report_id: UUID | None = None, retry_count: int = 0,
     ) -> SavedReportExecution:
-        record = SavedReportExecutionRecord(
-            id=uuid4(), saved_report_id=saved_report_id, scheduled_report_id=scheduled_report_id,
-            run_id=run_id, mode=mode, status="running",
-            resolved_period_start=resolved_period[0] if resolved_period else None,
-            resolved_period_end=resolved_period[1] if resolved_period else None,
-            formats=formats, error=None, error_category=None, retry_count=retry_count,
-            usage_metadata=None, artifact_ids=None, created_at=_now(), completed_at=None,
-        )
         async with self._database.session() as session:
             async with session.begin():
+                parent = await session.get(SavedReportRecord, saved_report_id)
+                if parent is None or parent.workspace_id != workspace_id:
+                    raise SavedReportNotFoundError(str(saved_report_id))
+                record = SavedReportExecutionRecord(
+                    id=uuid4(), saved_report_id=saved_report_id, scheduled_report_id=scheduled_report_id,
+                    run_id=run_id, mode=mode, status="running",
+                    resolved_period_start=resolved_period[0] if resolved_period else None,
+                    resolved_period_end=resolved_period[1] if resolved_period else None,
+                    formats=formats, error=None, error_category=None, retry_count=retry_count,
+                    usage_metadata=None, artifact_ids=None, created_at=_now(), completed_at=None,
+                )
                 session.add(record)
         return _execution_to_domain(record)
 
     async def finish_execution(
-        self, *, run_id: str, status: str, error: str | None,
+        self, *, workspace_id: UUID, run_id: str, status: str, error: str | None,
         error_category: str | None = None, usage_metadata: dict[str, Any] | None = None,
         artifact_ids: list[str] | None = None,
     ) -> None:
         async with self._database.session() as session:
             async with session.begin():
                 record = await session.scalar(
-                    select(SavedReportExecutionRecord).where(SavedReportExecutionRecord.run_id == run_id)
+                    select(SavedReportExecutionRecord)
+                    .join(SavedReportRecord, SavedReportExecutionRecord.saved_report_id == SavedReportRecord.id)
+                    .where(SavedReportExecutionRecord.run_id == run_id, SavedReportRecord.workspace_id == workspace_id)
                 )
                 if record is None:
                     return
@@ -246,7 +256,7 @@ class PostgresSavedReportStore(SavedReportStore):
                     record.artifact_ids = artifact_ids
 
     async def list_executions(
-        self, *, workspace_id: str, saved_report_id: UUID, limit: int, offset: int,
+        self, *, workspace_id: UUID, saved_report_id: UUID, limit: int, offset: int,
     ) -> tuple[list[SavedReportExecution], int] | None:
         async with self._database.session() as session:
             report = await session.get(SavedReportRecord, saved_report_id)

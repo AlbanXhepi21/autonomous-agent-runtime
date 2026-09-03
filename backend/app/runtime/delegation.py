@@ -73,6 +73,8 @@ class DelegationRequest(BaseModel):
     target_agent: str = Field(min_length=1)
     objective: str = Field(min_length=1, max_length=MAX_DELEGATION_OBJECTIVE_LENGTH)
     context: DelegationContext
+    #: Inherited unchanged from the parent run -- a subagent never crosses tenants.
+    workspace_id: str | None = None
 
     @field_validator("target_agent", "objective")
     @classmethod
@@ -207,7 +209,7 @@ class SequentialSubagentExecutor:
             definition = self._agent_registry.load_agent(request.target_agent)
             from app.runtime.state import AgentState
 
-            child_state = AgentState(goal=request.objective, agent_depth=1)
+            child_state = AgentState(goal=request.objective, agent_depth=1, workspace_id=request.workspace_id)
             log_event(
                 self._logger,
                 logging.INFO,

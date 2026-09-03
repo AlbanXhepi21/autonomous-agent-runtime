@@ -20,6 +20,7 @@ class Memory(BaseModel):
     """A validated piece of agent memory independent of its storage backend."""
 
     id: UUID = Field(default_factory=uuid4)
+    workspace_id: UUID
     memory_type: MemoryType
     content: str = Field(min_length=1)
     metadata: dict[str, Any] = Field(default_factory=dict)

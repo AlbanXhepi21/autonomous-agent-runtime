@@ -1,9 +1,9 @@
 """Workspace data source onboarding: connect, verify, select, profile, approve, activate.
 
-Every route is workspace-scoped the same way saved reports and schedules
-already are, and no response schema anywhere in this router has a field for
-a password -- ``DataSourceStore.get_connection`` cannot return one even if a
-caller wanted it to.
+Every route is workspace-scoped through the centralized tenant-context
+resolver, the same as every other tenant-owned resource, and no response
+schema anywhere in this router has a field for a password -- ``DataSourceStore.get_connection``
+cannot return one even if a caller wanted it to.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.api.dependencies import require_csrf, require_permission
 from app.api.schemas.datasources import (
-    DEFAULT_WORKSPACE_ID,
     ApproveTableRequest,
     ColumnCorrectionPayload,
     ColumnResponse,
@@ -52,8 +52,10 @@ from app.datasources.store import (
     DataSourceStore,
     DataSourceTableNotFoundError,
 )
+from app.tenancy.context import TenantContext
+from app.tenancy.permissions import Permission
 
-router = APIRouter(prefix="/api/v1/datasources", tags=["datasources"])
+router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/datasources", tags=["datasources"])
 
 
 def _not_found(data_source_id: UUID) -> HTTPException:
@@ -129,9 +131,11 @@ def _columns(payloads: list[ColumnCorrectionPayload]) -> list[ColumnInput]:
 # -- connections ------------------------------------------------------------
 
 
-@router.post("", response_model=DataSourceResponse, status_code=201)
+@router.post("", response_model=DataSourceResponse, status_code=201, dependencies=[Depends(require_csrf)])
 async def create_data_source(
-    request: DataSourceCreateRequest, service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
+    request: DataSourceCreateRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> DataSourceResponse:
     config = DataSourceConnectionConfig(
         host=request.host, port=request.port, database=request.database, username=request.username,
@@ -140,53 +144,56 @@ async def create_data_source(
         max_result_bytes=request.max_result_bytes,
     )
     connection = await service.create_connection(
-        workspace_id=request.workspace_id, name=request.name, config=config, password=request.password,
+        workspace_id=context.workspace.id, name=request.name, config=config, password=request.password,
     )
     return _connection_response(connection)
 
 
 @router.get("", response_model=DataSourceListResponse)
 async def list_data_sources(
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
     status: str | None = Query(default=None),
     limit: int = Query(default=30, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: DataSourceStore = Depends(get_data_source_store),
 ) -> DataSourceListResponse:
-    items, total = await store.list_connections(workspace_id=workspace_id, status=status, limit=limit, offset=offset)
+    items, total = await store.list_connections(workspace_id=context.workspace.id, status=status, limit=limit, offset=offset)
     return DataSourceListResponse(items=[_connection_response(item) for item in items], total=total, limit=limit, offset=offset)
 
 
 @router.get("/{data_source_id}", response_model=DataSourceResponse)
 async def get_data_source(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: DataSourceStore = Depends(get_data_source_store),
 ) -> DataSourceResponse:
-    connection = await store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+    connection = await store.get_connection(workspace_id=context.workspace.id, data_source_id=data_source_id)
     if connection is None:
         raise _not_found(data_source_id)
     return _connection_response(connection)
 
 
-@router.post("/{data_source_id}/test-connection", response_model=ConnectionTestResponse)
+@router.post("/{data_source_id}/test-connection", response_model=ConnectionTestResponse, dependencies=[Depends(require_csrf)])
 async def test_data_source_connection(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> ConnectionTestResponse:
     try:
-        result = await service.test_connectivity(workspace_id=workspace_id, data_source_id=data_source_id)
+        result = await service.test_connectivity(workspace_id=context.workspace.id, data_source_id=data_source_id)
     except DataSourceOnboardingError as error:
         raise _onboarding_error(error, data_source_id) from error
     return ConnectionTestResponse(success=result.success, message=result.message, server_version=result.server_version)
 
 
-@router.post("/{data_source_id}/verify-read-only", response_model=ReadOnlyVerificationResponse)
+@router.post("/{data_source_id}/verify-read-only", response_model=ReadOnlyVerificationResponse, dependencies=[Depends(require_csrf)])
 async def verify_data_source_read_only(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> ReadOnlyVerificationResponse:
     try:
-        verification = await service.verify_read_only_behavior(workspace_id=workspace_id, data_source_id=data_source_id)
+        verification = await service.verify_read_only_behavior(workspace_id=context.workspace.id, data_source_id=data_source_id)
     except DataSourceOnboardingError as error:
         raise _onboarding_error(error, data_source_id) from error
     return ReadOnlyVerificationResponse(
@@ -200,11 +207,12 @@ async def verify_data_source_read_only(
 
 @router.get("/{data_source_id}/schemas", response_model=SchemaSummaryResponse)
 async def list_data_source_schemas(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> SchemaSummaryResponse:
     try:
-        summary = await service.list_accessible_schemas(workspace_id=workspace_id, data_source_id=data_source_id)
+        summary = await service.list_accessible_schemas(workspace_id=context.workspace.id, data_source_id=data_source_id)
     except DataSourceOnboardingError as error:
         raise _onboarding_error(error, data_source_id) from error
     return SchemaSummaryResponse(
@@ -212,13 +220,14 @@ async def list_data_source_schemas(
     )
 
 
-@router.post("/{data_source_id}/activate", response_model=DataSourceResponse)
+@router.post("/{data_source_id}/activate", response_model=DataSourceResponse, dependencies=[Depends(require_csrf)])
 async def activate_data_source(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> DataSourceResponse:
     try:
-        connection = await service.activate(workspace_id=workspace_id, data_source_id=data_source_id)
+        connection = await service.activate(workspace_id=context.workspace.id, data_source_id=data_source_id)
     except DataSourceOnboardingError as error:
         if "not found" in str(error).lower():
             raise _not_found(data_source_id) from error
@@ -228,11 +237,12 @@ async def activate_data_source(
 
 @router.get("/{data_source_id}/freshness", response_model=FreshnessResponse)
 async def get_data_source_freshness(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> FreshnessResponse:
     try:
-        snapshot = await service.check_freshness(workspace_id=workspace_id, data_source_id=data_source_id)
+        snapshot = await service.check_freshness(workspace_id=context.workspace.id, data_source_id=data_source_id)
     except DataSourceOnboardingError as error:
         raise _onboarding_error(error, data_source_id) from error
     return FreshnessResponse(
@@ -245,14 +255,15 @@ async def get_data_source_freshness(
 # -- catalog: tables ----------------------------------------------------------
 
 
-@router.post("/{data_source_id}/tables", response_model=TableResponse, status_code=201)
+@router.post("/{data_source_id}/tables", response_model=TableResponse, status_code=201, dependencies=[Depends(require_csrf)])
 async def select_data_source_table(
-    data_source_id: UUID, request: SelectTableRequest, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID, request: SelectTableRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> TableResponse:
     try:
         table = await service.select_and_profile_table(
-            workspace_id=workspace_id, data_source_id=data_source_id, schema_name=request.schema_name,
+            workspace_id=context.workspace.id, data_source_id=data_source_id, schema_name=request.schema_name,
             technical_name=request.technical_name, business_name=request.business_name,
             description=request.description, grain=request.grain, freshness_column=request.freshness_column,
         )
@@ -263,11 +274,11 @@ async def select_data_source_table(
 
 @router.get("/{data_source_id}/tables", response_model=TableListResponse)
 async def list_data_source_tables(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
-    active_only: bool = Query(default=False),
+    data_source_id: UUID, active_only: bool = Query(default=False),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: DataSourceStore = Depends(get_data_source_store),
 ) -> TableListResponse:
-    tables = await store.list_tables(workspace_id=workspace_id, data_source_id=data_source_id, active_only=active_only)
+    tables = await store.list_tables(workspace_id=context.workspace.id, data_source_id=data_source_id, active_only=active_only)
     if tables is None:
         raise _not_found(data_source_id)
     return TableListResponse(items=[_table_response(table) for table in tables])
@@ -275,26 +286,28 @@ async def list_data_source_tables(
 
 @router.get("/{data_source_id}/tables/{table_id}", response_model=TableResponse)
 async def get_data_source_table(
-    data_source_id: UUID, table_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID, table_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: DataSourceStore = Depends(get_data_source_store),
 ) -> TableResponse:
-    table = await store.get_table(workspace_id=workspace_id, data_source_id=data_source_id, table_id=table_id)
+    table = await store.get_table(workspace_id=context.workspace.id, data_source_id=data_source_id, table_id=table_id)
     if table is None:
         raise HTTPException(status_code=404, detail={"code": "unknown_table", "message": f"Table {table_id} not found."})
     return _table_response(table)
 
 
-@router.patch("/{data_source_id}/tables/{table_id}", response_model=TableResponse)
+@router.patch("/{data_source_id}/tables/{table_id}", response_model=TableResponse, dependencies=[Depends(require_csrf)])
 async def correct_data_source_table(
     data_source_id: UUID, table_id: UUID, request: TableCorrectionRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID), store: DataSourceStore = Depends(get_data_source_store),
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    store: DataSourceStore = Depends(get_data_source_store),
 ) -> TableResponse:
-    existing = await store.get_table(workspace_id=workspace_id, data_source_id=data_source_id, table_id=table_id)
+    existing = await store.get_table(workspace_id=context.workspace.id, data_source_id=data_source_id, table_id=table_id)
     if existing is None:
         raise HTTPException(status_code=404, detail={"code": "unknown_table", "message": f"Table {table_id} not found."})
     try:
         table = await store.upsert_table(
-            workspace_id=workspace_id, data_source_id=data_source_id, schema_name=existing.schema_name,
+            workspace_id=context.workspace.id, data_source_id=data_source_id, schema_name=existing.schema_name,
             technical_name=existing.technical_name, business_name=request.business_name,
             description=request.description, grain=request.grain, freshness_column=request.freshness_column,
             columns=_columns(request.columns),
@@ -304,14 +317,15 @@ async def correct_data_source_table(
     return _table_response(table)
 
 
-@router.post("/{data_source_id}/tables/{table_id}/active", response_model=TableResponse)
+@router.post("/{data_source_id}/tables/{table_id}/active", response_model=TableResponse, dependencies=[Depends(require_csrf)])
 async def set_data_source_table_active(
     data_source_id: UUID, table_id: UUID, request: TableActiveRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID), store: DataSourceStore = Depends(get_data_source_store),
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    store: DataSourceStore = Depends(get_data_source_store),
 ) -> TableResponse:
     try:
         table = await store.set_table_active(
-            workspace_id=workspace_id, data_source_id=data_source_id, table_id=table_id, active=request.active,
+            workspace_id=context.workspace.id, data_source_id=data_source_id, table_id=table_id, active=request.active,
         )
     except DataSourceNotFoundError as error:
         raise _not_found(data_source_id) from error
@@ -320,14 +334,15 @@ async def set_data_source_table_active(
     return _table_response(table)
 
 
-@router.post("/{data_source_id}/tables/{table_id}/approve", response_model=TableResponse)
+@router.post("/{data_source_id}/tables/{table_id}/approve", response_model=TableResponse, dependencies=[Depends(require_csrf)])
 async def approve_data_source_table(
     data_source_id: UUID, table_id: UUID, request: ApproveTableRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID), store: DataSourceStore = Depends(get_data_source_store),
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    store: DataSourceStore = Depends(get_data_source_store),
 ) -> TableResponse:
     try:
         table = await store.approve_table(
-            workspace_id=workspace_id, data_source_id=data_source_id, table_id=table_id,
+            workspace_id=context.workspace.id, data_source_id=data_source_id, table_id=table_id,
             approved_by=request.approved_by,
         )
     except DataSourceNotFoundError as error:
@@ -340,13 +355,14 @@ async def approve_data_source_table(
 # -- catalog: relationships ----------------------------------------------------
 
 
-@router.post("/{data_source_id}/relationships/discover", response_model=RelationshipListResponse)
+@router.post("/{data_source_id}/relationships/discover", response_model=RelationshipListResponse, dependencies=[Depends(require_csrf)])
 async def discover_data_source_relationships(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> RelationshipListResponse:
     try:
-        relationships = await service.discover_table_relationships(workspace_id=workspace_id, data_source_id=data_source_id)
+        relationships = await service.discover_table_relationships(workspace_id=context.workspace.id, data_source_id=data_source_id)
     except DataSourceOnboardingError as error:
         raise _onboarding_error(error, data_source_id) from error
     return RelationshipListResponse(items=[_relationship_response(item) for item in relationships])
@@ -354,26 +370,27 @@ async def discover_data_source_relationships(
 
 @router.get("/{data_source_id}/relationships", response_model=RelationshipListResponse)
 async def list_data_source_relationships(
-    data_source_id: UUID, workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID),
-    approval_status: str | None = Query(default=None),
+    data_source_id: UUID, approval_status: str | None = Query(default=None),
+    context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     store: DataSourceStore = Depends(get_data_source_store),
 ) -> RelationshipListResponse:
     relationships = await store.list_relationships(
-        workspace_id=workspace_id, data_source_id=data_source_id, approval_status=approval_status,
+        workspace_id=context.workspace.id, data_source_id=data_source_id, approval_status=approval_status,
     )
     if relationships is None:
         raise _not_found(data_source_id)
     return RelationshipListResponse(items=[_relationship_response(item) for item in relationships])
 
 
-@router.post("/{data_source_id}/relationships/{relationship_id}/approval", response_model=RelationshipResponse)
+@router.post("/{data_source_id}/relationships/{relationship_id}/approval", response_model=RelationshipResponse, dependencies=[Depends(require_csrf)])
 async def set_data_source_relationship_approval(
     data_source_id: UUID, relationship_id: UUID, request: RelationshipApprovalRequest,
-    workspace_id: str = Query(default=DEFAULT_WORKSPACE_ID), store: DataSourceStore = Depends(get_data_source_store),
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    store: DataSourceStore = Depends(get_data_source_store),
 ) -> RelationshipResponse:
     try:
         relationship = await store.set_relationship_approval(
-            workspace_id=workspace_id, data_source_id=data_source_id, relationship_id=relationship_id,
+            workspace_id=context.workspace.id, data_source_id=data_source_id, relationship_id=relationship_id,
             approval_status=request.approval_status, approved_by=request.approved_by,
         )
     except DataSourceNotFoundError as error:

@@ -15,6 +15,7 @@ const RESULT_POLL_ATTEMPTS = 8;
 const RESULT_POLL_INTERVAL_MS = 100;
 
 interface Options {
+  workspaceId: string;
   /** Called after a run settles, so the sidebar can pick up the new title. */
   onRunSettled: () => void;
   /** Called when a run pauses; returns the approval it is waiting on. */
@@ -42,7 +43,7 @@ function historyFrom(run: AnalystRun): RunHistory {
  * The completion event and a dropped connection can both mean the run is over,
  * so settling is guarded to run once per submission.
  */
-export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
+export function useAgentRun({ workspaceId, onRunSettled, onApprovalRequired }: Options) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [runs, setRuns] = useState<Record<string, RunHistory>>({});
   const [status, setStatus] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
   //: without guessing which entry in `runs` is still in flight.
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const settling = useRef(false);
-  const stream = useRunStream();
+  const stream = useRunStream(workspaceId);
 
   const reset = useCallback(() => {
     stream.clear();
@@ -70,7 +71,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
       settling.current = true;
       let run: AnalystRun | undefined;
       for (let attempt = 0; attempt < RESULT_POLL_ATTEMPTS; attempt += 1) {
-        run = await analyticsApi.getRun(runId);
+        run = await analyticsApi.getRun(workspaceId, runId);
         if (run.status !== "running") break;
         await new Promise((resolve) => window.setTimeout(resolve, RESULT_POLL_INTERVAL_MS));
       }
@@ -95,7 +96,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
       stream.close();
       onRunSettled();
     },
-    [onApprovalRequired, onRunSettled, stream],
+    [onApprovalRequired, onRunSettled, stream, workspaceId],
   );
 
   /** Settle again after an approval decision released a paused run. */
@@ -119,7 +120,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
       setStatus("Analyzing…");
       setMessages((current) => [...current, { role: "user", content: message, run_id: null }]);
       try {
-        const created = await analyticsApi.createRun({
+        const created = await analyticsApi.createRun(workspaceId, {
           message,
           ...(conversationId ? { conversation_id: conversationId } : {}),
         });
@@ -161,7 +162,7 @@ export function useAgentRun({ onRunSettled, onApprovalRequired }: Options) {
         setError(cause instanceof ApiError ? cause.message : "Unable to start the analyst run.");
       }
     },
-    [onRunSettled, settle, stream],
+    [onRunSettled, settle, stream, workspaceId],
   );
 
   /** Restore a conversation's transcript and the traces behind it. */

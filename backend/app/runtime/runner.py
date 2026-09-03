@@ -159,11 +159,17 @@ class AgentRunner:
         goal: str,
         *,
         session_id: str | None = None,
+        workspace_id: str | None = None,
         state: AgentState | None = None,
     ) -> AgentState:
-        """Execute bounded, model-selected actions for a single goal."""
+        """Execute bounded, model-selected actions for a single goal.
 
-        state = state or AgentState(goal=goal)
+        ``workspace_id`` is only used to seed a *new* state -- when ``state``
+        is already provided (a resumed or child run), its own
+        ``state.workspace_id`` is authoritative.
+        """
+
+        state = state or AgentState(goal=goal, workspace_id=workspace_id)
         if state.goal != goal:
             raise ValueError("Provided agent state goal must match the run goal.")
         if state.agent_depth != self._agent_depth:
@@ -192,11 +198,11 @@ class AgentRunner:
             agent_depth=self._agent_depth,
         )
         relevant_memories = await self._memory.retrieve(
-            goal, run_id=state.run_id, session_id=session_id
+            goal, run_id=state.run_id, workspace_id=state.workspace_id, session_id=session_id
         )
 
         try:
-            await self._memory.record_goal(goal, run_id=state.run_id)
+            await self._memory.record_goal(goal, run_id=state.run_id, workspace_id=state.workspace_id)
             while state.iteration_count < self._limits.max_iterations:
                 iteration = state.iteration_count + 1
                 log_event(
@@ -210,7 +216,7 @@ class AgentRunner:
                 )
                 context = self._context_builder.build(
                     state,
-                    working_memories=await self._memory.working(state.run_id),
+                    working_memories=await self._memory.working(state.run_id, workspace_id=state.workspace_id),
                     relevant_memories=relevant_memories,
                 )
                 log_event(
@@ -335,7 +341,7 @@ class AgentRunner:
                          "delegations": len(state.delegation_requests)})
             raise
         finally:
-            await self._memory.clear(state.run_id)
+            await self._memory.clear(state.run_id, workspace_id=state.workspace_id)
 
     async def _apply_action(self, state: AgentState, action: AgentAction) -> None:
         """Apply one model-selected action to the current runtime state."""
@@ -400,6 +406,7 @@ class AgentRunner:
                 tool_name,
                 action.tool_arguments,
                 run_id=state.run_id,
+                workspace_id=state.workspace_id,
                 iteration=state.iteration_count,
                 subject=subject,
             )
@@ -580,6 +587,7 @@ class AgentRunner:
         else:
             result = await self._tool_executor.execute_approved(
                 checkpoint.tool_name, checkpoint.tool_arguments, run_id=state.run_id,
+                workspace_id=state.workspace_id,
                 iteration=state.iteration_count, subject=subject,
                 approval_token=self._tool_executor._approved_execution_token,
             )
@@ -719,7 +727,7 @@ class AgentRunner:
     ) -> AgentState:
         """Log the terminal summary for a normal or runtime-limited run."""
 
-        await self._memory.capture(state, session_id=session_id)
+        await self._memory.capture(state, workspace_id=state.workspace_id, session_id=session_id)
         log_event(
             self._logger,
             logging.INFO,

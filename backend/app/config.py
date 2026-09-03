@@ -116,6 +116,40 @@ class Settings(BaseSettings):
     def data_source_encryption_configured(self) -> bool:
         return bool(self.data_source_encryption_key)
 
+    # Identity: users, server-side sessions, and recovery/verification tokens.
+    # `in_memory` is process-local and loses every account at restart -- fine
+    # for tests and zero-config development, wrong for anything real, exactly
+    # the same trade-off MEMORY_BACKEND/ARTIFACT_BACKEND already make.
+    identity_backend: Literal["in_memory", "postgres"] = "in_memory"
+    #: Sliding idle timeout: a session with no activity for this long is dead.
+    session_idle_ttl_seconds: int = Field(default=43_200, ge=60)
+    #: Hard cap regardless of activity -- forces re-authentication eventually.
+    session_absolute_ttl_seconds: int = Field(default=2_592_000, ge=60)
+    #: Named to avoid the substring "password" -- Settings.__repr__ has no
+    #: field-level redaction, and analytics_database_url relies on that same
+    #: property (via repr=False) to keep a connection string's own password
+    #: out of logs. This is only a TTL, but the name still shouldn't collide.
+    reset_token_ttl_seconds: int = Field(default=3_600, ge=60)
+    email_verification_token_ttl_seconds: int = Field(default=259_200, ge=60)
+    #: Explicit opt-in for local HTTPS development. Ignored in production --
+    #: see `effective_cookie_secure`, which cannot be forced off there.
+    auth_cookie_secure: bool = False
+    #: Where a password-reset or email-verification link should point. No page
+    #: exists there yet in this phase; the token still works via the API.
+    app_base_url: str = "http://localhost:3000"
+
+    # Tenancy: workspaces, memberships, and invitations. Independently
+    # selectable from IDENTITY_BACKEND -- a deployment could persist users
+    # durably while still running tenancy in-memory during early rollout.
+    tenancy_backend: Literal["in_memory", "postgres"] = "in_memory"
+    invitation_ttl_seconds: int = Field(default=604_800, ge=60)
+
+    @property
+    def effective_cookie_secure(self) -> bool:
+        """Cookies are always Secure in production, regardless of the flag."""
+
+        return True if self.security_environment == "production" else self.auth_cookie_secure
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
@@ -144,4 +178,8 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL is required when MEMORY_BACKEND=postgres")
         if self.artifact_backend == "postgres" and not self.database_url:
             raise ValueError("DATABASE_URL is required when ARTIFACT_BACKEND=postgres")
+        if self.identity_backend == "postgres" and not self.database_url:
+            raise ValueError("DATABASE_URL is required when IDENTITY_BACKEND=postgres")
+        if self.tenancy_backend == "postgres" and not self.database_url:
+            raise ValueError("DATABASE_URL is required when TENANCY_BACKEND=postgres")
         return self

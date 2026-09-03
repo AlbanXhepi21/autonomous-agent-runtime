@@ -164,8 +164,8 @@ class SavedReportExecutionService:
 
         try:
             published = await render_and_register_documents(
-                report=report, charts=charts, template=template, run_id=run_id,
-                formats=formats or ["pdf"], workspace=self._workspace, artifacts=self._artifacts,
+                workspace_id=definition.workspace_id, report=report, charts=charts, template=template,
+                run_id=run_id, formats=formats or ["pdf"], workspace=self._workspace, artifacts=self._artifacts,
                 directory_name="saved-reports",
                 extra_metadata={"saved_report_id": str(definition.id)},
             )

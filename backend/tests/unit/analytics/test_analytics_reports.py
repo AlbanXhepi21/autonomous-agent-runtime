@@ -1,5 +1,6 @@
 """DA5 evidence-backed report artifact coverage."""
 
+import uuid
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,8 @@ from app.environment.workspace import Workspace
 from app.tools.database.report import GenerateReportTool
 from app.tools.execution import ToolExecutor
 from app.tools.registry import ToolRegistry
+
+WORKSPACE_ID = uuid.uuid4()
 
 
 def report_payload() -> dict[str, object]:
@@ -22,10 +25,13 @@ async def test_report_generates_markdown_json_and_bounded_csv_artifacts(tmp_path
     assert datasets.register(run_id="r", query_id="query_001", columns=[{"name": "month"}, {"name": "revenue"}], rows=[["2026-07", "1200.00"]])
     artifacts = WorkspaceArtifactStore(workspace)
     registry = ToolRegistry(); registry.register(GenerateReportTool(datasets, workspace, artifacts))
-    result = await ToolExecutor(registry).execute("generate_report", {"report": report_payload()}, run_id="r")
+    result = await ToolExecutor(registry).execute(
+        "generate_report", {"report": report_payload()}, run_id="r", workspace_id=str(WORKSPACE_ID),
+    )
     assert result.success and len(result.output["artifacts"]) == 3
     markdown = next(item for item in result.output["artifacts"] if item["name"] == "report.md")
-    assert "query_001" in (await artifacts.path_for(markdown["id"])).read_text()
+    path = await artifacts.path_for(workspace_id=WORKSPACE_ID, artifact_id=markdown["id"])
+    assert "query_001" in path.read_text()
     assert all(item["metadata"]["source_query_ids"] == ["query_001"] for item in result.output["artifacts"])
 
 
@@ -34,5 +40,7 @@ async def test_report_rejects_untraceable_evidence_without_fabricating_output(tm
     workspace, datasets = Workspace(tmp_path), AnalyticsDatasetStore(max_rows=10, max_bytes=1000)
     registry = ToolRegistry(); registry.register(GenerateReportTool(datasets, workspace, WorkspaceArtifactStore(workspace)))
     bad = report_payload(); bad["source_query_ids"] = ["made_up"]
-    result = await ToolExecutor(registry).execute("generate_report", {"report": bad}, run_id="r")
+    result = await ToolExecutor(registry).execute(
+        "generate_report", {"report": bad}, run_id="r", workspace_id=str(WORKSPACE_ID),
+    )
     assert not result.success and result.metadata["failure_category"] == "tool_validation_error"

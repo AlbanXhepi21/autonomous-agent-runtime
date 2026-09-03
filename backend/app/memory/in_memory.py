@@ -24,27 +24,31 @@ class InMemoryMemoryStore(MemoryStore):
             self._memories[memory.id] = memory.model_copy(deep=True)
             return memory.model_copy(deep=True)
 
-    async def get(self, memory_id: UUID) -> Memory | None:
-        """Retrieve an isolated copy of a memory."""
+    async def get(self, *, workspace_id: UUID, memory_id: UUID) -> Memory | None:
+        """Retrieve an isolated copy of a memory, if it belongs to this workspace."""
 
         async with self._lock:
             memory = self._memories.get(memory_id)
-            return memory.model_copy(deep=True) if memory is not None else None
+            if memory is None or memory.workspace_id != workspace_id:
+                return None
+            return memory.model_copy(deep=True)
 
     async def list_memories(
         self,
         *,
+        workspace_id: UUID,
         memory_type: MemoryType | None = None,
         run_id: str | None = None,
         session_id: str | None = None,
     ) -> list[Memory]:
-        """List matching memories in creation order."""
+        """List matching memories in creation order, within one workspace."""
 
         async with self._lock:
             return [
                 memory.model_copy(deep=True)
                 for memory in self._memories.values()
-                if (memory_type is None or memory.memory_type is memory_type)
+                if memory.workspace_id == workspace_id
+                and (memory_type is None or memory.memory_type is memory_type)
                 and (run_id is None or memory.run_id == run_id)
                 and (session_id is None or memory.session_id == session_id)
             ]
@@ -54,7 +58,7 @@ class InMemoryMemoryStore(MemoryStore):
 
         async with self._lock:
             existing = self._memories.get(memory.id)
-            if existing is None:
+            if existing is None or existing.workspace_id != memory.workspace_id:
                 return None
             updated = memory.model_copy(
                 update={
@@ -66,8 +70,12 @@ class InMemoryMemoryStore(MemoryStore):
             self._memories[memory.id] = updated
             return updated.model_copy(deep=True)
 
-    async def delete(self, memory_id: UUID) -> bool:
-        """Remove a memory by ID."""
+    async def delete(self, *, workspace_id: UUID, memory_id: UUID) -> bool:
+        """Remove a memory by ID, if it belongs to this workspace."""
 
         async with self._lock:
-            return self._memories.pop(memory_id, None) is not None
+            existing = self._memories.get(memory_id)
+            if existing is None or existing.workspace_id != workspace_id:
+                return False
+            del self._memories[memory_id]
+            return True

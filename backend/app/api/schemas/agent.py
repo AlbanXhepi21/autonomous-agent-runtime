@@ -7,14 +7,17 @@ from app.runtime.state import RunStatus, StopReason
 
 
 class AgentRunRequest(BaseModel):
-    """A user goal submitted to the agent runtime."""
+    """A user goal submitted to the agent runtime.
+
+    Carries no ``workspace_id`` -- a client-supplied identifier is never
+    authorization. The caller's tenant is resolved server-side from the
+    authenticated session and the ``workspace_id`` query parameter (see
+    ``app.api.dependencies.require_permission``), the same as every other
+    tenant-scoped route.
+    """
 
     goal: str = Field(min_length=1)
     session_id: str | None = None
-    #: When set, the run's analytics tools are scoped to this workspace's one
-    #: *active* data source instead of the built-in demo database. Omitted,
-    #: behavior is unchanged -- the demo database is used, exactly as before.
-    workspace_id: str | None = None
 
 
 class ToolOutcomeSummary(BaseModel):

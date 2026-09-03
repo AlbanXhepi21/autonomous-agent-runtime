@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { savedReportsApi } from "@/lib/api/saved-reports";
 import { ApiError } from "@/lib/api/client";
+import { useWorkspaceId } from "@/features/workbench/workspace-context";
 import type { MetricParameters } from "@/types/analytics";
 import type { NarrativePolicy, RelativePeriodKind } from "@/types/saved-reports";
 
@@ -39,6 +40,7 @@ export function SaveReportForm({
   narrativeText: string;
   onSaved?: (id: string) => void;
 }) {
+  const workspaceId = useWorkspaceId();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [periodKind, setPeriodKind] = useState<RelativePeriodKind>("last_n_days");
@@ -71,8 +73,7 @@ export function SaveReportForm({
     setBusy(true);
     setError(null);
     try {
-      const report = await savedReportsApi.create({
-        workspace_id: "default",
+      const report = await savedReportsApi.create(workspaceId, {
         name: name.trim(),
         template_id: template,
         metric_requests: metrics.map((item) => ({
@@ -125,7 +126,11 @@ export function SaveReportForm({
         <>
           <label>
             <span>Name</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Weekly revenue" />
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Weekly revenue"
+            />
           </label>
 
           <label>
@@ -156,16 +161,25 @@ export function SaveReportForm({
             <div className="report-refresh-row">
               <label>
                 <span>From</span>
-                <input type="date" value={fixedStart} onChange={(event) => setFixedStart(event.target.value)} />
+                <input
+                  type="date"
+                  value={fixedStart}
+                  onChange={(event) => setFixedStart(event.target.value)}
+                />
               </label>
               <label>
                 <span>To</span>
-                <input type="date" value={fixedEnd} onChange={(event) => setFixedEnd(event.target.value)} />
+                <input
+                  type="date"
+                  value={fixedEnd}
+                  onChange={(event) => setFixedEnd(event.target.value)}
+                />
               </label>
             </div>
           )}
           <p className="report-export-note">
-            Resolved fresh, in UTC, every time this report runs — never a fixed date remembered from today.
+            Resolved fresh, in UTC, every time this report runs — never a fixed date remembered from
+            today.
           </p>
 
           <fieldset>
@@ -203,7 +217,12 @@ export function SaveReportForm({
             </label>
           </fieldset>
 
-          <button type="button" className="report-export-run" disabled={!canSave} onClick={() => void save()}>
+          <button
+            type="button"
+            className="report-export-run"
+            disabled={!canSave}
+            onClick={() => void save()}
+          >
             {busy ? "Saving…" : "Save report"}
           </button>
           {error && (
