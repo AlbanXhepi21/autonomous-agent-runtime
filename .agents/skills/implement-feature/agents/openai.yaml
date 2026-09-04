@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Feature"
+  short_description: "Implement a bounded repository feature."
+  default_prompt: "Implement this feature with focused tests and minimal scope."

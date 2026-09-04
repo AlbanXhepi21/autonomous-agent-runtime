@@ -1,0 +1,4 @@
+interface:
+  display_name: "Change API"
+  short_description: "Safely change an API contract and its consumers."
+  default_prompt: "Change this API contract, regenerate types, and verify affected consumers."

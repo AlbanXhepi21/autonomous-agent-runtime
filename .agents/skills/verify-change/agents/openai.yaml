@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Change"
+  short_description: "Review a completed change and report release readiness."
+  default_prompt: "Verify this change, run targeted checks, and report readiness."
