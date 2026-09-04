@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix Bug"
+  short_description: "Diagnose and fix a reproducible defect."
+  default_prompt: "Reproduce this bug, identify its root cause, and implement the smallest verified fix."

@@ -81,3 +81,25 @@ be caught elsewhere, since there is no CI to catch it for you.
 
 See [documentation-guidelines.md](documentation-guidelines.md) for what to update and
 where, matched to what kind of change you made.
+
+## Repository-local coding-agent skills
+
+The canonical skills live in [`.agents/skills/`](../../.agents/skills/). Claude Code sees
+the same content through relative symlinks in [`.claude/skills/`](../../.claude/skills/);
+do not copy a skill into both locations.
+
+| Skill | Use for |
+|---|---|
+| `implement-feature` | A bounded feature after acceptance criteria are clear |
+| `fix-bug` | A reproducible defect with concrete evidence |
+| `change-api` | Routes, API schemas, OpenAPI/types, frontend API calls, or SSE contracts |
+| `database-migration` | Application-schema and Alembic changes |
+| `reporting-feature` | Compilation, templates, rendering, evidence, reruns, or report artifacts |
+| `verify-change` | A scoped final review before a commit or pull request |
+
+Invoke a Codex skill explicitly with `$skill-name`; invoke the Claude Code link with
+`/skill-name`. Both agents may also select a matching skill automatically. Keep skill
+instructions procedural and short; put optional repository routing in `references/`.
+Update only the canonical directory, validate its `SKILL.md` with the installed skill
+validator, verify its `.claude/skills/` relative link, and forward-test it on a read-only
+task before relying on a workflow change.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Database Migration"
+  short_description: "Create and verify a focused Alembic migration."
+  default_prompt: "Design and validate this database migration with a safe rollback."

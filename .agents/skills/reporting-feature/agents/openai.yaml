@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reporting Feature"
+  short_description: "Safely change report compilation, rendering, and publishing."
+  default_prompt: "Implement this reporting change while preserving report invariants."
