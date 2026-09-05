@@ -45,20 +45,20 @@ async def run_agent(
     """
 
     workspace_id = context.workspace.id
-    runtime = None
     try:
-        analytics_tools, runtime = await resolve_workspace_tools(
+        analytics_tools, _runtime = await resolve_workspace_tools(
             workspace_id=workspace_id, service=service, store=store, datasets=datasets,
         )
         runner = build_agent_runner(analytics_tools)
     except DataSourceOnboardingError:
         pass  # No active data source for this workspace -- fall back to the injected default runner.
 
-    try:
-        state = await runner.run(request.goal, session_id=request.session_id, workspace_id=str(workspace_id))
-    finally:
-        if runtime is not None:
-            await runtime.database.dispose()
+    # The runtime returned above (when a workspace has an active data source)
+    # is drawn from DataSourceOnboardingService's shared connection pool, not
+    # built fresh for this run -- it must not be disposed here. The pool
+    # keeps it alive for the next run against the same connection, and only
+    # invalidates it itself on a configuration change, disable, or delete.
+    state = await runner.run(request.goal, session_id=request.session_id, workspace_id=str(workspace_id))
     tool_observations = [
         observation
         for observation in state.observations

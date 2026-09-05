@@ -55,7 +55,13 @@ def build_data_source_runtime(
     assert_safe_host(config.host, allow_local=allow_local_hosts)
 
     dsn = build_dsn(config, password)
-    database = AnalyticsDatabase(dsn, connect_args={"ssl": build_ssl_context(config.ssl_mode)})
+    database = AnalyticsDatabase(dsn, connect_args={
+        "ssl": build_ssl_context(config.ssl_mode),
+        # asyncpg's own connect() timeout -- bounds the handshake itself,
+        # separate from statement_timeout_seconds which only starts once a
+        # connection already exists.
+        "timeout": config.connection_timeout_seconds,
+    })
 
     policy = AnalyticsSchemaPolicy.for_schemas(config.allowed_schemas)
     inspector = PostgreSQLInspector(database, policy, cache_ttl_seconds=schema_cache_ttl_seconds)

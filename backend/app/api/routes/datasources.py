@@ -20,7 +20,9 @@ from app.api.schemas.datasources import (
     ConnectionTestResponse,
     DataSourceCreateRequest,
     DataSourceListResponse,
+    DataSourceReplaceCredentialsRequest,
     DataSourceResponse,
+    DataSourceUpdateRequest,
     FreshnessResponse,
     ReadOnlyVerificationResponse,
     RelationshipApprovalRequest,
@@ -44,6 +46,7 @@ from app.datasources.service import (
     DataSourceConnectionRefusedError,
     DataSourceOnboardingError,
     DataSourceOnboardingService,
+    DataSourceStateError,
 )
 from app.datasources.store import (
     ColumnInput,
@@ -75,14 +78,20 @@ def _onboarding_error(error: DataSourceOnboardingError, data_source_id: UUID) ->
 def _connection_response(connection: DataSourceConnection) -> DataSourceResponse:
     return DataSourceResponse(
         id=str(connection.id), workspace_id=connection.workspace_id, name=connection.name,
+        description=connection.description, engine=connection.engine, environment=connection.environment,
         host=connection.config.host, port=connection.config.port, database=connection.config.database,
         username=connection.config.username, ssl_mode=connection.config.ssl_mode,
         allowed_schemas=connection.config.allowed_schemas,
         statement_timeout_seconds=connection.config.statement_timeout_seconds,
+        connection_timeout_seconds=connection.config.connection_timeout_seconds,
+        source_timezone=connection.config.source_timezone,
         max_result_rows=connection.config.max_result_rows, max_result_bytes=connection.config.max_result_bytes,
         status=connection.status, health_status=connection.health_status,
         last_connection_at=connection.last_connection_at, last_connection_error=connection.last_connection_error,
-        last_profiled_at=connection.last_profiled_at, created_at=connection.created_at, updated_at=connection.updated_at,
+        last_error_category=connection.last_error_category,
+        last_successful_connection_at=connection.last_successful_connection_at,
+        last_profiled_at=connection.last_profiled_at, created_by=connection.created_by, version=connection.version,
+        deleted_at=connection.deleted_at, created_at=connection.created_at, updated_at=connection.updated_at,
     )
 
 
@@ -140,11 +149,14 @@ async def create_data_source(
     config = DataSourceConnectionConfig(
         host=request.host, port=request.port, database=request.database, username=request.username,
         ssl_mode=request.ssl_mode, allowed_schemas=request.allowed_schemas,
-        statement_timeout_seconds=request.statement_timeout_seconds, max_result_rows=request.max_result_rows,
-        max_result_bytes=request.max_result_bytes,
+        statement_timeout_seconds=request.statement_timeout_seconds,
+        connection_timeout_seconds=request.connection_timeout_seconds, source_timezone=request.source_timezone,
+        max_result_rows=request.max_result_rows, max_result_bytes=request.max_result_bytes,
     )
     connection = await service.create_connection(
         workspace_id=context.workspace.id, name=request.name, config=config, password=request.password,
+        description=request.description, engine=request.engine, environment=request.environment,
+        actor_user_id=context.user.id,
     )
     return _connection_response(connection)
 
@@ -180,10 +192,115 @@ async def test_data_source_connection(
     service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
 ) -> ConnectionTestResponse:
     try:
-        result = await service.test_connectivity(workspace_id=context.workspace.id, data_source_id=data_source_id)
+        result = await service.test_connectivity(
+            workspace_id=context.workspace.id, data_source_id=data_source_id, actor_user_id=context.user.id,
+        )
     except DataSourceOnboardingError as error:
         raise _onboarding_error(error, data_source_id) from error
-    return ConnectionTestResponse(success=result.success, message=result.message, server_version=result.server_version)
+    return ConnectionTestResponse(
+        success=result.success, message=result.message, error_category=result.error_category,
+        server_version=result.server_version, ssl_active=result.ssl_active,
+        accessible_schemas=result.accessible_schemas, latency_ms=result.latency_ms, tested_at=result.tested_at,
+    )
+
+
+@router.patch("/{data_source_id}", response_model=DataSourceResponse, dependencies=[Depends(require_csrf)])
+async def update_data_source(
+    data_source_id: UUID, request: DataSourceUpdateRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
+) -> DataSourceResponse:
+    """Edit non-secret configuration. Use ``/replace-credentials`` to change the password."""
+
+    config = None
+    if request.has_connection_changes:
+        assert request.host is not None and request.port is not None and request.database is not None
+        assert request.username is not None and request.ssl_mode is not None and request.allowed_schemas is not None
+        assert request.statement_timeout_seconds is not None and request.connection_timeout_seconds is not None
+        assert request.max_result_rows is not None and request.max_result_bytes is not None
+        config = DataSourceConnectionConfig(
+            host=request.host, port=request.port, database=request.database, username=request.username,
+            ssl_mode=request.ssl_mode, allowed_schemas=request.allowed_schemas,
+            statement_timeout_seconds=request.statement_timeout_seconds,
+            connection_timeout_seconds=request.connection_timeout_seconds, source_timezone=request.source_timezone,
+            max_result_rows=request.max_result_rows, max_result_bytes=request.max_result_bytes,
+        )
+    try:
+        connection = await service.update_configuration(
+            workspace_id=context.workspace.id, data_source_id=data_source_id, name=request.name,
+            description=request.description, environment=request.environment, config=config,
+            actor_user_id=context.user.id,
+        )
+    except DataSourceNotFoundError as error:
+        raise _not_found(data_source_id) from error
+    return _connection_response(connection)
+
+
+@router.post("/{data_source_id}/replace-credentials", response_model=DataSourceResponse, dependencies=[Depends(require_csrf)])
+async def replace_data_source_credentials(
+    data_source_id: UUID, request: DataSourceReplaceCredentialsRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
+) -> DataSourceResponse:
+    """Replace the stored password. The previous one is never returned or logged."""
+
+    try:
+        connection = await service.replace_credentials(
+            workspace_id=context.workspace.id, data_source_id=data_source_id, password=request.password,
+            actor_user_id=context.user.id,
+        )
+    except DataSourceNotFoundError as error:
+        raise _not_found(data_source_id) from error
+    return _connection_response(connection)
+
+
+@router.post("/{data_source_id}/disable", response_model=DataSourceResponse, dependencies=[Depends(require_csrf)])
+async def disable_data_source(
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
+) -> DataSourceResponse:
+    try:
+        connection = await service.disable(
+            workspace_id=context.workspace.id, data_source_id=data_source_id, actor_user_id=context.user.id,
+        )
+    except DataSourceOnboardingError as error:
+        raise _not_found(data_source_id) from error
+    return _connection_response(connection)
+
+
+@router.post("/{data_source_id}/enable", response_model=DataSourceResponse, dependencies=[Depends(require_csrf)])
+async def enable_data_source(
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_DATA_SOURCES)),
+    service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
+) -> DataSourceResponse:
+    try:
+        connection = await service.enable(
+            workspace_id=context.workspace.id, data_source_id=data_source_id, actor_user_id=context.user.id,
+        )
+    except DataSourceStateError as error:
+        raise HTTPException(status_code=422, detail={"code": "not_disabled", "message": str(error)}) from error
+    except DataSourceOnboardingError as error:
+        raise _not_found(data_source_id) from error
+    return _connection_response(connection)
+
+
+@router.delete("/{data_source_id}", response_model=DataSourceResponse, dependencies=[Depends(require_csrf)])
+async def delete_data_source(
+    data_source_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.DELETE_DATA_SOURCES)),
+    service: DataSourceOnboardingService = Depends(get_data_source_onboarding_service),
+) -> DataSourceResponse:
+    """Soft-delete: every other route treats this connection as gone from now on."""
+
+    try:
+        connection = await service.soft_delete(
+            workspace_id=context.workspace.id, data_source_id=data_source_id, actor_user_id=context.user.id,
+        )
+    except DataSourceOnboardingError as error:
+        raise _not_found(data_source_id) from error
+    return _connection_response(connection)
 
 
 @router.post("/{data_source_id}/verify-read-only", response_model=ReadOnlyVerificationResponse, dependencies=[Depends(require_csrf)])

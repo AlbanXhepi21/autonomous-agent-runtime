@@ -19,11 +19,14 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.analytics.schema.contracts import DatabaseSchemaSummary
+from app.audit.store import AuditLogStore, InMemoryAuditLogStore
 from app.datasources.connectivity import test_connection, verify_read_only
 from app.datasources.contracts import (
     ConnectionTestResult,
     DataSourceConnection,
     DataSourceConnectionConfig,
+    DataSourceEngine,
+    DataSourceEnvironment,
     DataSourceRelationship,
     DataSourceTableCatalogEntry,
     FreshnessSnapshot,
@@ -31,6 +34,7 @@ from app.datasources.contracts import (
 )
 from app.datasources.encryption import SecretCipher, SecretCipherError
 from app.datasources.freshness import compute_freshness
+from app.datasources.pool import DataSourceRuntimePool
 from app.datasources.profiling import discover_relationships, profile_table, suggest_role, suggest_sensitivity
 from app.datasources.runtime import DataSourceRuntime, build_data_source_runtime
 from app.datasources.security import ConnectionSecurityError
@@ -55,16 +59,25 @@ class DataSourceConnectionRefusedError(DataSourceOnboardingError):
     """
 
 
+class DataSourceStateError(DataSourceOnboardingError):
+    """Raised when a lifecycle action (enable, disable, delete) does not apply to this connection's current state."""
+
+
 class DataSourceOnboardingService:
     def __init__(
-        self, *, store: DataSourceStore, cipher: SecretCipher, allow_local_hosts: bool = False,
+        self, *, store: DataSourceStore, cipher: SecretCipher, audit: AuditLogStore | None = None,
+        runtime_pool: DataSourceRuntimePool | None = None, allow_local_hosts: bool = False,
         schema_cache_ttl_seconds: float = 300, freshness_stale_after: timedelta = timedelta(hours=48),
     ) -> None:
         self._store = store
         self._cipher = cipher
+        self._audit = audit or InMemoryAuditLogStore()
         self._allow_local_hosts = allow_local_hosts
         self._schema_cache_ttl_seconds = schema_cache_ttl_seconds
         self._freshness_stale_after = freshness_stale_after
+        self._runtime_pool = runtime_pool or DataSourceRuntimePool(
+            allow_local_hosts=allow_local_hosts, schema_cache_ttl_seconds=schema_cache_ttl_seconds,
+        )
 
     async def _runtime_for(self, *, workspace_id: UUID, data_source_id: UUID) -> tuple[DataSourceConnection, DataSourceRuntime]:
         connection = await self._store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
@@ -93,25 +106,43 @@ class DataSourceOnboardingService:
 
     async def create_connection(
         self, *, workspace_id: UUID, name: str, config: DataSourceConnectionConfig, password: str,
+        description: str | None = None, engine: DataSourceEngine = "postgresql",
+        environment: DataSourceEnvironment = "development", actor_user_id: UUID | None = None,
     ) -> DataSourceConnection:
         encrypted = self._cipher.encrypt(password)
-        return await self._store.create_connection(
+        connection = await self._store.create_connection(
             workspace_id=workspace_id, name=name, config=config, encrypted_password=encrypted,
+            description=description, engine=engine, environment=environment,
+            created_by=str(actor_user_id) if actor_user_id else None,
         )
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_created",
+            metadata={"data_source_id": str(connection.id), "name": name, "environment": environment},
+        )
+        return connection
 
     # -- step 2: test connectivity -------------------------------------------
 
-    async def test_connectivity(self, *, workspace_id: UUID, data_source_id: UUID) -> ConnectionTestResult:
+    async def test_connectivity(
+        self, *, workspace_id: UUID, data_source_id: UUID, actor_user_id: UUID | None = None,
+    ) -> ConnectionTestResult:
         _connection, runtime = await self._runtime_for(workspace_id=workspace_id, data_source_id=data_source_id)
         try:
             result = await test_connection(runtime)
             await self._store.update_connection_status(
                 workspace_id=workspace_id, data_source_id=data_source_id,
                 status="testing" if result.success else "failed",
-                last_connection_at=_now(), last_connection_error=None if result.success else result.message,
+                last_connection_at=result.tested_at,
+                last_connection_error=None if result.success else result.message,
+                last_error_category=None if result.success else result.error_category,
+                last_successful_connection_at=result.tested_at if result.success else None,
             )
         finally:
             await runtime.database.dispose()
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_connection_tested",
+            metadata={"data_source_id": str(data_source_id), "success": result.success},
+        )
         return result
 
     # -- step 3: verify read-only behavior -----------------------------------
@@ -222,6 +253,137 @@ class DataSourceOnboardingService:
             workspace_id=workspace_id, data_source_id=data_source_id, status="active",
         )
 
+    # -- administrative lifecycle: edit, replace credentials, enable/disable, delete --
+
+    async def update_configuration(
+        self, *, workspace_id: UUID, data_source_id: UUID, name: str | None = None,
+        description: str | None = None, environment: DataSourceEnvironment | None = None,
+        config: DataSourceConnectionConfig | None = None, actor_user_id: UUID | None = None,
+    ) -> DataSourceConnection:
+        """Edit non-secret configuration. Never touches the stored credential.
+
+        Any of ``name``/``description``/``environment``/``config`` may be
+        omitted to leave it unchanged. Changing ``config`` resets the
+        connection to "pending" (nothing has proven the new settings work
+        yet) and bumps its version, which -- via ``app.datasources.pool`` --
+        is what makes a live agent run pick up the change on its next tool
+        call rather than an already-cached pool silently keeping the old
+        host or timeout.
+        """
+
+        changes: dict[str, object] = {}
+        if name is not None:
+            changes["name"] = name
+        if description is not None:
+            changes["description"] = description
+        if environment is not None:
+            changes["environment"] = environment
+        if config is not None:
+            changes["config"] = config
+        connection = await self._store.update_connection_config(
+            workspace_id=workspace_id, data_source_id=data_source_id, changes=changes,
+        )
+        if config is not None:
+            await self._runtime_pool.invalidate(workspace_id=workspace_id, data_source_id=data_source_id)
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_configuration_updated",
+            metadata={"data_source_id": str(data_source_id), "changed_fields": sorted(changes)},
+        )
+        return connection
+
+    async def replace_credentials(
+        self, *, workspace_id: UUID, data_source_id: UUID, password: str, actor_user_id: UUID | None = None,
+    ) -> DataSourceConnection:
+        """Replace the stored password. The previous one is never read back or logged.
+
+        Always resets the connection to "pending" and invalidates any pooled
+        runtime -- a stale-credentialed pooled connection must never keep
+        serving queries under the old password after this call returns.
+        """
+
+        encrypted = self._cipher.encrypt(password)
+        connection = await self._store.update_connection_config(
+            workspace_id=workspace_id, data_source_id=data_source_id,
+            changes={"encrypted_password": encrypted},
+        )
+        await self._runtime_pool.invalidate(workspace_id=workspace_id, data_source_id=data_source_id)
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_credentials_replaced",
+            metadata={"data_source_id": str(data_source_id)},
+        )
+        return connection
+
+    async def disable(
+        self, *, workspace_id: UUID, data_source_id: UUID, actor_user_id: UUID | None = None,
+    ) -> DataSourceConnection:
+        """Administratively turn a connection off without losing its onboarding progress.
+
+        A disabled connection is invisible to ``active_connection_runtime``
+        regardless of its prior status, and any pooled runtime for it is
+        torn down immediately -- an in-flight agent run started just before
+        this call may finish, but no new one can acquire this connection.
+        """
+
+        connection = await self._store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+        if connection is None:
+            raise DataSourceOnboardingError("Data source not found.")
+        if connection.status == "disabled":
+            return connection
+        updated = await self._store.update_connection_status(
+            workspace_id=workspace_id, data_source_id=data_source_id, status="disabled",
+        )
+        await self._runtime_pool.invalidate(workspace_id=workspace_id, data_source_id=data_source_id)
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_disabled",
+            metadata={"data_source_id": str(data_source_id)},
+        )
+        return updated
+
+    async def enable(
+        self, *, workspace_id: UUID, data_source_id: UUID, actor_user_id: UUID | None = None,
+    ) -> DataSourceConnection:
+        """Re-enable a disabled connection.
+
+        Deliberately does not restore whatever status the connection had
+        before it was disabled -- the same "config changed, re-verify"
+        reasoning ``update_connection_config`` already applies, since time
+        spent disabled is exactly the kind of gap that should not be trusted
+        silently. The connection re-enters onboarding at "pending" and must
+        be tested, verified, and (if it had been) re-activated again.
+        """
+
+        connection = await self._store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+        if connection is None:
+            raise DataSourceOnboardingError("Data source not found.")
+        if connection.status != "disabled":
+            raise DataSourceStateError("Only a disabled data source can be enabled.")
+        updated = await self._store.update_connection_status(
+            workspace_id=workspace_id, data_source_id=data_source_id, status="pending",
+        )
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_enabled",
+            metadata={"data_source_id": str(data_source_id)},
+        )
+        return updated
+
+    async def soft_delete(
+        self, *, workspace_id: UUID, data_source_id: UUID, actor_user_id: UUID | None = None,
+    ) -> DataSourceConnection:
+        """Soft-delete a connection: every other method treats it as gone from this moment on."""
+
+        connection = await self._store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+        if connection is None:
+            raise DataSourceOnboardingError("Data source not found.")
+        deleted = await self._store.soft_delete_connection(
+            workspace_id=workspace_id, data_source_id=data_source_id, deleted_at=_now(),
+        )
+        await self._runtime_pool.invalidate(workspace_id=workspace_id, data_source_id=data_source_id)
+        await self._audit.record(
+            actor_user_id=actor_user_id, workspace_id=workspace_id, event_type="datasource_deleted",
+            metadata={"data_source_id": str(data_source_id)},
+        )
+        return deleted
+
     # -- agent integration: the one connection a run should use -------------
 
     async def active_connection_runtime(self, *, workspace_id: UUID) -> tuple[DataSourceConnection, DataSourceRuntime]:
@@ -229,13 +391,42 @@ class DataSourceOnboardingService:
 
         Raises DataSourceOnboardingError when the workspace has no active
         connection -- a caller that explicitly asked for a workspace must
-        never silently fall back to the demo database.
+        never silently fall back to the demo database. Returns a runtime
+        drawn from the shared pool: the caller must not dispose it after use,
+        since it may still be serving other, concurrent runs -- only
+        ``app.datasources.pool.DataSourceRuntimePool.invalidate`` (called by
+        this service on any configuration change, disable, or delete) ever
+        closes it.
         """
 
         items, _total = await self._store.list_connections(workspace_id=workspace_id, status="active", limit=1, offset=0)
         if not items:
             raise DataSourceOnboardingError(f"Workspace {workspace_id!r} has no active data source.")
-        return await self._runtime_for(workspace_id=workspace_id, data_source_id=items[0].id)
+        connection = items[0]
+
+        async def _resolve_password() -> str:
+            encrypted = await self._store.get_encrypted_password(workspace_id=workspace_id, data_source_id=connection.id)
+            assert encrypted is not None, "a connection that exists always has an encrypted password"
+            try:
+                return self._cipher.decrypt(encrypted)
+            except SecretCipherError as error:
+                await self._store.update_connection_status(
+                    workspace_id=workspace_id, data_source_id=connection.id, status="failed",
+                    health_status="unreachable", last_connection_at=_now(), last_connection_error=str(error),
+                    last_error_category="invalid_configuration",
+                )
+                raise DataSourceConnectionRefusedError(str(error)) from error
+
+        try:
+            runtime = await self._runtime_pool.acquire(connection, password_factory=_resolve_password)
+        except (ConnectionSecurityError,) as error:
+            await self._store.update_connection_status(
+                workspace_id=workspace_id, data_source_id=connection.id, status="failed",
+                health_status="unreachable", last_connection_at=_now(), last_connection_error=str(error),
+                last_error_category="invalid_configuration",
+            )
+            raise DataSourceConnectionRefusedError(str(error)) from error
+        return connection, runtime
 
     # -- freshness --------------------------------------------------------
 

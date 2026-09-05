@@ -29,9 +29,13 @@ async def resolve_workspace_tools(
 ) -> tuple[dict[str, Tool], DataSourceRuntime]:
     """The governed analytics tools for a workspace's one active connection.
 
-    Returns the runtime alongside the tools so the caller can dispose its
-    engine once the run finishes -- this module never closes it itself, since
-    the tools must stay usable for the whole run, not just this call.
+    Returns the runtime alongside the tools for parity with the demo-database
+    tool-building path, though most callers only need the tools -- the
+    runtime is drawn from ``DataSourceOnboardingService``'s shared connection
+    pool (``app.datasources.pool``), not built fresh here, and the caller
+    must not dispose it: it may still be serving other, concurrent runs
+    against the same connection. Only the service itself invalidates it, on
+    a configuration change, disable, or delete.
     """
 
     connection, runtime = await service.active_connection_runtime(workspace_id=workspace_id)

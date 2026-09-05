@@ -4,13 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const SECTIONS = [
-  { slug: "profile", label: "Profile" },
-  { slug: "security", label: "Security" },
-  { slug: "organization", label: "Organization" },
+  { slug: "organization", label: "General" },
   { slug: "members", label: "Members" },
+  { slug: "data-sources", label: "Data Sources" },
   { slug: "regional", label: "Regional & data" },
   { slug: "reports", label: "Report preferences" },
-  { slug: "appearance", label: "Appearance" },
   { slug: "danger", label: "Danger zone" },
 ] as const;
 

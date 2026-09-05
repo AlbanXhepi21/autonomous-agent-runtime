@@ -22,6 +22,9 @@ from app.datasources.contracts import (
     DataSourceColumnCatalogEntry,
     DataSourceConnection,
     DataSourceConnectionConfig,
+    DataSourceEngine,
+    DataSourceEnvironment,
+    DataSourceErrorCategory,
     DataSourceRelationship,
     DataSourceStatus,
     DataSourceTableCatalogEntry,
@@ -57,16 +60,22 @@ class DataSourceRelationshipNotFoundError(Exception):
 
 def _connection_to_domain(record: DataSourceRecord) -> DataSourceConnection:
     return DataSourceConnection(
-        id=record.id, workspace_id=record.workspace_id, name=record.name,
+        id=record.id, workspace_id=record.workspace_id, name=record.name, description=record.description,
+        engine=record.engine, environment=record.environment,
         config=DataSourceConnectionConfig(
             host=record.host, port=record.port, database=record.database_name, username=record.username,
             ssl_mode=record.ssl_mode, allowed_schemas=list(record.allowed_schemas),
             statement_timeout_seconds=record.statement_timeout_seconds,
+            connection_timeout_seconds=record.connection_timeout_seconds,
+            source_timezone=record.source_timezone,
             max_result_rows=record.max_result_rows, max_result_bytes=record.max_result_bytes,
         ),
         status=record.status, health_status=record.health_status,
         last_connection_at=record.last_connection_at, last_connection_error=record.last_connection_error,
-        last_profiled_at=record.last_profiled_at, created_at=record.created_at, updated_at=record.updated_at,
+        last_successful_connection_at=record.last_successful_connection_at,
+        last_error_category=record.last_error_category,
+        last_profiled_at=record.last_profiled_at, created_by=record.created_by, version=record.version,
+        deleted_at=record.deleted_at, created_at=record.created_at, updated_at=record.updated_at,
     )
 
 
@@ -124,10 +133,18 @@ class DataSourceStore:
 
     async def create_connection(
         self, *, workspace_id: UUID, name: str, config: DataSourceConnectionConfig, encrypted_password: str,
+        description: str | None = None, engine: DataSourceEngine = "postgresql",
+        environment: DataSourceEnvironment = "development", created_by: str | None = None,
     ) -> DataSourceConnection:
         raise NotImplementedError
 
     async def get_connection(self, *, workspace_id: UUID, data_source_id: UUID) -> DataSourceConnection | None:
+        """Returns ``None`` for an unknown, cross-tenant, or soft-deleted connection.
+
+        A deleted connection is indistinguishable from one that never
+        existed -- the same convention cross-tenant lookups already follow.
+        """
+
         raise NotImplementedError
 
     async def get_encrypted_password(self, *, workspace_id: UUID, data_source_id: UUID) -> str | None:
@@ -143,18 +160,37 @@ class DataSourceStore:
     async def list_connections(
         self, *, workspace_id: UUID, status: DataSourceStatus | None, limit: int, offset: int,
     ) -> tuple[list[DataSourceConnection], int]:
+        """Never includes a soft-deleted connection, regardless of ``status``."""
+
         raise NotImplementedError
 
     async def update_connection_status(
         self, *, workspace_id: UUID, data_source_id: UUID, status: DataSourceStatus | None = None,
         health_status: HealthStatus | None = None, last_connection_at: datetime | None = None,
-        last_connection_error: str | None = None, last_profiled_at: datetime | None = None,
+        last_connection_error: str | None = None, last_error_category: DataSourceErrorCategory | None = None,
+        last_successful_connection_at: datetime | None = None, last_profiled_at: datetime | None = None,
     ) -> DataSourceConnection:
         raise NotImplementedError
 
     async def update_connection_config(
         self, *, workspace_id: UUID, data_source_id: UUID, changes: dict[str, Any],
     ) -> DataSourceConnection:
+        """Apply a set of editable-field changes, bumping ``version``.
+
+        ``changes`` may carry ``name``, ``description``, ``environment``,
+        ``config`` (a whole replacement ``DataSourceConnectionConfig``), or
+        ``encrypted_password`` -- see ``app.datasources.service`` for the two
+        distinct public operations (edit configuration, replace credentials)
+        built on top of this one shared primitive.
+        """
+
+        raise NotImplementedError
+
+    async def soft_delete_connection(
+        self, *, workspace_id: UUID, data_source_id: UUID, deleted_at: datetime,
+    ) -> DataSourceConnection:
+        """Mark a connection deleted; every other method treats it as gone."""
+
         raise NotImplementedError
 
     # -- catalog: tables and columns --------------------------------------
@@ -223,16 +259,22 @@ class PostgresDataSourceStore(DataSourceStore):
 
     async def create_connection(
         self, *, workspace_id: UUID, name: str, config: DataSourceConnectionConfig, encrypted_password: str,
+        description: str | None = None, engine: DataSourceEngine = "postgresql",
+        environment: DataSourceEnvironment = "development", created_by: str | None = None,
     ) -> DataSourceConnection:
         stamp = _now()
         record = DataSourceRecord(
-            id=uuid4(), workspace_id=workspace_id, name=name, host=config.host, port=config.port,
+            id=uuid4(), workspace_id=workspace_id, name=name, description=description, engine=engine,
+            environment=environment, host=config.host, port=config.port,
             database_name=config.database, username=config.username, encrypted_password=encrypted_password,
             ssl_mode=config.ssl_mode, allowed_schemas=list(config.allowed_schemas),
-            statement_timeout_seconds=config.statement_timeout_seconds, max_result_rows=config.max_result_rows,
+            statement_timeout_seconds=config.statement_timeout_seconds,
+            connection_timeout_seconds=config.connection_timeout_seconds, source_timezone=config.source_timezone,
+            max_result_rows=config.max_result_rows,
             max_result_bytes=config.max_result_bytes, status="pending", health_status="unknown",
-            last_connection_at=None, last_connection_error=None, last_profiled_at=None,
-            created_at=stamp, updated_at=stamp,
+            last_connection_at=None, last_connection_error=None, last_error_category=None,
+            last_successful_connection_at=None, last_profiled_at=None, created_by=created_by, version=1,
+            deleted_at=None, created_at=stamp, updated_at=stamp,
         )
         async with self._database.session() as session:
             async with session.begin():
@@ -242,14 +284,14 @@ class PostgresDataSourceStore(DataSourceStore):
     async def get_connection(self, *, workspace_id: UUID, data_source_id: UUID) -> DataSourceConnection | None:
         async with self._database.session() as session:
             record = await session.get(DataSourceRecord, data_source_id)
-        if record is None or record.workspace_id != workspace_id:
+        if record is None or record.workspace_id != workspace_id or record.deleted_at is not None:
             return None
         return _connection_to_domain(record)
 
     async def get_encrypted_password(self, *, workspace_id: UUID, data_source_id: UUID) -> str | None:
         async with self._database.session() as session:
             record = await session.get(DataSourceRecord, data_source_id)
-        if record is None or record.workspace_id != workspace_id:
+        if record is None or record.workspace_id != workspace_id or record.deleted_at is not None:
             return None
         return record.encrypted_password
 
@@ -257,7 +299,9 @@ class PostgresDataSourceStore(DataSourceStore):
         self, *, workspace_id: UUID, status: DataSourceStatus | None, limit: int, offset: int,
     ) -> tuple[list[DataSourceConnection], int]:
         async with self._database.session() as session:
-            query = select(DataSourceRecord).where(DataSourceRecord.workspace_id == workspace_id)
+            query = select(DataSourceRecord).where(
+                DataSourceRecord.workspace_id == workspace_id, DataSourceRecord.deleted_at.is_(None),
+            )
             if status is not None:
                 query = query.where(DataSourceRecord.status == status)
             total = len((await session.scalars(query)).all())
@@ -269,12 +313,13 @@ class PostgresDataSourceStore(DataSourceStore):
     async def update_connection_status(
         self, *, workspace_id: UUID, data_source_id: UUID, status: DataSourceStatus | None = None,
         health_status: HealthStatus | None = None, last_connection_at: datetime | None = None,
-        last_connection_error: str | None = None, last_profiled_at: datetime | None = None,
+        last_connection_error: str | None = None, last_error_category: DataSourceErrorCategory | None = None,
+        last_successful_connection_at: datetime | None = None, last_profiled_at: datetime | None = None,
     ) -> DataSourceConnection:
         async with self._database.session() as session:
             async with session.begin():
                 record = await session.get(DataSourceRecord, data_source_id)
-                if record is None or record.workspace_id != workspace_id:
+                if record is None or record.workspace_id != workspace_id or record.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
                 if status is not None:
                     record.status = status
@@ -283,6 +328,9 @@ class PostgresDataSourceStore(DataSourceStore):
                 if last_connection_at is not None:
                     record.last_connection_at = last_connection_at
                     record.last_connection_error = last_connection_error
+                    record.last_error_category = last_error_category
+                if last_successful_connection_at is not None:
+                    record.last_successful_connection_at = last_successful_connection_at
                 if last_profiled_at is not None:
                     record.last_profiled_at = last_profiled_at
                 record.updated_at = _now()
@@ -294,10 +342,14 @@ class PostgresDataSourceStore(DataSourceStore):
         async with self._database.session() as session:
             async with session.begin():
                 record = await session.get(DataSourceRecord, data_source_id)
-                if record is None or record.workspace_id != workspace_id:
+                if record is None or record.workspace_id != workspace_id or record.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
                 if "name" in changes:
                     record.name = changes["name"]
+                if "description" in changes:
+                    record.description = changes["description"]
+                if "environment" in changes:
+                    record.environment = changes["environment"]
                 config: DataSourceConnectionConfig | None = changes.get("config")
                 if config is not None:
                     record.host, record.port = config.host, config.port
@@ -305,14 +357,31 @@ class PostgresDataSourceStore(DataSourceStore):
                     record.ssl_mode = config.ssl_mode
                     record.allowed_schemas = list(config.allowed_schemas)
                     record.statement_timeout_seconds = config.statement_timeout_seconds
+                    record.connection_timeout_seconds = config.connection_timeout_seconds
+                    record.source_timezone = config.source_timezone
                     record.max_result_rows, record.max_result_bytes = config.max_result_rows, config.max_result_bytes
                     # A connection detail changed -- whatever this connection
                     # last proved about itself no longer applies.
                     record.status = "pending"
+                    record.version += 1
                 if "encrypted_password" in changes:
                     record.encrypted_password = changes["encrypted_password"]
                     record.status = "pending"
+                    record.version += 1
                 record.updated_at = _now()
+        return _connection_to_domain(record)
+
+    async def soft_delete_connection(
+        self, *, workspace_id: UUID, data_source_id: UUID, deleted_at: datetime,
+    ) -> DataSourceConnection:
+        async with self._database.session() as session:
+            async with session.begin():
+                record = await session.get(DataSourceRecord, data_source_id)
+                if record is None or record.workspace_id != workspace_id or record.deleted_at is not None:
+                    raise DataSourceNotFoundError(str(data_source_id))
+                record.status = "deleted"
+                record.deleted_at = deleted_at
+                record.updated_at = deleted_at
         return _connection_to_domain(record)
 
     # -- catalog: tables and columns --------------------------------------
@@ -325,7 +394,7 @@ class PostgresDataSourceStore(DataSourceStore):
         async with self._database.session() as session:
             async with session.begin():
                 source = await session.get(DataSourceRecord, data_source_id)
-                if source is None or source.workspace_id != workspace_id:
+                if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
 
                 existing = await session.scalar(
@@ -374,7 +443,7 @@ class PostgresDataSourceStore(DataSourceStore):
     ) -> DataSourceTableCatalogEntry | None:
         async with self._database.session() as session:
             source = await session.get(DataSourceRecord, data_source_id)
-            if source is None or source.workspace_id != workspace_id:
+            if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                 return None
             table = await session.get(DataSourceTableRecord, table_id)
             if table is None or table.data_source_id != data_source_id:
@@ -389,7 +458,7 @@ class PostgresDataSourceStore(DataSourceStore):
     ) -> list[DataSourceTableCatalogEntry] | None:
         async with self._database.session() as session:
             source = await session.get(DataSourceRecord, data_source_id)
-            if source is None or source.workspace_id != workspace_id:
+            if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                 return None
             query = select(DataSourceTableRecord).where(DataSourceTableRecord.data_source_id == data_source_id)
             if active_only:
@@ -409,7 +478,7 @@ class PostgresDataSourceStore(DataSourceStore):
         async with self._database.session() as session:
             async with session.begin():
                 source = await session.get(DataSourceRecord, data_source_id)
-                if source is None or source.workspace_id != workspace_id:
+                if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
                 table = await session.get(DataSourceTableRecord, table_id)
                 if table is None or table.data_source_id != data_source_id:
@@ -426,7 +495,7 @@ class PostgresDataSourceStore(DataSourceStore):
         async with self._database.session() as session:
             async with session.begin():
                 source = await session.get(DataSourceRecord, data_source_id)
-                if source is None or source.workspace_id != workspace_id:
+                if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
                 table = await session.get(DataSourceTableRecord, table_id)
                 if table is None or table.data_source_id != data_source_id:
@@ -446,7 +515,7 @@ class PostgresDataSourceStore(DataSourceStore):
         async with self._database.session() as session:
             async with session.begin():
                 source = await session.get(DataSourceRecord, data_source_id)
-                if source is None or source.workspace_id != workspace_id:
+                if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
                 stamp = _now()
                 records = [
@@ -472,7 +541,7 @@ class PostgresDataSourceStore(DataSourceStore):
     ) -> list[DataSourceRelationship] | None:
         async with self._database.session() as session:
             source = await session.get(DataSourceRecord, data_source_id)
-            if source is None or source.workspace_id != workspace_id:
+            if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                 return None
             query = select(DataSourceRelationshipRecord).where(
                 DataSourceRelationshipRecord.data_source_id == data_source_id
@@ -489,7 +558,7 @@ class PostgresDataSourceStore(DataSourceStore):
         async with self._database.session() as session:
             async with session.begin():
                 source = await session.get(DataSourceRecord, data_source_id)
-                if source is None or source.workspace_id != workspace_id:
+                if source is None or source.workspace_id != workspace_id or source.deleted_at is not None:
                     raise DataSourceNotFoundError(str(data_source_id))
                 record = await session.get(DataSourceRelationshipRecord, relationship_id)
                 if record is None or record.data_source_id != data_source_id:

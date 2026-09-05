@@ -25,8 +25,21 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.analytics.schema.contracts import DatabaseColumn
 
 SSLMode = Literal["require", "verify-ca", "verify-full"]
-DataSourceStatus = Literal["pending", "testing", "verified_read_only", "active", "failed", "disabled"]
+#: "deleted" is set alongside ``deleted_at`` when a connection is soft-deleted --
+#: see ``app.datasources.store`` for why both are kept rather than just the timestamp.
+DataSourceStatus = Literal[
+    "pending", "testing", "verified_read_only", "active", "failed", "disabled", "deleted",
+]
 HealthStatus = Literal["healthy", "degraded", "unreachable", "unknown"]
+DataSourceEngine = Literal["postgresql"]
+DataSourceEnvironment = Literal["development", "staging", "production"]
+#: A safe, displayable classification of the last connection failure -- never
+#: the raw driver exception (which can carry a host, a username, or a stray
+#: fragment of a DSN). Populated by ``app.datasources.connectivity``.
+DataSourceErrorCategory = Literal[
+    "authentication_failed", "network_unreachable", "ssl_failed", "timeout",
+    "invalid_configuration", "permission_denied", "unknown",
+]
 
 ColumnRole = Literal["primary_key", "dimension", "measure", "time", "identifier", "other"]
 SensitivityClassification = Literal[
@@ -57,9 +70,17 @@ class DataSourceConnectionConfig(BaseModel):
     #: refused outright -- see app.datasources.security.
     ssl_mode: SSLMode = "require"
     allowed_schemas: list[str] = Field(min_length=1, max_length=20)
+    #: How long a single statement may run once a connection is established.
     statement_timeout_seconds: float = Field(default=15, gt=0, le=120)
+    #: How long establishing the socket/handshake itself may take -- a
+    #: separate budget from ``statement_timeout_seconds``, which only starts
+    #: once a connection already exists.
+    connection_timeout_seconds: float = Field(default=10, gt=0, le=60)
     max_result_rows: int = Field(default=5_000, ge=1, le=50_000)
     max_result_bytes: int = Field(default=1_000_000, ge=1_024)
+    #: The source database's own timezone, for display/interpretation of
+    #: naive timestamps it returns. Never used to change how a query executes.
+    source_timezone: str | None = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
     def _schemas_are_unique(self) -> DataSourceConnectionConfig:
@@ -76,12 +97,30 @@ class DataSourceConnection(BaseModel):
     id: UUID
     workspace_id: UUID
     name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=2_000)
+    #: Only "postgresql" today -- a real ``Literal``, not a free-text field,
+    #: so a second engine can be added later without a data migration.
+    engine: DataSourceEngine = "postgresql"
+    environment: DataSourceEnvironment = "development"
     config: DataSourceConnectionConfig
     status: DataSourceStatus
     health_status: HealthStatus
     last_connection_at: datetime | None = None
     last_connection_error: str | None = Field(default=None, max_length=500)
+    #: Distinct from ``last_connection_at`` (the last *attempt*, success or
+    #: not) -- this is the last attempt that actually succeeded.
+    last_successful_connection_at: datetime | None = None
+    last_error_category: DataSourceErrorCategory | None = None
     last_profiled_at: datetime | None = None
+    #: The authenticated user who created this connection, as a string user
+    #: id -- ``None`` only for rows that predate this field.
+    created_by: str | None = Field(default=None, max_length=128)
+    #: Optimistic-lock counter, incremented on every configuration or
+    #: credential change. Also the third component of a runtime pool's cache
+    #: key (see ``app.datasources.pool``), so a stale-config pooled
+    #: connection is never handed out under the old key.
+    version: int = Field(default=1, ge=1)
+    deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -90,7 +129,16 @@ class ConnectionTestResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     success: bool
     message: str = Field(max_length=500)
+    error_category: DataSourceErrorCategory | None = None
     server_version: str | None = Field(default=None, max_length=128)
+    #: Whether the driver actually negotiated TLS for this connection --
+    #: distinct from the *configured* ``ssl_mode``, which only says what was
+    #: requested. ``None`` when the check could not run at all (e.g. the
+    #: socket never opened).
+    ssl_active: bool | None = None
+    accessible_schemas: list[str] = Field(default_factory=list)
+    latency_ms: float | None = Field(default=None, ge=0)
+    tested_at: datetime
 
 
 class ReadOnlyVerification(BaseModel):

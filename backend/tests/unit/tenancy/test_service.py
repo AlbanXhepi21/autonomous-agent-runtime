@@ -20,6 +20,7 @@ from app.identity.contracts import User
 from app.identity.email import FileEmailSender
 from app.identity.tokens import generate_token, hash_token
 from app.tenancy.contracts import MembershipStatus, ReportPreferences, Role, Workspace
+from app.tenancy.permissions import Permission
 from app.tenancy.service import (
     AdminCannotManageOwnerError,
     DuplicateInvitationError,
@@ -123,7 +124,7 @@ async def test_get_context_resolves_user_workspace_membership_role_and_permissio
     assert context.workspace.id == workspace.id
     assert context.membership.id == membership.id
     assert context.role is Role.OWNER
-    assert context.permissions == frozenset(context.permissions) and len(context.permissions) == 8
+    assert context.permissions == frozenset(Permission)
     assert context.has_permission(list(context.permissions)[0])
 
 

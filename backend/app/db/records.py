@@ -340,6 +340,9 @@ class DataSourceRecord(Base):
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    engine: Mapped[str] = mapped_column(String(32), nullable=False, server_default="postgresql")
+    environment: Mapped[str] = mapped_column(String(16), nullable=False, server_default="development")
     host: Mapped[str] = mapped_column(String(255), nullable=False)
     port: Mapped[int] = mapped_column(Integer, nullable=False, default=5432)
     database_name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -348,13 +351,25 @@ class DataSourceRecord(Base):
     ssl_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="require")
     allowed_schemas: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     statement_timeout_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=15)
+    connection_timeout_seconds: Mapped[float] = mapped_column(Float, nullable=False, server_default="10")
+    source_timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     max_result_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=5_000)
     max_result_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=1_000_000)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
     health_status: Mapped[str] = mapped_column(String(16), nullable=False, default="unknown")
     last_connection_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_connection_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error_category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_successful_connection_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_profiled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: The user id (as text) who created this connection -- ``NULL`` for rows
+    #: created before this column existed, never backfilled with a guess.
+    created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    #: Optimistic-lock counter, bumped on every configuration or credential
+    #: change -- also feeds the runtime connection pool's cache key (see
+    #: ``app.datasources.pool``).
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
