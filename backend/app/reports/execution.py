@@ -98,6 +98,8 @@ class SavedReportExecutionService:
     async def execute(
         self, definition: SavedReportDefinition, *, mode: str,
         formats: list[DocumentFormat] | None = None, today: date | None = None,
+        resolved_locale: str | None = None, resolved_timezone: str | None = None,
+        resolved_currency: str | None = None,
     ) -> SavedReportExecutionResult:
         """Run steps 1-7. Raises ``SavedReportExecutionError`` on any failure.
 
@@ -167,7 +169,8 @@ class SavedReportExecutionService:
                 workspace_id=definition.workspace_id, report=report, charts=charts, template=template,
                 run_id=run_id, formats=formats or ["pdf"], workspace=self._workspace, artifacts=self._artifacts,
                 directory_name="saved-reports",
-                extra_metadata={"saved_report_id": str(definition.id)},
+                extra_metadata={"saved_report_id": str(definition.id), "resolved_locale": resolved_locale,
+                                "resolved_timezone": resolved_timezone, "resolved_currency": resolved_currency},
             )
         except ReportPublishingError as error:
             raise SavedReportExecutionError(str(error)) from error

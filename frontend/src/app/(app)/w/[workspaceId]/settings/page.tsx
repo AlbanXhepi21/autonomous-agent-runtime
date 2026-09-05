@@ -6,5 +6,5 @@ export default async function SettingsIndexPage({
   params: Promise<{ workspaceId: string }>;
 }) {
   const { workspaceId } = await params;
-  redirect(`/w/${workspaceId}/settings/profile`);
+  redirect(`/w/${workspaceId}/settings/organization`);
 }

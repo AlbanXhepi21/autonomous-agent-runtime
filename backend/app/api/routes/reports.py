@@ -294,7 +294,11 @@ async def execute_saved_report(
         })
 
     try:
-        result = await service.execute(definition, mode=request.mode, formats=request.formats)
+        result = await service.execute(
+            definition, mode=request.mode, formats=request.formats,
+            resolved_locale=context.workspace.default_locale, resolved_timezone=context.workspace.default_timezone,
+            resolved_currency=context.workspace.default_currency,
+        )
     except SavedReportExecutionError as error:
         execution = await store.create_execution(
             workspace_id=context.workspace.id, saved_report_id=saved_report_id,

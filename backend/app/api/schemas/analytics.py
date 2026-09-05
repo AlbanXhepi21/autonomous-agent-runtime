@@ -105,8 +105,13 @@ class PublishReportRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    template: str = Field(min_length=1, max_length=64)
-    formats: list[Literal["pdf", "docx"]] = Field(min_length=1, max_length=2)
+    #: Omitted, this falls back to the workspace's report-preferences default
+    #: template, then to the system default -- see
+    #: ``app.api.routes.analytics._resolve_template``.
+    template: str | None = Field(default=None, min_length=1, max_length=64)
+    #: Omitted, this falls back to the workspace's default output format,
+    #: then to the system default -- see ``app.api.routes.analytics._resolve_formats``.
+    formats: list[Literal["pdf", "docx"]] | None = Field(default=None, min_length=1, max_length=2)
     #: Free text, because the runtime cannot know what period an analysis
     #: covered; it is printed only when the caller supplies it.
     period: str | None = Field(default=None, max_length=120)
@@ -127,7 +132,10 @@ class ReportPreviewRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    template: str = Field(min_length=1, max_length=64)
+    #: Omitted, this falls back to the workspace's report-preferences default
+    #: template, then to the system default -- see
+    #: ``app.api.routes.analytics._resolve_template``.
+    template: str | None = Field(default=None, min_length=1, max_length=64)
     period: str | None = Field(default=None, max_length=120)
     title: str | None = Field(default=None, max_length=120)
     metrics: list[MetricParameters] = Field(default_factory=list, max_length=8)

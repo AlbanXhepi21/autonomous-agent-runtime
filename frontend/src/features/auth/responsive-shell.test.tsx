@@ -8,7 +8,7 @@ vi.mock("@/lib/api/workspaces", () => ({
   workspacesApi: { get: () => new Promise(() => {}) },
   membershipsApi: { list: () => new Promise(() => {}) },
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/w/ws-1/settings/profile" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/w/ws-1/settings/organization" }));
 
 /**
  * jsdom doesn't evaluate CSS, so this isn't a visual regression check --
@@ -43,6 +43,7 @@ describe("responsive shell structure", () => {
     render(
       <SettingsShell
         workspaceId="ws-1"
+        workspaceName="Acme Analytics"
         currentUserId="u1"
         currentUserDisplayName="Ada"
         currentUserEmail="a@example.com"

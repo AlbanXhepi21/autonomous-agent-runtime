@@ -1,19 +1,21 @@
 """Data Analyst Workbench HTTP and SSE endpoints."""
 
 import asyncio
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.analytics.presentation.charts import ChartSpec
 from app.analytics.presentation.preview import ReportPreview, TemplateSuitabilityOverview
+from app.analytics.semantics.metrics import MetricRegistry
 from app.api.dependencies import require_csrf, require_permission
-from app.api.schemas.analytics import AnswerSource
 from app.api.schemas.analytics import (
+    AnswerSource,
     CreateRunRequest,
+    CreateRunResponse,
     MetricListResponse,
     MetricSummaryResponse,
-    CreateRunResponse,
     PublicRunEventListResponse,
     PublishedDocumentResponse,
     PublishReportRequest,
@@ -24,23 +26,63 @@ from app.api.schemas.analytics import (
     RunMetricsResponse,
     RunResponse,
 )
-from app.analytics.semantics.metrics import MetricRegistry
 from app.composition import (
     get_agent_runner,
     get_conversation_store,
     get_metric_registry,
     get_report_publisher,
     get_run_manager,
+    get_tenancy_service,
 )
 from app.conversations.store import ConversationStore
-from app.orchestration.publishing import ReportPublisher, ReportPublishingError
+from app.orchestration.publishing import DocumentFormat, ReportPublisher, ReportPublishingError
 from app.orchestration.reruns import rerun_query_id
 from app.orchestration.run_manager import AgentRunManager
 from app.runtime.runner import AgentRunner
 from app.tenancy.context import TenantContext
+from app.tenancy.contracts import ReportPreferences
 from app.tenancy.permissions import Permission
+from app.tenancy.service import TenancyService
 
 router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/analytics", tags=["analytics-workbench"])
+
+_SYSTEM_DEFAULT_FORMAT: DocumentFormat = "pdf"
+
+
+async def _resolve_template(
+    requested: str | None, *, tenancy: TenancyService, workspace_id: UUID,
+) -> str:
+    """Explicit request > the workspace's own report-preferences default.
+
+    There is no system-default template: a report has to say what shape it
+    wants, from somewhere.
+    """
+
+    if requested:
+        return requested
+    preferences: ReportPreferences = await tenancy.get_report_preferences(workspace_id=workspace_id)
+    if preferences.default_template:
+        return preferences.default_template
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "code": "template_required",
+            "message": "No template was given, and this workspace has no default report template configured.",
+        },
+    )
+
+
+async def _resolve_formats(
+    requested: list[DocumentFormat] | None, *, tenancy: TenancyService, workspace_id: UUID,
+) -> list[DocumentFormat]:
+    """Explicit request > the workspace's default output format > the system default."""
+
+    if requested:
+        return requested
+    preferences = await tenancy.get_report_preferences(workspace_id=workspace_id)
+    if preferences.default_output_format:
+        return [preferences.default_output_format]
+    return [_SYSTEM_DEFAULT_FORMAT]
 
 
 async def _require_owned_run(store: ConversationStore, *, workspace_id, run_id: str) -> None:
@@ -165,6 +207,7 @@ async def preview_report(
     run_id: str, request: ReportPreviewRequest,
     context: TenantContext = Depends(require_permission(Permission.READ_TENANT_RESOURCES)),
     publisher: ReportPublisher = Depends(get_report_publisher),
+    tenancy: TenancyService = Depends(get_tenancy_service),
 ) -> ReportPreview:
     """Compile the exact canonical report a publish of the same request would produce.
 
@@ -173,9 +216,10 @@ async def preview_report(
     one always match.
     """
 
+    template_name = await _resolve_template(request.template, tenancy=tenancy, workspace_id=context.workspace.id)
     try:
         return await publisher.preview(
-            workspace_id=context.workspace.id, run_id=run_id, template_name=request.template, period=request.period,
+            workspace_id=context.workspace.id, run_id=run_id, template_name=template_name, period=request.period,
             title=request.title, metrics=list(request.metrics), narrative=request.narrative,
         )
     except ReportPublishingError as error:
@@ -231,20 +275,32 @@ async def publish_report(
     run_id: str, request: PublishReportRequest,
     context: TenantContext = Depends(require_permission(Permission.PUBLISH_REPORTS)),
     publisher: ReportPublisher = Depends(get_report_publisher),
+    tenancy: TenancyService = Depends(get_tenancy_service),
 ) -> PublishReportResponse:
-    """Assemble a completed run into documents. This never calls the model."""
+    """Assemble a completed run into documents. This never calls the model.
 
+    A caller-supplied ``template``/``formats`` always wins; otherwise this
+    falls back to the workspace's own report-preferences default, then a
+    system default -- never to the requesting user's personal settings, so a
+    published organization report cannot silently vary by who clicked
+    publish.
+    """
+
+    template_name = await _resolve_template(request.template, tenancy=tenancy, workspace_id=context.workspace.id)
+    formats = await _resolve_formats(request.formats, tenancy=tenancy, workspace_id=context.workspace.id)
     try:
         documents = await publisher.publish(
-            workspace_id=context.workspace.id, run_id=run_id, template_name=request.template,
-            formats=list(request.formats), period=request.period, title=request.title,
+            workspace_id=context.workspace.id, run_id=run_id, template_name=template_name,
+            formats=list(formats), period=request.period, title=request.title,
             metrics=list(request.metrics), narrative=request.narrative,
+            resolved_locale=context.workspace.default_locale, resolved_timezone=context.workspace.default_timezone,
+            resolved_currency=context.workspace.default_currency,
         )
     except ReportPublishingError as error:
         raise HTTPException(status_code=400, detail={"code": "report_not_published", "message": str(error)})
     narrative = request.narrative or ("excluded_from_refreshed_report" if request.metrics else "current")
     return PublishReportResponse(
-        run_id=run_id, template=request.template, narrative=narrative,
+        run_id=run_id, template=template_name, narrative=narrative,
         rerun_query_ids=[rerun_query_id(index) for index in range(1, len(request.metrics) + 1)],
         documents=[PublishedDocumentResponse(artifact_id=item.id, name=item.name,
                                              media_type=item.media_type, size=item.size)

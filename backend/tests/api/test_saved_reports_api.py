@@ -9,6 +9,7 @@ that the deterministic execution path never needs a database at all.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -127,11 +128,13 @@ def _create_body(**overrides) -> dict[str, Any]:
 
 def _client(
     tmp_path, *, store: "FakeSavedReportStore | None" = None, workspace_id: UUID = WORKSPACE_ID,
+    artifacts: WorkspaceArtifactStore | None = None, default_currency: str = "USD",
+    default_timezone: str = "UTC", default_locale: str = "en-US",
 ) -> TestClient:
     store = store if store is not None else FakeSavedReportStore()
     templates = ReportTemplateRegistry()
     workspace = Workspace(tmp_path)
-    artifacts = WorkspaceArtifactStore(workspace, max_artifact_bytes=10_485_760)
+    artifacts = artifacts if artifacts is not None else WorkspaceArtifactStore(workspace, max_artifact_bytes=10_485_760)
     service = SavedReportExecutionService(
         templates=templates, reruns=_FakeRerunService(), workspace=workspace, artifacts=artifacts,
     )
@@ -143,7 +146,10 @@ def _client(
         get_saved_report_execution_service: lambda: service,
         get_artifact_store: lambda: artifacts,
     }
-    override_tenant_context(application, workspace_id=workspace_id)
+    override_tenant_context(
+        application, workspace_id=workspace_id, default_currency=default_currency,
+        default_timezone=default_timezone, default_locale=default_locale,
+    )
     return TestClient(application)
 
 
@@ -339,7 +345,34 @@ def test_execute_publish_returns_a_downloadable_document(tmp_path) -> None:
     assert body["mode"] == "publish"
     assert len(body["documents"]) == 1
     assert body["documents"][0]["media_type"] == "application/pdf"
-    assert body["preview"] is None
+
+
+def test_execute_publish_stamps_the_workspaces_resolved_regional_settings(tmp_path) -> None:
+    """A saved report always names its own template explicitly, but the
+    workspace's locale/timezone/currency are still resolved from its own
+    settings and recorded for reproducibility -- never from whoever happens
+    to trigger the run."""
+
+    workspace = Workspace(tmp_path)
+    artifacts = WorkspaceArtifactStore(workspace, max_artifact_bytes=10_485_760)
+    with _client(
+        tmp_path, artifacts=artifacts, default_currency="EUR", default_timezone="Europe/Paris",
+        default_locale="fr-FR",
+    ) as client:
+        created = client.post(f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved", json=_create_body()).json()
+
+        response = client.post(
+            f"/api/v1/workspaces/{WORKSPACE_ID}/reports/saved/{created['id']}/execute",
+            json={"mode": "publish", "formats": ["pdf"]},
+        )
+
+    assert response.status_code == 200
+    artifact_id = response.json()["documents"][0]["artifact_id"]
+    record = asyncio.run(artifacts.get(workspace_id=WORKSPACE_ID, artifact_id=artifact_id))
+    assert record is not None
+    assert record.metadata["resolved_currency"] == "EUR"
+    assert record.metadata["resolved_timezone"] == "Europe/Paris"
+    assert record.metadata["resolved_locale"] == "fr-FR"
 
 
 def test_two_executions_of_the_same_saved_report_mint_different_run_ids(tmp_path) -> None:

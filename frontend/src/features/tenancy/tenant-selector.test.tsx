@@ -2,16 +2,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TenantSelector } from "./tenant-selector";
 import { authApi } from "@/lib/api/auth";
-import { membershipsApi, workspacesApi } from "@/lib/api/workspaces";
+import { workspacesApi } from "@/lib/api/workspaces";
 import { readLastWorkspaceId } from "@/lib/auth/last-workspace";
-import type { Membership, Workspace } from "@/types/api";
+import type { Workspace } from "@/types/api";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/lib/api/auth", () => ({ authApi: { logout: vi.fn() } }));
 vi.mock("@/lib/api/workspaces", () => ({
   workspacesApi: { list: vi.fn() },
-  membershipsApi: { list: vi.fn() },
 }));
 
 function workspace(overrides: Partial<Workspace> = {}): Workspace {
@@ -34,28 +33,12 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
   };
 }
 
-function membership(overrides: Partial<Membership> = {}): Membership {
-  return {
-    id: "m1",
-    user_id: "user-1",
-    workspace_id: "ws-1",
-    role: "viewer",
-    status: "active",
-    invited_by: null,
-    joined_at: "2026-01-01T00:00:00Z",
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-    ...overrides,
-  };
-}
-
 describe("TenantSelector", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(workspacesApi.list).mockResolvedValue({
       items: [workspace(), workspace({ id: "ws-2", name: "Globex" })],
     });
-    vi.mocked(membershipsApi.list).mockResolvedValue({ items: [membership()] });
   });
 
   it("switches to another workspace and remembers the selection", async () => {
@@ -116,10 +99,7 @@ describe("TenantSelector", () => {
     expect(push).toHaveBeenCalledWith("/login");
   });
 
-  it("shows the organization settings link only for an owner or admin", async () => {
-    vi.mocked(membershipsApi.list).mockResolvedValue({
-      items: [membership({ role: "admin" })],
-    });
+  it("always shows a link to the caller's own personal settings", async () => {
     render(
       <TenantSelector
         workspaceId="ws-1"
@@ -131,12 +111,15 @@ describe("TenantSelector", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Acme/ }));
 
-    expect(
-      await screen.findByRole("menuitem", { name: "Organization settings" }),
-    ).toBeInTheDocument();
+    const link = await screen.findByRole("menuitem", { name: "User settings" });
+    expect(link).toHaveAttribute("href", "/settings/profile");
   });
 
-  it("hides the organization settings link for a viewer", async () => {
+  it("shows the organization settings link for any active member, not only an owner or admin", async () => {
+    // The nav link is not itself a permission boundary -- every settings page
+    // it leads to is readable by any member and independently enforces
+    // which fields a viewer or analyst may edit. See `settings-nav.tsx` and
+    // the backend's `require_permission` checks.
     render(
       <TenantSelector
         workspaceId="ws-1"
@@ -148,10 +131,8 @@ describe("TenantSelector", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Acme/ }));
 
-    await screen.findByRole("menuitem", { name: "Globex" });
-    expect(
-      screen.queryByRole("menuitem", { name: "Organization settings" }),
-    ).not.toBeInTheDocument();
+    const link = await screen.findByRole("menuitem", { name: "Organization settings" });
+    expect(link).toHaveAttribute("href", "/w/ws-1/settings");
   });
 
   it("closes the menu on Escape", async () => {

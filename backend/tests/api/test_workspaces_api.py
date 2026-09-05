@@ -546,6 +546,29 @@ def test_update_report_preferences_changes_presentation_defaults(tmp_path: Path)
     assert body["version"] == 2
 
 
+def test_update_report_preferences_rejects_an_unknown_template_id(tmp_path: Path) -> None:
+    """``default_template`` is a free-text column, but its value has to name a
+    template the registry actually publishes -- otherwise a workspace could
+    configure a default that fails every time a report is published."""
+
+    auth_service, tenancy = _auth_service(tmp_path), _tenancy(tmp_path)
+    client = _client(auth_service, tenancy)
+    _register_and_login(client, "owner@example.com")
+    workspace = client.post("/api/v1/workspaces", json={"name": "Acme", "slug": "acme"}, headers=_csrf(client)).json()
+
+    response = client.patch(
+        f"/api/v1/workspaces/{workspace['id']}/report-preferences",
+        json={"expected_version": 1, "default_template": "not_a_real_template"},
+        headers=_csrf(client),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "unknown_template"
+
+    unchanged = client.get(f"/api/v1/workspaces/{workspace['id']}/report-preferences")
+    assert unchanged.json()["default_template"] is None
+
+
 def test_analyst_cannot_update_report_preferences_but_can_read_them(tmp_path: Path) -> None:
     auth_service, tenancy = _auth_service(tmp_path), _tenancy(tmp_path)
     owner_client, analyst_client = _client(auth_service, tenancy), _client(auth_service, tenancy)

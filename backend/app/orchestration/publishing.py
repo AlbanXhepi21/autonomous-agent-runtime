@@ -272,11 +272,20 @@ class ReportPublisher:
     async def publish(self, *, workspace_id: UUID, run_id: str, template_name: str, formats: list[DocumentFormat],
                       period: str | None = None, title: str | None = None,
                       metrics: list[MetricParameters] | None = None,
-                      narrative: NarrativeStatus | None = None) -> list[Artifact]:
+                      narrative: NarrativeStatus | None = None,
+                      resolved_locale: str | None = None, resolved_timezone: str | None = None,
+                      resolved_currency: str | None = None) -> list[Artifact]:
         """Write the requested formats and register each as a downloadable artifact.
 
         Compiles through the same path ``preview`` uses, so a published
         document always matches the assignment a reader last saw.
+
+        ``resolved_locale``/``resolved_timezone``/``resolved_currency`` are the
+        presentation settings actually in effect for this publish (the caller
+        resolves them: an explicit request parameter, else the workspace's own
+        default, else a system default) -- stamped into the artifact's metadata
+        so the document stays reproducible even after the workspace's settings
+        later change.
         """
 
         template, content, _assignment, report = await self._compile(
@@ -286,5 +295,7 @@ class ReportPublisher:
         return await render_and_register_documents(
             workspace_id=workspace_id, report=report, charts=content.charts, template=template, run_id=run_id,
             formats=formats, workspace=self._workspace, artifacts=self._artifacts,
-            extra_metadata={"recomputed_metrics": [item.metric for item in (metrics or [])]},
+            extra_metadata={"recomputed_metrics": [item.metric for item in (metrics or [])],
+                            "resolved_locale": resolved_locale, "resolved_timezone": resolved_timezone,
+                            "resolved_currency": resolved_currency},
         )

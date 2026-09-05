@@ -28,12 +28,14 @@ function SettingsBody({ children }: { children: ReactNode }) {
 
 export function SettingsShell({
   workspaceId,
+  workspaceName,
   currentUserId,
   currentUserDisplayName,
   currentUserEmail,
   children,
 }: {
   workspaceId: string;
+  workspaceName: string;
   currentUserId: string;
   currentUserDisplayName: string;
   currentUserEmail: string;
@@ -51,7 +53,12 @@ export function SettingsShell({
           <Link href={`/w/${workspaceId}`} className="settings-back">
             ← Back to workbench
           </Link>
-          <h1>Settings</h1>
+          <div className="settings-header-titles">
+            <h1>Organization settings</h1>
+            {workspaceName ? (
+              <p className="settings-header-desc">Manage {workspaceName}</p>
+            ) : null}
+          </div>
         </header>
         <div className="settings-body">
           <SettingsNav workspaceId={workspaceId} />
