@@ -1,18 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProfileSettings } from "./profile-settings";
-import { SettingsProvider } from "./settings-context";
 import { ApiError } from "@/lib/api/client";
 import { usersApi } from "@/lib/api/users";
-import { membershipsApi, workspacesApi } from "@/lib/api/workspaces";
-import type { UserSettings, Workspace } from "@/types/api";
+import { workspacesApi } from "@/lib/api/workspaces";
+import type { UserSettings } from "@/types/api";
 
 vi.mock("@/lib/api/users", () => ({
   usersApi: { getSettings: vi.fn(), updateSettings: vi.fn(), requestEmailChange: vi.fn() },
 }));
 vi.mock("@/lib/api/workspaces", () => ({
-  workspacesApi: { get: vi.fn(), setProfileImage: vi.fn() },
-  membershipsApi: { list: vi.fn() },
+  workspacesApi: { setProfileImage: vi.fn() },
 }));
 
 function settings(overrides: Partial<UserSettings> = {}): UserSettings {
@@ -34,43 +32,20 @@ function settings(overrides: Partial<UserSettings> = {}): UserSettings {
   };
 }
 
-function workspace(): Workspace {
-  return {
-    id: "ws-1",
-    name: "Acme",
-    slug: "acme",
-    logo_ref: null,
-    is_active: true,
-    default_timezone: "UTC",
-    default_locale: "en-US",
-    default_currency: "USD",
-    fiscal_year_start_month: 1,
-    number_format: "1,234.56",
-    date_format: "YYYY-MM-DD",
-    version: 1,
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-  };
-}
-
-function renderProfile() {
-  return render(
-    <SettingsProvider
-      workspaceId="ws-1"
-      currentUserId="u1"
-      currentUserDisplayName="Ada"
-      currentUserEmail="ada@example.com"
-    >
-      <ProfileSettings />
-    </SettingsProvider>,
-  );
+/**
+ * `ProfileSettings` is workspace-independent -- it no longer needs
+ * `SettingsProvider` at all. `uploadWorkspaceId` is the one exception: the
+ * profile-image upload still goes through a workspace-scoped artifact route
+ * (see `profile-settings.tsx`), so the page-level caller resolves it and
+ * passes it down as a plain prop.
+ */
+function renderProfile(uploadWorkspaceId: string | null = "ws-1") {
+  return render(<ProfileSettings uploadWorkspaceId={uploadWorkspaceId} />);
 }
 
 describe("ProfileSettings", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(workspacesApi.get).mockResolvedValue(workspace());
-    vi.mocked(membershipsApi.list).mockResolvedValue({ items: [] });
   });
 
   it("shows a loading state before the profile resolves", () => {
@@ -124,5 +99,30 @@ describe("ProfileSettings", () => {
 
     expect(await screen.findByText("Enter your current password.")).toBeInTheDocument();
     expect(usersApi.requestEmailChange).not.toHaveBeenCalled();
+  });
+
+  it("does not refetch when the caller's active organization changes", async () => {
+    vi.mocked(usersApi.getSettings).mockResolvedValue(settings());
+    const { rerender } = render(<ProfileSettings uploadWorkspaceId="ws-1" />);
+    await screen.findByLabelText("Display name");
+
+    // Simulates switching organizations: only the upload target prop
+    // changes, exactly as the personal-settings page passes down a freshly
+    // resolved workspace after a tenant switch. Profile data itself must not
+    // be re-requested -- it was never scoped to a workspace in the first
+    // place.
+    rerender(<ProfileSettings uploadWorkspaceId="ws-2" />);
+
+    expect(usersApi.getSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the image upload when the caller has no workspace to upload into", async () => {
+    vi.mocked(usersApi.getSettings).mockResolvedValue(settings());
+    renderProfile(null);
+
+    const button = await screen.findByRole("button", { name: "Change image" });
+    expect(button).toBeDisabled();
+    expect(await screen.findByText("Join or create an organization to add a profile image.")).toBeInTheDocument();
+    expect(workspacesApi.setProfileImage).not.toHaveBeenCalled();
   });
 });

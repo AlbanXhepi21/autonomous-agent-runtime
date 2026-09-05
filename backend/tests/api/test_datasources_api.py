@@ -37,7 +37,7 @@ from app.datasources.contracts import (
     RelationshipApprovalStatus,
     RelationshipCandidate,
 )
-from app.datasources.service import DataSourceConnectionRefusedError, DataSourceOnboardingError
+from app.datasources.service import DataSourceConnectionRefusedError, DataSourceOnboardingError, DataSourceStateError
 from app.datasources.store import (
     ColumnInput,
     DataSourceNotFoundError,
@@ -70,11 +70,15 @@ class FakeDataSourceStore:
     tables: dict[UUID, DataSourceTableCatalogEntry] = field(default_factory=dict)
     relationships: dict[UUID, DataSourceRelationship] = field(default_factory=dict)
 
-    async def create_connection(self, *, workspace_id, name, config, encrypted_password) -> DataSourceConnection:
+    async def create_connection(
+        self, *, workspace_id, name, config, encrypted_password, description=None,
+        engine="postgresql", environment="development", created_by=None,
+    ) -> DataSourceConnection:
         now = _now()
         connection = DataSourceConnection(
-            id=uuid4(), workspace_id=workspace_id, name=name, config=config,
-            status="pending", health_status="unknown", created_at=now, updated_at=now,
+            id=uuid4(), workspace_id=workspace_id, name=name, description=description, engine=engine,
+            environment=environment, config=config, status="pending", health_status="unknown",
+            created_by=created_by, version=1, created_at=now, updated_at=now,
         )
         self.connections[connection.id] = connection
         self.passwords[connection.id] = encrypted_password
@@ -82,14 +86,19 @@ class FakeDataSourceStore:
 
     async def get_connection(self, *, workspace_id, data_source_id) -> DataSourceConnection | None:
         item = self.connections.get(data_source_id)
-        return item if item is not None and item.workspace_id == workspace_id else None
+        if item is None or item.workspace_id != workspace_id or item.deleted_at is not None:
+            return None
+        return item
 
     async def get_encrypted_password(self, *, workspace_id, data_source_id) -> str | None:
         connection = await self.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
         return None if connection is None else self.passwords.get(data_source_id)
 
     async def list_connections(self, *, workspace_id, status, limit, offset):
-        items = [item for item in self.connections.values() if item.workspace_id == workspace_id]
+        items = [
+            item for item in self.connections.values()
+            if item.workspace_id == workspace_id and item.deleted_at is None
+        ]
         if status is not None:
             items = [item for item in items if item.status == status]
         return items[offset:offset + limit], len(items)
@@ -97,16 +106,17 @@ class FakeDataSourceStore:
     async def update_connection_status(
         self, *, workspace_id, data_source_id, status: DataSourceStatus | None = None,
         health_status: HealthStatus | None = None, last_connection_at=None, last_connection_error=None,
-        last_profiled_at=None,
+        last_error_category=None, last_successful_connection_at=None, last_profiled_at=None,
     ) -> DataSourceConnection:
         existing = self.connections.get(data_source_id)
-        if existing is None or existing.workspace_id != workspace_id:
+        if existing is None or existing.workspace_id != workspace_id or existing.deleted_at is not None:
             raise DataSourceNotFoundError(str(data_source_id))
         updated = existing.model_copy(update={
             key: value for key, value in {
                 "status": status, "health_status": health_status, "last_connection_at": last_connection_at,
-                "last_connection_error": last_connection_error, "last_profiled_at": last_profiled_at,
-                "updated_at": _now(),
+                "last_connection_error": last_connection_error, "last_error_category": last_error_category,
+                "last_successful_connection_at": last_successful_connection_at,
+                "last_profiled_at": last_profiled_at, "updated_at": _now(),
             }.items() if value is not None or key == "updated_at"
         })
         self.connections[data_source_id] = updated
@@ -114,11 +124,24 @@ class FakeDataSourceStore:
 
     async def update_connection_config(self, *, workspace_id, data_source_id, changes: dict[str, Any]) -> DataSourceConnection:
         existing = self.connections.get(data_source_id)
-        if existing is None or existing.workspace_id != workspace_id:
+        if existing is None or existing.workspace_id != workspace_id or existing.deleted_at is not None:
             raise DataSourceNotFoundError(str(data_source_id))
-        payload = {"updated_at": _now(), "status": "pending"}
+        payload: dict[str, Any] = {"updated_at": _now()}
+        if "config" in changes or "encrypted_password" in changes:
+            payload["status"] = "pending"
+            payload["version"] = existing.version + 1
+        if "encrypted_password" in changes:
+            self.passwords[data_source_id] = changes.pop("encrypted_password")
         payload.update(changes)
         updated = existing.model_copy(update=payload)
+        self.connections[data_source_id] = updated
+        return updated
+
+    async def soft_delete_connection(self, *, workspace_id, data_source_id, deleted_at) -> DataSourceConnection:
+        existing = self.connections.get(data_source_id)
+        if existing is None or existing.workspace_id != workspace_id or existing.deleted_at is not None:
+            raise DataSourceNotFoundError(str(data_source_id))
+        updated = existing.model_copy(update={"status": "deleted", "deleted_at": deleted_at, "updated_at": deleted_at})
         self.connections[data_source_id] = updated
         return updated
 
@@ -245,9 +268,14 @@ class FakeOnboardingService:
     store: FakeDataSourceStore
     refuse: bool = False
 
-    async def create_connection(self, *, workspace_id, name, config, password) -> DataSourceConnection:
+    async def create_connection(
+        self, *, workspace_id, name, config, password, description=None, engine="postgresql",
+        environment="development", actor_user_id=None,
+    ) -> DataSourceConnection:
         return await self.store.create_connection(
             workspace_id=workspace_id, name=name, config=config, encrypted_password=f"encrypted:{password}",
+            description=description, engine=engine, environment=environment,
+            created_by=str(actor_user_id) if actor_user_id else None,
         )
 
     async def _guard(self, *, workspace_id, data_source_id) -> DataSourceConnection:
@@ -262,12 +290,58 @@ class FakeOnboardingService:
             raise DataSourceConnectionRefusedError("Host resolves to a private address.")
         return connection
 
-    async def test_connectivity(self, *, workspace_id, data_source_id) -> ConnectionTestResult:
+    async def test_connectivity(self, *, workspace_id, data_source_id, actor_user_id=None) -> ConnectionTestResult:
         await self._guard(workspace_id=workspace_id, data_source_id=data_source_id)
         await self.store.update_connection_status(
             workspace_id=workspace_id, data_source_id=data_source_id, status="testing", last_connection_at=_now(),
         )
-        return ConnectionTestResult(success=True, message="ok", server_version="PostgreSQL 16.0")
+        return ConnectionTestResult(
+            success=True, message="ok", server_version="PostgreSQL 16.0", ssl_active=True,
+            accessible_schemas=["public"], latency_ms=1.5, tested_at=_now(),
+        )
+
+    async def update_configuration(
+        self, *, workspace_id, data_source_id, name=None, description=None, environment=None,
+        config=None, actor_user_id=None,
+    ) -> DataSourceConnection:
+        changes: dict[str, Any] = {}
+        if name is not None:
+            changes["name"] = name
+        if description is not None:
+            changes["description"] = description
+        if environment is not None:
+            changes["environment"] = environment
+        if config is not None:
+            changes["config"] = config
+        return await self.store.update_connection_config(workspace_id=workspace_id, data_source_id=data_source_id, changes=changes)
+
+    async def replace_credentials(self, *, workspace_id, data_source_id, password, actor_user_id=None) -> DataSourceConnection:
+        return await self.store.update_connection_config(
+            workspace_id=workspace_id, data_source_id=data_source_id,
+            changes={"encrypted_password": f"encrypted:{password}"},
+        )
+
+    async def disable(self, *, workspace_id, data_source_id, actor_user_id=None) -> DataSourceConnection:
+        connection = await self.store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+        if connection is None:
+            raise DataSourceOnboardingError("Data source not found.")
+        if connection.status == "disabled":
+            return connection
+        return await self.store.update_connection_status(workspace_id=workspace_id, data_source_id=data_source_id, status="disabled")
+
+    async def enable(self, *, workspace_id, data_source_id, actor_user_id=None) -> DataSourceConnection:
+        connection = await self.store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+        if connection is None:
+            raise DataSourceOnboardingError("Data source not found.")
+        if connection.status != "disabled":
+            raise DataSourceStateError("Only a disabled data source can be enabled.")
+        return await self.store.update_connection_status(workspace_id=workspace_id, data_source_id=data_source_id, status="pending")
+
+    async def soft_delete(self, *, workspace_id, data_source_id, actor_user_id=None) -> DataSourceConnection:
+        connection = await self.store.get_connection(workspace_id=workspace_id, data_source_id=data_source_id)
+        if connection is None:
+            raise DataSourceOnboardingError("Data source not found.")
+        return await self.store.soft_delete_connection(workspace_id=workspace_id, data_source_id=data_source_id, deleted_at=_now())
 
     async def verify_read_only_behavior(self, *, workspace_id, data_source_id) -> ReadOnlyVerification:
         await self._guard(workspace_id=workspace_id, data_source_id=data_source_id)

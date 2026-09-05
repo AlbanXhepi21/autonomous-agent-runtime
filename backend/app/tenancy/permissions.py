@@ -25,6 +25,12 @@ class Permission(StrEnum):
     RUN_ANALYSES = "run_analyses"
     PUBLISH_REPORTS = "publish_reports"
     MANAGE_DATA_SOURCES = "manage_data_sources"
+    #: Deleting a data source connection (even soft-deleted) is more
+    #: destructive than editing, testing, or disabling one -- reversing it
+    #: means re-onboarding from scratch, the same asymmetry that already
+    #: separates TRANSFER_OWNERSHIP/DEACTIVATE_TENANT from
+    #: UPDATE_TENANT_SETTINGS. Granted to OWNER only; see ROLE_PERMISSIONS.
+    DELETE_DATA_SOURCES = "delete_data_sources"
     MANAGE_MEMBERS = "manage_members"
     UPDATE_TENANT_SETTINGS = "update_tenant_settings"
     TRANSFER_OWNERSHIP = "transfer_ownership"
@@ -40,8 +46,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         Permission.MANAGE_DATA_SOURCES,
         Permission.MANAGE_MEMBERS,
         Permission.UPDATE_TENANT_SETTINGS,
-        # Not TRANSFER_OWNERSHIP or DEACTIVATE_TENANT -- see
-        # app.tenancy.service for the matching "admins cannot manage
+        # Not TRANSFER_OWNERSHIP, DEACTIVATE_TENANT, or DELETE_DATA_SOURCES --
+        # see app.tenancy.service for the matching "admins cannot manage
         # owners" and "only an owner can transfer ownership" rules.
     }),
     Role.ANALYST: frozenset({

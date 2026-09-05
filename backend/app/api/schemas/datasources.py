@@ -14,10 +14,19 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+_CONFIG_FIELDS = (
+    "host", "port", "database", "username", "ssl_mode", "allowed_schemas",
+    "statement_timeout_seconds", "connection_timeout_seconds", "max_result_rows", "max_result_bytes",
+)
+
+
 class DataSourceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=2_000)
+    engine: Literal["postgresql"] = "postgresql"
+    environment: Literal["development", "staging", "production"] = "development"
     host: str = Field(min_length=1, max_length=255)
     port: int = Field(default=5432, ge=1, le=65_535)
     database: str = Field(min_length=1, max_length=128)
@@ -26,14 +35,66 @@ class DataSourceCreateRequest(BaseModel):
     ssl_mode: Literal["require", "verify-ca", "verify-full"] = "require"
     allowed_schemas: list[str] = Field(min_length=1, max_length=20)
     statement_timeout_seconds: float = Field(default=15, gt=0, le=120)
+    connection_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    source_timezone: str | None = Field(default=None, max_length=64)
     max_result_rows: int = Field(default=5_000, ge=1, le=50_000)
     max_result_bytes: int = Field(default=1_000_000, ge=1_024)
+
+
+class DataSourceUpdateRequest(BaseModel):
+    """Edit non-secret configuration. Never carries a password -- see
+    ``DataSourceReplaceCredentialsRequest`` for that.
+
+    ``name``/``description``/``environment`` may each be changed
+    independently. The connection-detail fields (host, port, ...) form one
+    unit: to change any of them, all must be supplied together, since they
+    replace the stored configuration as a whole rather than patching one
+    field in place.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=2_000)
+    environment: Literal["development", "staging", "production"] | None = None
+    host: str | None = Field(default=None, min_length=1, max_length=255)
+    port: int | None = Field(default=None, ge=1, le=65_535)
+    database: str | None = Field(default=None, min_length=1, max_length=128)
+    username: str | None = Field(default=None, min_length=1, max_length=128)
+    ssl_mode: Literal["require", "verify-ca", "verify-full"] | None = None
+    allowed_schemas: list[str] | None = Field(default=None, min_length=1, max_length=20)
+    statement_timeout_seconds: float | None = Field(default=None, gt=0, le=120)
+    connection_timeout_seconds: float | None = Field(default=None, gt=0, le=60)
+    source_timezone: str | None = Field(default=None, max_length=64)
+    max_result_rows: int | None = Field(default=None, ge=1, le=50_000)
+    max_result_bytes: int | None = Field(default=None, ge=1_024)
+
+    @model_validator(mode="after")
+    def _connection_fields_are_all_or_nothing(self) -> DataSourceUpdateRequest:
+        present = [field for field in _CONFIG_FIELDS if getattr(self, field) is not None]
+        if present and len(present) != len(_CONFIG_FIELDS):
+            missing = sorted(set(_CONFIG_FIELDS) - set(present))
+            raise ValueError(f"To change connection details, also supply: {', '.join(missing)}.")
+        return self
+
+    @property
+    def has_connection_changes(self) -> bool:
+        return self.host is not None
+
+
+class DataSourceReplaceCredentialsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1, max_length=1_000)
 
 
 class DataSourceResponse(BaseModel):
     id: str
     workspace_id: UUID
     name: str
+    description: str | None
+    engine: str
+    environment: str
     host: str
     port: int
     database: str
@@ -41,13 +102,20 @@ class DataSourceResponse(BaseModel):
     ssl_mode: str
     allowed_schemas: list[str]
     statement_timeout_seconds: float
+    connection_timeout_seconds: float
+    source_timezone: str | None
     max_result_rows: int
     max_result_bytes: int
     status: str
     health_status: str
     last_connection_at: datetime | None
     last_connection_error: str | None
+    last_error_category: str | None
+    last_successful_connection_at: datetime | None
     last_profiled_at: datetime | None
+    created_by: str | None
+    version: int
+    deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -62,7 +130,12 @@ class DataSourceListResponse(BaseModel):
 class ConnectionTestResponse(BaseModel):
     success: bool
     message: str
+    error_category: str | None
     server_version: str | None
+    ssl_active: bool | None
+    accessible_schemas: list[str]
+    latency_ms: float | None
+    tested_at: datetime
 
 
 class ReadOnlyVerificationResponse(BaseModel):

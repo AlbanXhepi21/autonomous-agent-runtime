@@ -1583,6 +1583,35 @@
       },
       "ConnectionTestResponse": {
         "properties": {
+          "accessible_schemas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accessible Schemas",
+            "type": "array"
+          },
+          "error_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Category"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
           "message": {
             "title": "Message",
             "type": "string"
@@ -1598,15 +1627,36 @@
             ],
             "title": "Server Version"
           },
+          "ssl_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssl Active"
+          },
           "success": {
             "title": "Success",
             "type": "boolean"
+          },
+          "tested_at": {
+            "format": "date-time",
+            "title": "Tested At",
+            "type": "string"
           }
         },
         "required": [
           "success",
           "message",
-          "server_version"
+          "error_category",
+          "server_version",
+          "ssl_active",
+          "accessible_schemas",
+          "latency_ms",
+          "tested_at"
         ],
         "title": "ConnectionTestResponse",
         "type": "object"
@@ -1889,10 +1939,45 @@
             "title": "Allowed Schemas",
             "type": "array"
           },
+          "connection_timeout_seconds": {
+            "default": 10,
+            "exclusiveMinimum": 0.0,
+            "maximum": 60.0,
+            "title": "Connection Timeout Seconds",
+            "type": "number"
+          },
           "database": {
             "maxLength": 128,
             "minLength": 1,
             "title": "Database",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "engine": {
+            "const": "postgresql",
+            "default": "postgresql",
+            "title": "Engine",
+            "type": "string"
+          },
+          "environment": {
+            "default": "development",
+            "enum": [
+              "development",
+              "staging",
+              "production"
+            ],
+            "title": "Environment",
             "type": "string"
           },
           "host": {
@@ -1932,6 +2017,18 @@
             "minimum": 1.0,
             "title": "Port",
             "type": "integer"
+          },
+          "source_timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Timezone"
           },
           "ssl_mode": {
             "default": "require",
@@ -1999,6 +2096,22 @@
         "title": "DataSourceListResponse",
         "type": "object"
       },
+      "DataSourceReplaceCredentialsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "DataSourceReplaceCredentialsRequest",
+        "type": "object"
+      },
       "DataSourceResponse": {
         "properties": {
           "allowed_schemas": {
@@ -2008,13 +2121,59 @@
             "title": "Allowed Schemas",
             "type": "array"
           },
+          "connection_timeout_seconds": {
+            "title": "Connection Timeout Seconds",
+            "type": "number"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
           "database": {
             "title": "Database",
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
             "type": "string"
           },
           "health_status": {
@@ -2052,6 +2211,17 @@
             ],
             "title": "Last Connection Error"
           },
+          "last_error_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Category"
+          },
           "last_profiled_at": {
             "anyOf": [
               {
@@ -2063,6 +2233,18 @@
               }
             ],
             "title": "Last Profiled At"
+          },
+          "last_successful_connection_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Connection At"
           },
           "max_result_bytes": {
             "title": "Max Result Bytes",
@@ -2079,6 +2261,17 @@
           "port": {
             "title": "Port",
             "type": "integer"
+          },
+          "source_timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Timezone"
           },
           "ssl_mode": {
             "title": "Ssl Mode",
@@ -2101,6 +2294,10 @@
             "title": "Username",
             "type": "string"
           },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
           "workspace_id": {
             "format": "uuid",
             "title": "Workspace Id",
@@ -2111,6 +2308,9 @@
           "id",
           "workspace_id",
           "name",
+          "description",
+          "engine",
+          "environment",
           "host",
           "port",
           "database",
@@ -2118,17 +2318,220 @@
           "ssl_mode",
           "allowed_schemas",
           "statement_timeout_seconds",
+          "connection_timeout_seconds",
+          "source_timezone",
           "max_result_rows",
           "max_result_bytes",
           "status",
           "health_status",
           "last_connection_at",
           "last_connection_error",
+          "last_error_category",
+          "last_successful_connection_at",
           "last_profiled_at",
+          "created_by",
+          "version",
+          "deleted_at",
           "created_at",
           "updated_at"
         ],
         "title": "DataSourceResponse",
+        "type": "object"
+      },
+      "DataSourceUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Edit non-secret configuration. Never carries a password -- see\n``DataSourceReplaceCredentialsRequest`` for that.\n\n``name``/``description``/``environment`` may each be changed\nindependently. The connection-detail fields (host, port, ...) form one\nunit: to change any of them, all must be supplied together, since they\nreplace the stored configuration as a whole rather than patching one\nfield in place.",
+        "properties": {
+          "allowed_schemas": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Schemas"
+          },
+          "connection_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 60.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Timeout Seconds"
+          },
+          "database": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "development",
+                  "staging",
+                  "production"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "max_result_bytes": {
+            "anyOf": [
+              {
+                "minimum": 1024.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Result Bytes"
+          },
+          "max_result_rows": {
+            "anyOf": [
+              {
+                "maximum": 50000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Result Rows"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "maximum": 65535.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "source_timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Timezone"
+          },
+          "ssl_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "require",
+                  "verify-ca",
+                  "verify-full"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssl Mode"
+          },
+          "statement_timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 120.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Timeout Seconds"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "title": "DataSourceUpdateRequest",
         "type": "object"
       },
       "DatabaseColumn": {
@@ -3471,17 +3874,24 @@
         "description": "What a caller may choose when publishing. Never what a report says.\n\nRejecting unknown fields rather than ignoring them is the point: a request\ncarrying a figure would otherwise look accepted, and a caller could believe\nit had put a number into a report. Every value in a published document comes\nfrom a query the run executed.",
         "properties": {
           "formats": {
-            "items": {
-              "enum": [
-                "pdf",
-                "docx"
-              ],
-              "type": "string"
-            },
-            "maxItems": 2,
-            "minItems": 1,
-            "title": "Formats",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "pdf",
+                    "docx"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 2,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formats"
           },
           "metrics": {
             "items": {
@@ -3520,10 +3930,17 @@
             "title": "Period"
           },
           "template": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Template",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
           },
           "title": {
             "anyOf": [
@@ -3538,10 +3955,6 @@
             "title": "Title"
           }
         },
-        "required": [
-          "template",
-          "formats"
-        ],
         "title": "PublishReportRequest",
         "type": "object"
       },
@@ -4216,10 +4629,17 @@
             "title": "Period"
           },
           "template": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Template",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
           },
           "title": {
             "anyOf": [
@@ -4234,9 +4654,6 @@
             "title": "Title"
           }
         },
-        "required": [
-          "template"
-        ],
         "title": "ReportPreviewRequest",
         "type": "object"
       },
@@ -9554,7 +9971,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/analytics/runs/{run_id}/reports": {
       "post": {
-        "description": "Assemble a completed run into documents. This never calls the model.",
+        "description": "Assemble a completed run into documents. This never calls the model.\n\nA caller-supplied ``template``/``formats`` always wins; otherwise this\nfalls back to the workspace's own report-preferences default, then a\nsystem default -- never to the requesting user's personal settings, so a\npublished organization report cannot silently vary by who clicked\npublish.",
         "operationId": "publish_report_api_v1_workspaces__workspace_id__analytics_runs__run_id__reports_post",
         "parameters": [
           {
@@ -10267,6 +10684,58 @@
       }
     },
     "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}": {
+      "delete": {
+        "description": "Soft-delete: every other route treats this connection as gone from now on.",
+        "operationId": "delete_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Data Source",
+        "tags": [
+          "datasources"
+        ]
+      },
       "get": {
         "operationId": "get_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__get",
         "parameters": [
@@ -10314,6 +10783,68 @@
           }
         },
         "summary": "Get Data Source",
+        "tags": [
+          "datasources"
+        ]
+      },
+      "patch": {
+        "description": "Edit non-secret configuration. Use ``/replace-credentials`` to change the password.",
+        "operationId": "update_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataSourceUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Data Source",
         "tags": [
           "datasources"
         ]
@@ -10367,6 +10898,112 @@
           }
         },
         "summary": "Activate Data Source",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/disable": {
+      "post": {
+        "operationId": "disable_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Data Source",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/enable": {
+      "post": {
+        "operationId": "enable_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Data Source",
         "tags": [
           "datasources"
         ]
@@ -10615,6 +11252,70 @@
           }
         },
         "summary": "Set Data Source Relationship Approval",
+        "tags": [
+          "datasources"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/replace-credentials": {
+      "post": {
+        "description": "Replace the stored password. The previous one is never returned or logged.",
+        "operationId": "replace_data_source_credentials_api_v1_workspaces__workspace_id__datasources__data_source_id__replace_credentials_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "data_source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Data Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataSourceReplaceCredentialsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Data Source Credentials",
         "tags": [
           "datasources"
         ]

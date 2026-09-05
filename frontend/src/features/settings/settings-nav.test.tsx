@@ -2,22 +2,20 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsNav } from "./settings-nav";
 
-let pathname = "/w/ws-1/settings/profile";
+let pathname = "/w/ws-1/settings/organization";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
 describe("SettingsNav", () => {
-  it("links to every settings section under the current workspace", () => {
+  it("links to every organization settings section under the current workspace", () => {
     render(<SettingsNav workspaceId="ws-1" />);
 
     const nav = screen.getByRole("navigation", { name: "Settings" });
     const labels = [
-      "Profile",
-      "Security",
-      "Organization",
+      "General",
       "Members",
+      "Data Sources",
       "Regional & data",
       "Report preferences",
-      "Appearance",
       "Danger zone",
     ];
     for (const label of labels) {
@@ -27,11 +25,19 @@ describe("SettingsNav", () => {
     }
   });
 
-  it("marks the current section as the active page for assistive tech", () => {
-    pathname = "/w/ws-1/settings/security";
+  it("never links to the personal settings area -- that lives outside any workspace", () => {
     render(<SettingsNav workspaceId="ws-1" />);
 
-    expect(screen.getByRole("link", { name: "Security" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
+    for (const label of ["Profile", "Security", "Appearance"]) {
+      expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it("marks the current section as the active page for assistive tech", () => {
+    pathname = "/w/ws-1/settings/members";
+    render(<SettingsNav workspaceId="ws-1" />);
+
+    expect(screen.getByRole("link", { name: "Members" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "General" })).not.toHaveAttribute("aria-current");
   });
 });

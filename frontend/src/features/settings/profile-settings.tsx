@@ -2,15 +2,13 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { FormBanner, FormField } from "@/components/ui/form-field";
-import { useSettings } from "@/features/settings/settings-context";
 import { artifactsApi } from "@/lib/api/artifacts";
 import { ApiError } from "@/lib/api/client";
 import { usersApi } from "@/lib/api/users";
 import { workspacesApi } from "@/lib/api/workspaces";
 import type { UserSettings } from "@/types/api";
 
-export function ProfileSettings() {
-  const { workspaceId } = useSettings();
+export function ProfileSettings({ uploadWorkspaceId }: { uploadWorkspaceId: string | null }) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -56,7 +54,7 @@ export function ProfileSettings() {
         <h2>Profile</h2>
         <p>Your name and how the app is presented to you personally.</p>
       </div>
-      <ProfileImageCard settings={settings} workspaceId={workspaceId} onChange={setSettings} />
+      <ProfileImageCard settings={settings} uploadWorkspaceId={uploadWorkspaceId} onChange={setSettings} />
       <ProfileDetailsCard settings={settings} onChange={setSettings} />
       <EmailChangeCard settings={settings} onChange={setSettings} />
     </div>
@@ -65,11 +63,11 @@ export function ProfileSettings() {
 
 function ProfileImageCard({
   settings,
-  workspaceId,
+  uploadWorkspaceId,
   onChange,
 }: {
   settings: UserSettings;
-  workspaceId: string;
+  uploadWorkspaceId: string | null;
   onChange: (settings: UserSettings) => void;
 }) {
   const [uploading, setUploading] = useState(false);
@@ -79,11 +77,11 @@ function ProfileImageCard({
   const onSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || !uploadWorkspaceId) return;
     setError(null);
     setUploading(true);
     try {
-      const updated = await workspacesApi.setProfileImage(workspaceId, file);
+      const updated = await workspacesApi.setProfileImage(uploadWorkspaceId, file);
       onChange(updated);
     } catch (uploadError) {
       setError(
@@ -125,7 +123,8 @@ function ProfileImageCard({
               type="button"
               className="btn btn-secondary btn-small"
               onClick={() => inputRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || !uploadWorkspaceId}
+              title={uploadWorkspaceId ? undefined : "Join or create an organization first."}
             >
               {uploading ? "Uploading…" : "Change image"}
             </button>
@@ -135,11 +134,17 @@ function ProfileImageCard({
               accept="image/png,image/jpeg,image/webp,image/gif"
               onChange={onSelect}
               hidden
+              disabled={!uploadWorkspaceId}
               aria-label="Upload profile image"
             />
           </div>
         </div>
       </div>
+      {!uploadWorkspaceId ? (
+        <p className="settings-section-desc" style={{ margin: "8px 0 0" }}>
+          Join or create an organization to add a profile image.
+        </p>
+      ) : null}
       {error ? (
         <p className="form-banner error" role="alert">
           {error}

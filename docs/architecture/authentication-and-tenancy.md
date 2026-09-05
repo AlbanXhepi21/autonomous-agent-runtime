@@ -84,7 +84,7 @@ links a user to a workspace with one of four roles:
 | Role | Permissions |
 |---|---|
 | `OWNER` | Everything, including transferring ownership and deactivating the workspace |
-| `ADMIN` | Read, run analyses, publish reports, manage data sources, manage members, update workspace settings — **not** ownership transfer or deactivation |
+| `ADMIN` | Read, run analyses, publish reports, manage data sources (create/edit/test/replace credentials/enable/disable), manage members, update workspace settings — **not** ownership transfer, deactivation, or deleting a data source |
 | `ANALYST` | Read, run analyses, publish reports |
 | `VIEWER` | Read only |
 

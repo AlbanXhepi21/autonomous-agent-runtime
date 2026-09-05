@@ -19,10 +19,16 @@ custom `EventSource`-based hook for streaming run progress.
   (`GET /api/v1/auth/me`), not just a cookie-presence check.
   - `(app)/page.tsx` — post-login tenant resolution (see below).
   - `(app)/organizations/new/` — create-workspace form.
+  - `(app)/settings/` — **personal** account settings (`profile`, `security`, `appearance`),
+    deliberately outside `(app)/w/[workspaceId]/`: none of these vary by, or reset on, an
+    organization switch, so the route itself carries no `workspaceId`. See
+    `PersonalSettingsShell` (`frontend/src/features/settings/personal-settings-shell.tsx`).
   - `(app)/w/[workspaceId]/` — the per-workspace shell (topbar, tenant selector) and, at
-    its index, the Workbench itself. Everything under `settings/` (profile, organization,
-    members, security, appearance, regional, danger zone, report preferences) lives here
-    too.
+    its index, the Workbench itself. `settings/` here is **organization** settings only
+    (`organization`, `members`, `regional`, `reports`, `danger`) — see `SettingsShell`
+    (`frontend/src/features/settings/settings-shell.tsx`). The three former
+    `w/[workspaceId]/settings/{profile,security,appearance}` routes now redirect to their
+    `(app)/settings/*` equivalent for old links/bookmarks.
 
 `frontend/src/proxy.ts` is Next.js 16's renamed `middleware.ts` — confirmed by
 [`frontend/AGENTS.md`](../../frontend/AGENTS.md), which exists specifically to warn that

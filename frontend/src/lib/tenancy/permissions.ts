@@ -43,6 +43,19 @@ export function canDeactivateOrganization(role: Role): boolean {
   return role === "owner";
 }
 
+/** Mirrors `Permission.MANAGE_DATA_SOURCES`: create, edit, test, replace
+ * credentials, enable, disable. */
+export function canManageDataSources(role: Role): boolean {
+  return role === "owner" || role === "admin";
+}
+
+/** Mirrors `Permission.DELETE_DATA_SOURCES`, deliberately owner-only -- see
+ * `app.tenancy.permissions` for why deletion sits apart from the general
+ * data-source management permission. */
+export function canDeleteDataSources(role: Role): boolean {
+  return role === "owner";
+}
+
 export const ASSIGNABLE_ROLES: Role[] = ["viewer", "analyst", "admin", "owner"];
 
 export const ROLE_LABELS: Record<Role, string> = {

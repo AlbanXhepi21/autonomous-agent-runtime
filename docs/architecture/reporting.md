@@ -111,6 +111,37 @@ grain produces new figures without another agent turn. This is structurally enfo
 just documented: contract tests walk the actual import graph of both the rerun/execution
 code and the publishing code and assert neither can reach `app.llm` at all.
 
+## Report-defaults precedence
+
+`ReportPreferences` (`backend/app/tenancy/contracts.py`, one row per workspace) holds a
+workspace's own presentation defaults — `default_template`, `default_output_format`,
+`default_theme`, `default_narrative_policy`, and the two appendix flags. Resolving what a
+publish actually uses follows one precedence, applied in
+`app.api.routes.analytics._resolve_template`/`_resolve_formats`:
+
+```text
+explicit request parameter → workspace's own ReportPreferences → system default
+```
+
+`template` has no system default — a request that omits it and whose workspace has no
+`default_template` either is refused with `422 {"code": "template_required", ...}` rather
+than guessing. `formats` falls back to `["pdf"]` when neither is set. `default_template` is
+validated against the live `ReportTemplateRegistry` when it's set (an unknown template id is
+rejected at `PATCH .../report-preferences` time, not discovered later at publish time).
+`default_theme` and `technical_sql_appendix_enabled` are stored but not yet consulted by any
+renderer — see [Known limitations](#known-limitations).
+
+This resolution never reads the requesting *user's* personal preferences (`preferred_timezone`
+etc. on `User`) — only the request itself and the target workspace's own settings, so who
+happens to click "publish" cannot change what an organization's report contains. The
+workspace's `default_locale`/`default_timezone`/`default_currency` (`Workspace`, not
+`ReportPreferences`) are resolved the same way — workspace setting only, no request-level
+override exists yet — and stamped into the published artifact's `metadata` as
+`resolved_locale`/`resolved_timezone`/`resolved_currency`, so the document stays
+reproducible even after the workspace's settings change later. A `ReportPreferences` or
+`Workspace` update never rewrites a `metadata` value already stamped onto a previously
+published artifact.
+
 ## Artifact lifecycle
 
 Every artifact (a chart image, a published PDF/DOCX, a CSV extract) has exactly one of
@@ -145,3 +176,8 @@ one case that is explicitly diffed across both formats).
   not independently verified by a full output-diffing test.
 - Semantic metrics — and therefore parameterized reruns — are not available against
   workspace-connected data sources today; both operate against the fixed demo schema.
+- `ReportPreferences.default_theme` and `technical_sql_appendix_enabled` are stored and
+  validated but not yet consulted by any renderer: no request parameter selects a theme
+  today (a template's `theme` is fixed on the template itself), and no current template
+  prints a SQL appendix. `default_template`/`default_output_format` are the two preferences
+  actually applied — see [Report-defaults precedence](#report-defaults-precedence).

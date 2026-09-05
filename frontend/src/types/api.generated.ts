@@ -574,6 +574,12 @@ export interface paths {
         /**
          * Publish Report
          * @description Assemble a completed run into documents. This never calls the model.
+         *
+         *     A caller-supplied ``template``/``formats`` always wins; otherwise this
+         *     falls back to the workspace's own report-preferences default, then a
+         *     system default -- never to the requesting user's personal settings, so a
+         *     published organization report cannot silently vary by who clicked
+         *     publish.
          */
         post: operations["publish_report_api_v1_workspaces__workspace_id__analytics_runs__run_id__reports_post"];
         delete?: never;
@@ -720,10 +726,18 @@ export interface paths {
         get: operations["get_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Data Source
+         * @description Soft-delete: every other route treats this connection as gone from now on.
+         */
+        delete: operations["delete_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Data Source
+         * @description Edit non-secret configuration. Use ``/replace-credentials`` to change the password.
+         */
+        patch: operations["update_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__patch"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/activate": {
@@ -737,6 +751,40 @@ export interface paths {
         put?: never;
         /** Activate Data Source */
         post: operations["activate_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable Data Source */
+        post: operations["disable_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable Data Source */
+        post: operations["enable_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__enable_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -805,6 +853,26 @@ export interface paths {
         put?: never;
         /** Set Data Source Relationship Approval */
         post: operations["set_data_source_relationship_approval_api_v1_workspaces__workspace_id__datasources__data_source_id__relationships__relationship_id__approval_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/datasources/{data_source_id}/replace-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Data Source Credentials
+         * @description Replace the stored password. The previous one is never returned or logged.
+         */
+        post: operations["replace_data_source_credentials_api_v1_workspaces__workspace_id__datasources__data_source_id__replace_credentials_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1951,12 +2019,25 @@ export interface components {
         };
         /** ConnectionTestResponse */
         ConnectionTestResponse: {
+            /** Accessible Schemas */
+            accessible_schemas: string[];
+            /** Error Category */
+            error_category: string | null;
+            /** Latency Ms */
+            latency_ms: number | null;
             /** Message */
             message: string;
             /** Server Version */
             server_version: string | null;
+            /** Ssl Active */
+            ssl_active: boolean | null;
             /** Success */
             success: boolean;
+            /**
+             * Tested At
+             * Format: date-time
+             */
+            tested_at: string;
         };
         /** ConversationCreateRequest */
         ConversationCreateRequest: {
@@ -2073,8 +2154,27 @@ export interface components {
         DataSourceCreateRequest: {
             /** Allowed Schemas */
             allowed_schemas: string[];
+            /**
+             * Connection Timeout Seconds
+             * @default 10
+             */
+            connection_timeout_seconds: number;
             /** Database */
             database: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Engine
+             * @default postgresql
+             * @constant
+             */
+            engine: "postgresql";
+            /**
+             * Environment
+             * @default development
+             * @enum {string}
+             */
+            environment: "development" | "staging" | "production";
             /** Host */
             host: string;
             /**
@@ -2096,6 +2196,8 @@ export interface components {
              * @default 5432
              */
             port: number;
+            /** Source Timezone */
+            source_timezone?: string | null;
             /**
              * Ssl Mode
              * @default require
@@ -2121,17 +2223,34 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** DataSourceReplaceCredentialsRequest */
+        DataSourceReplaceCredentialsRequest: {
+            /** Password */
+            password: string;
+        };
         /** DataSourceResponse */
         DataSourceResponse: {
             /** Allowed Schemas */
             allowed_schemas: string[];
+            /** Connection Timeout Seconds */
+            connection_timeout_seconds: number;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Created By */
+            created_by: string | null;
             /** Database */
             database: string;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Description */
+            description: string | null;
+            /** Engine */
+            engine: string;
+            /** Environment */
+            environment: string;
             /** Health Status */
             health_status: string;
             /** Host */
@@ -2142,8 +2261,12 @@ export interface components {
             last_connection_at: string | null;
             /** Last Connection Error */
             last_connection_error: string | null;
+            /** Last Error Category */
+            last_error_category: string | null;
             /** Last Profiled At */
             last_profiled_at: string | null;
+            /** Last Successful Connection At */
+            last_successful_connection_at: string | null;
             /** Max Result Bytes */
             max_result_bytes: number;
             /** Max Result Rows */
@@ -2152,6 +2275,8 @@ export interface components {
             name: string;
             /** Port */
             port: number;
+            /** Source Timezone */
+            source_timezone: string | null;
             /** Ssl Mode */
             ssl_mode: string;
             /** Statement Timeout Seconds */
@@ -2165,11 +2290,54 @@ export interface components {
             updated_at: string;
             /** Username */
             username: string;
+            /** Version */
+            version: number;
             /**
              * Workspace Id
              * Format: uuid
              */
             workspace_id: string;
+        };
+        /**
+         * DataSourceUpdateRequest
+         * @description Edit non-secret configuration. Never carries a password -- see
+         *     ``DataSourceReplaceCredentialsRequest`` for that.
+         *
+         *     ``name``/``description``/``environment`` may each be changed
+         *     independently. The connection-detail fields (host, port, ...) form one
+         *     unit: to change any of them, all must be supplied together, since they
+         *     replace the stored configuration as a whole rather than patching one
+         *     field in place.
+         */
+        DataSourceUpdateRequest: {
+            /** Allowed Schemas */
+            allowed_schemas?: string[] | null;
+            /** Connection Timeout Seconds */
+            connection_timeout_seconds?: number | null;
+            /** Database */
+            database?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Environment */
+            environment?: ("development" | "staging" | "production") | null;
+            /** Host */
+            host?: string | null;
+            /** Max Result Bytes */
+            max_result_bytes?: number | null;
+            /** Max Result Rows */
+            max_result_rows?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Port */
+            port?: number | null;
+            /** Source Timezone */
+            source_timezone?: string | null;
+            /** Ssl Mode */
+            ssl_mode?: ("require" | "verify-ca" | "verify-full") | null;
+            /** Statement Timeout Seconds */
+            statement_timeout_seconds?: number | null;
+            /** Username */
+            username?: string | null;
         };
         /** DatabaseColumn */
         DatabaseColumn: {
@@ -2690,7 +2858,7 @@ export interface components {
          */
         PublishReportRequest: {
             /** Formats */
-            formats: ("pdf" | "docx")[];
+            formats?: ("pdf" | "docx")[] | null;
             /** Metrics */
             metrics?: components["schemas"]["MetricParameters"][];
             /** Narrative */
@@ -2698,7 +2866,7 @@ export interface components {
             /** Period */
             period?: string | null;
             /** Template */
-            template: string;
+            template?: string | null;
             /** Title */
             title?: string | null;
         };
@@ -2942,7 +3110,7 @@ export interface components {
             /** Period */
             period?: string | null;
             /** Template */
-            template: string;
+            template?: string | null;
             /** Title */
             title?: string | null;
         };
@@ -5971,7 +6139,139 @@ export interface operations {
             };
         };
     };
+    delete_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                data_source_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                data_source_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataSourceUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     activate_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                data_source_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                data_source_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_data_source_api_v1_workspaces__workspace_id__datasources__data_source_id__enable_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6125,6 +6425,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationshipResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_data_source_credentials_api_v1_workspaces__workspace_id__datasources__data_source_id__replace_credentials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                data_source_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataSourceReplaceCredentialsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
                 };
             };
             /** @description Validation Error */

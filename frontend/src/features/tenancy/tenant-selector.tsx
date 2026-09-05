@@ -4,11 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api/auth";
-import { membershipsApi, workspacesApi } from "@/lib/api/workspaces";
+import { workspacesApi } from "@/lib/api/workspaces";
 import { rememberWorkspaceId } from "@/lib/auth/last-workspace";
 import type { Workspace } from "@/types/api";
-
-const SETTINGS_ROLES = new Set(["owner", "admin"]);
 
 export function TenantSelector({
   workspaceId,
@@ -26,7 +24,6 @@ export function TenantSelector({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
-  const [canManageSettings, setCanManageSettings] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -36,14 +33,10 @@ export function TenantSelector({
     void workspacesApi.list().then((result) => {
       if (!cancelled) setWorkspaces(result.items);
     });
-    void membershipsApi.list(workspaceId).then((result) => {
-      const self = result.items.find((membership) => membership.user_id === userId);
-      if (!cancelled && self) setCanManageSettings(SETTINGS_ROLES.has(self.role));
-    });
     return () => {
       cancelled = true;
     };
-  }, [open, workspaceId, userId]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,16 +130,24 @@ export function TenantSelector({
             >
               Create organization
             </Link>
-            {canManageSettings ? (
-              <Link
-                className="tenant-selector-option"
-                role="menuitem"
-                href={`/w/${workspaceId}/settings`}
-                onClick={() => setOpen(false)}
-              >
-                Organization settings
-              </Link>
-            ) : null}
+          </div>
+          <div className="tenant-selector-section">
+            <Link
+              className="tenant-selector-option"
+              role="menuitem"
+              href="/settings/profile"
+              onClick={() => setOpen(false)}
+            >
+              User settings
+            </Link>
+            <Link
+              className="tenant-selector-option"
+              role="menuitem"
+              href={`/w/${workspaceId}/settings`}
+              onClick={() => setOpen(false)}
+            >
+              Organization settings
+            </Link>
           </div>
           <div className="tenant-selector-section">
             <button

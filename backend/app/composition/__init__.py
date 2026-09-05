@@ -22,6 +22,7 @@ from app.composition.providers.artifacts import get_artifact_store, get_retentio
 from app.composition.providers.audit import get_audit_log_store
 from app.composition.providers.datasources import (
     get_data_source_onboarding_service,
+    get_data_source_runtime_pool,
     get_data_source_store,
     get_secret_cipher,
 )
@@ -106,6 +107,7 @@ __all__ = [
     "get_conversation_store",
     "get_credential_provider",
     "get_data_source_onboarding_service",
+    "get_data_source_runtime_pool",
     "get_data_source_store",
     "get_delivery_providers",
     "get_delivery_service",

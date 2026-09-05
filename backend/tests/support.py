@@ -9,9 +9,9 @@ one place rather than at every construction site.
 """
 
 import uuid
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from collections.abc import Iterable
 from typing import Any
 from uuid import UUID
 
@@ -21,8 +21,8 @@ from app.identity.contracts import User
 from app.llm.contracts import LLMClient
 from app.runtime.runner import AgentRunner
 from app.skills.registry import SkillRegistry
-from app.tenancy.contracts import Membership, MembershipStatus, Role, Workspace
 from app.tenancy.context import TenantContext
+from app.tenancy.contracts import Membership, MembershipStatus, Role, Workspace
 from app.tenancy.permissions import ROLE_PERMISSIONS
 from app.tools.registry import ToolRegistry
 
@@ -79,10 +79,15 @@ def make_runner(
     )
 
 
-def make_tenant_context(*, workspace_id: uuid.UUID | None = None, role: Role = Role.OWNER) -> TenantContext:
+def make_tenant_context(
+    *, workspace_id: uuid.UUID | None = None, role: Role = Role.OWNER,
+    default_timezone: str = "UTC", default_locale: str = "en-US", default_currency: str = "USD",
+) -> TenantContext:
     """Build a self-consistent ``TenantContext`` for tests that call a route
 
     function directly rather than through an authenticated ``TestClient``.
+    The ``default_*`` overrides let a test simulate two workspaces with
+    different regional settings sharing the same backing fakes.
     """
 
     now = datetime.now(timezone.utc)
@@ -95,7 +100,7 @@ def make_tenant_context(*, workspace_id: uuid.UUID | None = None, role: Role = R
         ),
         workspace=Workspace(
             id=workspace_id, name="Test Workspace", slug=f"test-{workspace_id}", is_active=True,
-            default_timezone="UTC", default_locale="en-US", default_currency="USD",
+            default_timezone=default_timezone, default_locale=default_locale, default_currency=default_currency,
             created_at=now, updated_at=now,
         ),
         membership=Membership(
@@ -109,6 +114,7 @@ def make_tenant_context(*, workspace_id: uuid.UUID | None = None, role: Role = R
 
 def override_tenant_context(
     app: Any, *, workspace_id: uuid.UUID | None = None, role: Role = Role.OWNER,
+    default_timezone: str = "UTC", default_locale: str = "en-US", default_currency: str = "USD",
 ) -> TenantContext:
     """Make ``app`` (a FastAPI instance) resolve every tenant-scoped route to
     one fixed, fully-permissioned ``TenantContext``, bypassing real cookie
@@ -127,7 +133,10 @@ def override_tenant_context(
 
     from app.api.dependencies import get_tenant_context, require_csrf
 
-    context = make_tenant_context(workspace_id=workspace_id, role=role)
+    context = make_tenant_context(
+        workspace_id=workspace_id, role=role, default_timezone=default_timezone,
+        default_locale=default_locale, default_currency=default_currency,
+    )
     app.dependency_overrides[get_tenant_context] = lambda: context
     app.dependency_overrides[require_csrf] = lambda: None
     return context

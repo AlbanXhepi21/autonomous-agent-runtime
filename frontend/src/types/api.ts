@@ -33,7 +33,7 @@ export type ReportTemplate = Always<Schemas["ReportTemplateResponse"]>;
 export type PublishReportRequest = Schemas["PublishReportRequest"];
 export type PublishedDocument = Always<Schemas["PublishedDocumentResponse"]>;
 export type PublishReportResponse = Always<Schemas["PublishReportResponse"]>;
-export type DocumentFormat = PublishReportRequest["formats"][number];
+export type DocumentFormat = NonNullable<PublishReportRequest["formats"]>[number];
 export type RerunMetric = Always<Schemas["MetricSummaryResponse"]>;
 export type MetricParameters = Schemas["MetricParameters"];
 export type MetricFilter = Schemas["MetricFilter"];
@@ -136,6 +136,21 @@ export type NarrativePolicyDefault = NonNullable<ReportPreferences["default_narr
 
 export type AuditLogEntry = Always<Schemas["AuditLogEntryResponse"]>;
 export type AuditLogList = Always<Schemas["AuditLogListResponse"]>;
+
+// -- data sources -----------------------------------------------------------
+
+/** The backend's response schema declares these as plain `string`, not an
+ * enum -- see `app.datasources.contracts` for the authoritative literals.
+ * Frontend code narrows defensively rather than trusting the wire type. */
+export type DataSource = Always<Schemas["DataSourceResponse"]>;
+export type DataSourceList = Always<Schemas["DataSourceListResponse"]>;
+export type DataSourceCreateRequest = Schemas["DataSourceCreateRequest"];
+export type DataSourceUpdateRequest = Schemas["DataSourceUpdateRequest"];
+export type DataSourceReplaceCredentialsRequest = Schemas["DataSourceReplaceCredentialsRequest"];
+export type DataSourceEnvironment = DataSourceCreateRequest["environment"];
+export type DataSourceSslMode = DataSourceCreateRequest["ssl_mode"];
+export type ConnectionTestResult = Always<Schemas["ConnectionTestResponse"]>;
+export type ReadOnlyVerification = Always<Schemas["ReadOnlyVerificationResponse"]>;
 
 // -- user settings --------------------------------------------------------------
 

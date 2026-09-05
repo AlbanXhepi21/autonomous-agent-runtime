@@ -16,6 +16,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
+from app.analytics.presentation.templates import ReportTemplateError, ReportTemplateRegistry
 from app.api.dependencies import get_current_user, get_tenant_context, require_csrf, require_permission
 from app.api.schemas.auth import MessageResponse
 from app.api.schemas.tenancy import (
@@ -42,9 +43,11 @@ from app.composition import (
     get_artifact_store,
     get_auth_service,
     get_membership_store,
+    get_report_template_registry,
     get_tenancy_service,
     get_workspace_store,
 )
+
 # Aliased: this module already defines a route handler named ``get_workspace``
 # (the GET /{workspace_id} endpoint below) -- importing the composition
 # provider under its real name would silently shadow it at module scope.
@@ -343,7 +346,15 @@ async def update_report_preferences(
     workspace_id: UUID, request: ReportPreferencesUpdateRequest,
     context: TenantContext = Depends(require_permission(Permission.UPDATE_TENANT_SETTINGS)),
     service: TenancyService = Depends(get_tenancy_service),
+    templates: ReportTemplateRegistry = Depends(get_report_template_registry),
 ) -> ReportPreferencesResponse:
+    if request.default_template is not None:
+        try:
+            templates.get(request.default_template)
+        except ReportTemplateError as error:
+            raise HTTPException(
+                status_code=422, detail={"code": "unknown_template", "message": str(error)},
+            ) from error
     changes = request.model_dump(exclude_unset=True, exclude={"expected_version"})
     try:
         preferences = await service.update_report_preferences(
